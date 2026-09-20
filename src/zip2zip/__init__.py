@@ -1,5 +1,6 @@
 from .codebook import CodebookManager
 from .static_codebook import StaticCodebookManager
+from .segmenter import DynamicSegmenter, segment_tokens_with_dictionary
 from .model import Zip2ZipModel
 from .tokenizer import Zip2ZipTokenizer
 from .config import Zip2ZipConfig, CompressionConfig
@@ -19,5 +20,8 @@ __all__ = [
     "TransformerEncoderConfig",
     "CodebookManager",
     "StaticCodebookManager",
+    "DynamicSegmenter",
+    "segment_tokens_with_dictionary",
 ]
+
 

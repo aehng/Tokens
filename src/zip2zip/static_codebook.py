@@ -332,6 +332,23 @@ class StaticCodebookManager:
             max_codebook_size=self.max_codebook_size,
         )
 
+    def segment_sequence(self, token_ids: Sequence[int]) -> List[int]:
+        """Segment a sequence of base tokens using the current seeded codebook."""
+        from zip2zip.segmenter import DynamicSegmenter
+
+        segmenter = DynamicSegmenter(
+            subtokens_to_hyper=self.subtokens_to_hyper,
+            disabled_ids=self.disabled_ids,
+            max_subtokens=self.max_subtokens,
+        )
+        return segmenter.segment(token_ids)
+
+    def segment_batch(
+        self, batch_ids: Sequence[Sequence[int]]
+    ) -> List[List[int]]:
+        """Segment a batch of base token sequences using the current seeded codebook."""
+        return [self.segment_sequence(seq) for seq in batch_ids]
+
     def decode_hypertoken(self, token_id: int) -> List[int]:
         """Expand a single hypertoken into its component base tokens."""
         if token_id in self.hyper_to_subtokens:
