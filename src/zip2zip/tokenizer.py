@@ -80,18 +80,32 @@ class Zip2ZipTokenizer(PushToHubMixin):
             **kwargs,
         )
 
+        input_ids = encoding["input_ids"]
+        is_single = isinstance(input_ids, list) and (len(input_ids) == 0 or isinstance(input_ids[0], int))
+        if is_single:
+            input_ids = [input_ids]
+
         padding_mode = padding if padding else "do_not_pad"
         truncation_mode = bool(truncation)
         (
-            encoding["input_ids"],
-            encoding["attention_mask"],
+            compressed_ids,
+            compressed_mask,
             codebooks,
         ) = self.compressor.batch_encode(
-            encoding["input_ids"],
+            input_ids,
             padding=padding_mode,
             truncation=truncation_mode,
             max_length=max_length,
         )
+
+        if is_single and not return_tensors:
+            encoding["input_ids"] = compressed_ids[0]
+            encoding["attention_mask"] = compressed_mask[0]
+            if return_codebook:
+                codebooks = codebooks[0]
+        else:
+            encoding["input_ids"] = compressed_ids
+            encoding["attention_mask"] = compressed_mask
 
         if return_tensors:
             encoding = encoding.convert_to_tensors(return_tensors)

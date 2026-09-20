@@ -73,7 +73,15 @@ class StaticCodebookManager:
         self.subtokens_to_hyper.clear()
 
         if isinstance(dictionary, dict):
-            items = list(dictionary.items())
+            if not dictionary:
+                items = []
+            else:
+                first_k, first_v = next(iter(dictionary.items()))
+                if isinstance(first_k, (tuple, list)):
+                    # Dict maps subtokens -> hyper_id
+                    items = [(v, k) for k, v in dictionary.items()]
+                else:
+                    items = list(dictionary.items())
         else:
             items = list(enumerate(dictionary))
 
@@ -248,21 +256,21 @@ class StaticCodebookManager:
         batch_size = ids.shape[0]
 
         if (
-            self.hyper_embedding_weight_cache is None
-            or self.hyper_embedding_weight_cache.shape[0] != batch_size
+            self.hyper_embedding_weight_cache is not None
+            and self.hyper_embedding_weight_cache.shape[0] == batch_size
+            and self.hyper_embedding_weight_cache.device == curr_device
+            and self.hyper_embedding_weight_cache.dtype == dtype
         ):
-            self.runtime_batch_size = batch_size
-            self.hyper_embedding_weight_cache = torch.zeros(
-                batch_size,
-                self.max_codebook_size,
-                self.embedding_dim,
-                dtype=dtype,
-                device=curr_device,
-            )
-        else:
-            self.hyper_embedding_weight_cache = self.hyper_embedding_weight_cache.to(
-                curr_device
-            ).to(dtype)
+            return self.hyper_embedding_weight_cache
+
+        self.runtime_batch_size = batch_size
+        self.hyper_embedding_weight_cache = torch.zeros(
+            batch_size,
+            self.max_codebook_size,
+            self.embedding_dim,
+            dtype=dtype,
+            device=curr_device,
+        )
 
         if not self._prepared_for_embedding:
             self.prepare_input_ids(ids)
@@ -286,20 +294,20 @@ class StaticCodebookManager:
         batch_size = self.runtime_batch_size or 1
 
         if (
-            self.hyper_linear_weight_cache is None
-            or self.hyper_linear_weight_cache.shape[0] != batch_size
+            self.hyper_linear_weight_cache is not None
+            and self.hyper_linear_weight_cache.shape[0] == batch_size
+            and self.hyper_linear_weight_cache.device == curr_device
+            and self.hyper_linear_weight_cache.dtype == dtype
         ):
-            self.hyper_linear_weight_cache = torch.zeros(
-                batch_size,
-                self.max_codebook_size,
-                self.embedding_dim,
-                dtype=dtype,
-                device=curr_device,
-            )
-        else:
-            self.hyper_linear_weight_cache = self.hyper_linear_weight_cache.to(
-                curr_device
-            ).to(dtype)
+            return self.hyper_linear_weight_cache
+
+        self.hyper_linear_weight_cache = torch.zeros(
+            batch_size,
+            self.max_codebook_size,
+            self.embedding_dim,
+            dtype=dtype,
+            device=curr_device,
+        )
 
         if self.updates is not None and self.updates_indices is not None:
             self.updates = self.updates.to(curr_device)
@@ -309,6 +317,37 @@ class StaticCodebookManager:
                     self.hyper_linear_weight_cache[i, ui] = new_weights[i, : len(ui)]
 
         return self.hyper_linear_weight_cache
+
+    def attach_to_model(self, model: torch.nn.Module) -> None:
+        """Attach this static codebook manager to a Zip2ZipModel."""
+        if hasattr(model, "codebook_manager"):
+            self._previous_manager = model.codebook_manager
+            model.codebook_manager = self
+        base = getattr(model, "base_model", model)
+        if hasattr(base, "get_input_embeddings"):
+            input_emb = base.get_input_embeddings()
+            if hasattr(input_emb, "codebook_manager"):
+                input_emb.codebook_manager = self
+        if hasattr(base, "get_output_embeddings"):
+            output_emb = base.get_output_embeddings()
+            if hasattr(output_emb, "codebook_manager"):
+                output_emb.codebook_manager = self
+
+    def detach_from_model(self, model: torch.nn.Module) -> None:
+        """Detach this static codebook manager and restore the previous manager."""
+        prev = getattr(self, "_previous_manager", None)
+        if prev is not None:
+            if hasattr(model, "codebook_manager"):
+                model.codebook_manager = prev
+            base = getattr(model, "base_model", model)
+            if hasattr(base, "get_input_embeddings"):
+                input_emb = base.get_input_embeddings()
+                if hasattr(input_emb, "codebook_manager"):
+                    input_emb.codebook_manager = prev
+            if hasattr(base, "get_output_embeddings"):
+                output_emb = base.get_output_embeddings()
+                if hasattr(output_emb, "codebook_manager"):
+                    output_emb.codebook_manager = prev
 
     def mask_unused_logits(self, logits: torch.Tensor) -> torch.Tensor:
         """Mask unused hypertoken logits to -inf so they cannot be generated.

@@ -381,6 +381,14 @@ class Zip2ZipModel(PushToHubMixin, nn.Module):
         self.codebook_manager.reset()
         self.codebook_manager.init_codebooks_and_hyper_weight_cache(batch_size)
 
+        if hasattr(self.codebook_manager, "get_logits_processor"):
+            from transformers import LogitsProcessorList
+            warper = self.codebook_manager.get_logits_processor()
+            if "logits_processor" in kwargs and kwargs["logits_processor"] is not None:
+                kwargs["logits_processor"].append(warper)
+            else:
+                kwargs["logits_processor"] = LogitsProcessorList([warper])
+
         try:
             return self.base_model.generate(*args, **kwargs)
         finally:
