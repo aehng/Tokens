@@ -60,13 +60,20 @@ class AttentionEncoder(BaseEncoder[AttentionEncoderConfig]):
     def forward(
         self, codebook: torch.Tensor, embeddings: torch.Tensor, pad_token_id: int
     ) -> torch.Tensor:
-        H, S = codebook.shape
+        if codebook.ndim == 2:
+            codebook = codebook.unsqueeze(0)
+            squeeze_batch = True
+        else:
+            squeeze_batch = False
+        B, H, S = codebook.shape
+        flat_cb = codebook.view(-1, S)
 
         codebook_embeddings = F.embedding(
-            codebook, embeddings, padding_idx=pad_token_id
+            flat_cb, embeddings, padding_idx=pad_token_id
         ) + self.pos_embed(torch.arange(S, device=embeddings.device))
 
-        mask = codebook != pad_token_id
+        mask = flat_cb != pad_token_id
         mask = (mask.unsqueeze(-1) * mask.unsqueeze(-2)).to(embeddings.device)
-        output = self.attention(codebook_embeddings, mask)
-        return output.mean(dim=1)
+        output = self.attention(codebook_embeddings, mask).mean(dim=1)
+        res = output.view(B, H, -1)
+        return res.squeeze(0) if squeeze_batch else res

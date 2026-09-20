@@ -1,3 +1,5 @@
+from .codebook import CodebookManager
+from .static_codebook import StaticCodebookManager
 from .model import Zip2ZipModel
 from .tokenizer import Zip2ZipTokenizer
 from .config import Zip2ZipConfig, CompressionConfig
@@ -15,4 +17,7 @@ __all__ = [
     "EncoderType",
     "AttentionEncoderConfig",
     "TransformerEncoderConfig",
+    "CodebookManager",
+    "StaticCodebookManager",
 ]
+
