@@ -67,7 +67,7 @@ class Zip2ZipModel(PushToHubMixin, nn.Module):
             return
 
         original_prepare = self.base_model.prepare_inputs_for_generation
-        manager = self.codebook_manager
+        model_ref = self
 
         def prepare_inputs_for_generation(base_model, *args, **kwargs):
             model_inputs = original_prepare(*args, **kwargs)
@@ -80,7 +80,7 @@ class Zip2ZipModel(PushToHubMixin, nn.Module):
             attention_mask = model_inputs.get("attention_mask")
             if attention_mask is not None:
                 attention_mask = attention_mask[:, -input_ids.shape[1] :]
-            model_inputs["position_ids"] = manager.prepare_input_ids(
+            model_inputs["position_ids"] = model_ref.codebook_manager.prepare_input_ids(
                 input_ids, attention_mask=attention_mask
             )
             return model_inputs
