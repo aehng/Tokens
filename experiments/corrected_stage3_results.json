@@ -1,0 +1,507 @@
+{
+  "main_comparison_with_cluster_ci": {
+    "32": {
+      "Base Tokenizer": {
+        "mean_pct": 0.0,
+        "cluster_ci_95": [
+          0.0,
+          0.0
+        ]
+      },
+      "Corrected LZW (max_sub=3)": {
+        "mean_pct": 6.75,
+        "cluster_ci_95": [
+          6.57,
+          6.9
+        ]
+      },
+      "Upstream LZW (max_sub=4)": {
+        "mean_pct": 6.74,
+        "cluster_ci_95": [
+          6.57,
+          6.89
+        ]
+      },
+      "Global Static": {
+        "mean_pct": 6.5,
+        "cluster_ci_95": [
+          6.39,
+          6.61
+        ]
+      },
+      "Domain Static": {
+        "mean_pct": 8.29,
+        "cluster_ci_95": [
+          8.13,
+          8.44
+        ]
+      },
+      "Prompt Predictor": {
+        "mean_pct": 8.76,
+        "cluster_ci_95": [
+          8.61,
+          8.91
+        ]
+      },
+      "Answer-Aware Greedy Oracle": {
+        "mean_pct": 33.78,
+        "cluster_ci_95": [
+          33.4,
+          34.15
+        ]
+      },
+      "Predictor minus Corrected LZW": {
+        "mean_delta_pct": 2.01,
+        "cluster_ci_95": [
+          1.85,
+          2.16
+        ]
+      },
+      "Predictor minus Domain Static": {
+        "mean_delta_pct": 0.47,
+        "cluster_ci_95": [
+          0.38,
+          0.56
+        ]
+      }
+    },
+    "64": {
+      "Base Tokenizer": {
+        "mean_pct": 0.0,
+        "cluster_ci_95": [
+          0.0,
+          0.0
+        ]
+      },
+      "Corrected LZW (max_sub=3)": {
+        "mean_pct": 11.11,
+        "cluster_ci_95": [
+          10.89,
+          11.33
+        ]
+      },
+      "Upstream LZW (max_sub=4)": {
+        "mean_pct": 11.11,
+        "cluster_ci_95": [
+          10.88,
+          11.33
+        ]
+      },
+      "Global Static": {
+        "mean_pct": 8.06,
+        "cluster_ci_95": [
+          7.94,
+          8.19
+        ]
+      },
+      "Domain Static": {
+        "mean_pct": 10.3,
+        "cluster_ci_95": [
+          10.12,
+          10.48
+        ]
+      },
+      "Prompt Predictor": {
+        "mean_pct": 11.69,
+        "cluster_ci_95": [
+          11.49,
+          11.89
+        ]
+      },
+      "Answer-Aware Greedy Oracle": {
+        "mean_pct": 43.09,
+        "cluster_ci_95": [
+          42.69,
+          43.47
+        ]
+      },
+      "Predictor minus Corrected LZW": {
+        "mean_delta_pct": 0.58,
+        "cluster_ci_95": [
+          0.41,
+          0.75
+        ]
+      },
+      "Predictor minus Domain Static": {
+        "mean_delta_pct": 1.39,
+        "cluster_ci_95": [
+          1.27,
+          1.51
+        ]
+      }
+    },
+    "128": {
+      "Base Tokenizer": {
+        "mean_pct": 0.0,
+        "cluster_ci_95": [
+          0.0,
+          0.0
+        ]
+      },
+      "Corrected LZW (max_sub=3)": {
+        "mean_pct": 15.31,
+        "cluster_ci_95": [
+          15.05,
+          15.56
+        ]
+      },
+      "Upstream LZW (max_sub=4)": {
+        "mean_pct": 15.35,
+        "cluster_ci_95": [
+          15.09,
+          15.61
+        ]
+      },
+      "Global Static": {
+        "mean_pct": 10.56,
+        "cluster_ci_95": [
+          10.41,
+          10.7
+        ]
+      },
+      "Domain Static": {
+        "mean_pct": 13.11,
+        "cluster_ci_95": [
+          12.88,
+          13.31
+        ]
+      },
+      "Prompt Predictor": {
+        "mean_pct": 16.15,
+        "cluster_ci_95": [
+          15.89,
+          16.39
+        ]
+      },
+      "Answer-Aware Greedy Oracle": {
+        "mean_pct": 51.92,
+        "cluster_ci_95": [
+          51.56,
+          52.26
+        ]
+      },
+      "Predictor minus Corrected LZW": {
+        "mean_delta_pct": 0.84,
+        "cluster_ci_95": [
+          0.67,
+          1.02
+        ]
+      },
+      "Predictor minus Domain Static": {
+        "mean_delta_pct": 3.04,
+        "cluster_ci_95": [
+          2.87,
+          3.2
+        ]
+      }
+    },
+    "256": {
+      "Base Tokenizer": {
+        "mean_pct": 0.0,
+        "cluster_ci_95": [
+          0.0,
+          0.0
+        ]
+      },
+      "Corrected LZW (max_sub=3)": {
+        "mean_pct": 17.88,
+        "cluster_ci_95": [
+          17.62,
+          18.14
+        ]
+      },
+      "Upstream LZW (max_sub=4)": {
+        "mean_pct": 18.02,
+        "cluster_ci_95": [
+          17.76,
+          18.28
+        ]
+      },
+      "Global Static": {
+        "mean_pct": 13.04,
+        "cluster_ci_95": [
+          12.87,
+          13.21
+        ]
+      },
+      "Domain Static": {
+        "mean_pct": 15.82,
+        "cluster_ci_95": [
+          15.56,
+          16.06
+        ]
+      },
+      "Prompt Predictor": {
+        "mean_pct": 20.19,
+        "cluster_ci_95": [
+          19.9,
+          20.47
+        ]
+      },
+      "Answer-Aware Greedy Oracle": {
+        "mean_pct": 58.77,
+        "cluster_ci_95": [
+          58.51,
+          59.02
+        ]
+      },
+      "Predictor minus Corrected LZW": {
+        "mean_delta_pct": 2.31,
+        "cluster_ci_95": [
+          2.1,
+          2.49
+        ]
+      },
+      "Predictor minus Domain Static": {
+        "mean_delta_pct": 4.36,
+        "cluster_ci_95": [
+          4.16,
+          4.56
+        ]
+      }
+    }
+  },
+  "controlled_prefix_results_k64": {
+    "32": {
+      "sample_count": 6608,
+      "lzw_corr_pct": 11.85,
+      "domain_static_pct": 9.69,
+      "prompt_predictor_pct": 11.27,
+      "oracle_pct": 65.62,
+      "predictor_minus_lzw_delta": -0.58,
+      "cluster_ci_95_delta": [
+        -0.8,
+        -0.34
+      ],
+      "crossover_status": "LZW Wins"
+    },
+    "64": {
+      "sample_count": 5716,
+      "lzw_corr_pct": 11.81,
+      "domain_static_pct": 9.91,
+      "prompt_predictor_pct": 11.31,
+      "oracle_pct": 65.29,
+      "predictor_minus_lzw_delta": -0.5,
+      "cluster_ci_95_delta": [
+        -0.73,
+        -0.28
+      ],
+      "crossover_status": "LZW Wins"
+    },
+    "128": {
+      "sample_count": 4220,
+      "lzw_corr_pct": 9.99,
+      "domain_static_pct": 9.32,
+      "prompt_predictor_pct": 10.79,
+      "oracle_pct": 40.34,
+      "predictor_minus_lzw_delta": 0.81,
+      "cluster_ci_95_delta": [
+        0.62,
+        1.0
+      ],
+      "crossover_status": "Predictor Wins"
+    },
+    "256": {
+      "sample_count": 2761,
+      "lzw_corr_pct": 7.35,
+      "domain_static_pct": 7.85,
+      "prompt_predictor_pct": 9.65,
+      "oracle_pct": 29.36,
+      "predictor_minus_lzw_delta": 2.3,
+      "cluster_ci_95_delta": [
+        2.08,
+        2.5
+      ],
+      "crossover_status": "Predictor Wins"
+    },
+    "512": {
+      "sample_count": 1420,
+      "lzw_corr_pct": 5.92,
+      "domain_static_pct": 7.57,
+      "prompt_predictor_pct": 9.83,
+      "oracle_pct": 25.72,
+      "predictor_minus_lzw_delta": 3.91,
+      "cluster_ci_95_delta": [
+        3.65,
+        4.19
+      ],
+      "crossover_status": "Predictor Wins"
+    },
+    "1024": {
+      "sample_count": 376,
+      "lzw_corr_pct": 4.69,
+      "domain_static_pct": 7.27,
+      "prompt_predictor_pct": 10.72,
+      "oracle_pct": 23.47,
+      "predictor_minus_lzw_delta": 6.02,
+      "cluster_ci_95_delta": [
+        5.47,
+        6.6
+      ],
+      "crossover_status": "Predictor Wins"
+    },
+    "2048": {
+      "sample_count": 33,
+      "lzw_corr_pct": 5.38,
+      "domain_static_pct": 6.33,
+      "prompt_predictor_pct": 13.6,
+      "oracle_pct": 23.95,
+      "predictor_minus_lzw_delta": 8.22,
+      "cluster_ci_95_delta": [
+        6.61,
+        9.82
+      ],
+      "crossover_status": "Predictor Wins"
+    }
+  },
+  "per_domain_results_k64": {
+    "code": {
+      "Corrected LZW (max_sub=3)": {
+        "mean_pct": 16.23,
+        "cluster_ci_95": [
+          15.73,
+          16.66
+        ]
+      },
+      "Domain Static": {
+        "mean_pct": 12.88,
+        "cluster_ci_95": [
+          12.47,
+          13.26
+        ]
+      },
+      "Prompt Predictor": {
+        "mean_pct": 14.64,
+        "cluster_ci_95": [
+          14.21,
+          15.02
+        ]
+      },
+      "Answer-Aware Greedy Oracle": {
+        "mean_pct": 59.29,
+        "cluster_ci_95": [
+          58.91,
+          59.69
+        ]
+      }
+    },
+    "conversation": {
+      "Corrected LZW (max_sub=3)": {
+        "mean_pct": 7.16,
+        "cluster_ci_95": [
+          6.97,
+          7.35
+        ]
+      },
+      "Domain Static": {
+        "mean_pct": 6.72,
+        "cluster_ci_95": [
+          6.61,
+          6.83
+        ]
+      },
+      "Prompt Predictor": {
+        "mean_pct": 8.21,
+        "cluster_ci_95": [
+          8.07,
+          8.37
+        ]
+      },
+      "Answer-Aware Greedy Oracle": {
+        "mean_pct": 34.46,
+        "cluster_ci_95": [
+          34.01,
+          34.93
+        ]
+      }
+    },
+    "reasoning": {
+      "Corrected LZW (max_sub=3)": {
+        "mean_pct": 20.38,
+        "cluster_ci_95": [
+          19.92,
+          20.86
+        ]
+      },
+      "Domain Static": {
+        "mean_pct": 23.26,
+        "cluster_ci_95": [
+          22.85,
+          23.7
+        ]
+      },
+      "Prompt Predictor": {
+        "mean_pct": 23.35,
+        "cluster_ci_95": [
+          22.91,
+          23.76
+        ]
+      },
+      "Answer-Aware Greedy Oracle": {
+        "mean_pct": 52.02,
+        "cluster_ci_95": [
+          51.57,
+          52.45
+        ]
+      }
+    }
+  },
+  "true_preseeded_hybrid_results_k128": [
+    {
+      "allocation": "100% Domain Static (128 static, 0 reactive)",
+      "k_dom": 128,
+      "k_pred": 0,
+      "k_lzw": 0,
+      "mean_response_compression_pct": 8.05
+    },
+    {
+      "allocation": "100% Prompt Predictor (128 static, 0 reactive)",
+      "k_dom": 0,
+      "k_pred": 128,
+      "k_lzw": 0,
+      "mean_response_compression_pct": 8.28
+    },
+    {
+      "allocation": "100% Reactive LZW (0 static, 128 reactive)",
+      "k_dom": 0,
+      "k_pred": 0,
+      "k_lzw": 128,
+      "mean_response_compression_pct": 10.77
+    },
+    {
+      "allocation": "True Hybrid: 64 Dom Static + 64 Reactive LZW",
+      "k_dom": 64,
+      "k_pred": 0,
+      "k_lzw": 64,
+      "mean_response_compression_pct": 11.58
+    },
+    {
+      "allocation": "True Hybrid: 64 Prompt Predictor + 64 Reactive LZW",
+      "k_dom": 0,
+      "k_pred": 64,
+      "k_lzw": 64,
+      "mean_response_compression_pct": 11.73
+    },
+    {
+      "allocation": "True Hybrid: 32 Dom + 32 Pred + 64 Reactive LZW",
+      "k_dom": 32,
+      "k_pred": 32,
+      "k_lzw": 64,
+      "mean_response_compression_pct": 11.03
+    },
+    {
+      "allocation": "True Hybrid: 64 Dom + 32 Pred + 32 Reactive LZW",
+      "k_dom": 64,
+      "k_pred": 32,
+      "k_lzw": 32,
+      "mean_response_compression_pct": 9.57
+    }
+  ],
+  "predictor_latency_profile": {
+    "p50_ms": 0.494,
+    "p90_ms": 6.177,
+    "p95_ms": 11.871,
+    "p99_ms": 26.019,
+    "mean_ms": 2.287
+  }
+}
