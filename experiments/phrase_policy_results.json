@@ -1,0 +1,374 @@
+{
+  "raw": {
+    "all": {
+      "micro_compression_pct": 14.792258763026119,
+      "base_tokens": 7389,
+      "saved_tokens": 1093,
+      "kinds_per_prompt": {
+        "structural": 12.9,
+        "punct": 1.62,
+        "numeric": 12.13,
+        "function": 4.27,
+        "other": 1.0,
+        "content": 0.08
+      }
+    },
+    "code": {
+      "micro_compression_pct": 13.311600108666124,
+      "base_tokens": 3681,
+      "saved_tokens": 490,
+      "kinds_per_prompt": {
+        "structural": 13.8,
+        "punct": 1.35,
+        "numeric": 13.0,
+        "function": 2.7,
+        "other": 1.0,
+        "content": 0.15
+      }
+    },
+    "instruction": {
+      "micro_compression_pct": 5.441478439425051,
+      "base_tokens": 974,
+      "saved_tokens": 53,
+      "kinds_per_prompt": {
+        "structural": 15.55,
+        "function": 5.65,
+        "other": 1.0,
+        "numeric": 8.7,
+        "punct": 1.1
+      }
+    },
+    "reasoning": {
+      "micro_compression_pct": 20.11704462326262,
+      "base_tokens": 2734,
+      "saved_tokens": 550,
+      "kinds_per_prompt": {
+        "structural": 9.35,
+        "numeric": 14.7,
+        "function": 4.45,
+        "other": 1.0,
+        "punct": 2.4,
+        "content": 0.1
+      }
+    }
+  },
+  "no_global": {
+    "all": {
+      "micro_compression_pct": 15.008796860197592,
+      "base_tokens": 7389,
+      "saved_tokens": 1109,
+      "kinds_per_prompt": {
+        "structural": 12.67,
+        "punct": 1.67,
+        "numeric": 12.23,
+        "function": 4.17,
+        "other": 1.0,
+        "content": 0.27
+      }
+    },
+    "code": {
+      "micro_compression_pct": 13.583265417006249,
+      "base_tokens": 3681,
+      "saved_tokens": 500,
+      "kinds_per_prompt": {
+        "structural": 13.5,
+        "punct": 1.35,
+        "numeric": 13.45,
+        "function": 2.55,
+        "other": 1.0,
+        "content": 0.15
+      }
+    },
+    "instruction": {
+      "micro_compression_pct": 5.544147843942505,
+      "base_tokens": 974,
+      "saved_tokens": 54,
+      "kinds_per_prompt": {
+        "structural": 15.35,
+        "function": 5.75,
+        "other": 1.0,
+        "numeric": 8.1,
+        "punct": 1.25,
+        "content": 0.55
+      }
+    },
+    "reasoning": {
+      "micro_compression_pct": 20.29992684711046,
+      "base_tokens": 2734,
+      "saved_tokens": 555,
+      "kinds_per_prompt": {
+        "structural": 9.15,
+        "numeric": 15.15,
+        "function": 4.2,
+        "other": 1.0,
+        "punct": 2.4,
+        "content": 0.1
+      }
+    }
+  },
+  "no_structural": {
+    "all": {
+      "micro_compression_pct": 15.008796860197592,
+      "base_tokens": 7389,
+      "saved_tokens": 1109,
+      "kinds_per_prompt": {
+        "punct": 2.52,
+        "numeric": 20.08,
+        "function": 5.33,
+        "other": 1.08,
+        "content": 2.98
+      }
+    },
+    "code": {
+      "micro_compression_pct": 13.746264602010323,
+      "base_tokens": 3681,
+      "saved_tokens": 506,
+      "kinds_per_prompt": {
+        "punct": 2.25,
+        "numeric": 23.75,
+        "function": 3.8,
+        "other": 1.1,
+        "content": 1.1
+      }
+    },
+    "instruction": {
+      "micro_compression_pct": 4.9281314168377826,
+      "base_tokens": 974,
+      "saved_tokens": 48,
+      "kinds_per_prompt": {
+        "function": 6.65,
+        "other": 1.15,
+        "numeric": 14.35,
+        "punct": 2.3,
+        "content": 7.55
+      }
+    },
+    "reasoning": {
+      "micro_compression_pct": 20.29992684711046,
+      "base_tokens": 2734,
+      "saved_tokens": 555,
+      "kinds_per_prompt": {
+        "numeric": 22.15,
+        "function": 5.55,
+        "other": 1.0,
+        "punct": 3.0,
+        "content": 0.3
+      }
+    }
+  },
+  "no_structural_no_punct": {
+    "all": {
+      "micro_compression_pct": 13.357693869265123,
+      "base_tokens": 7389,
+      "saved_tokens": 987,
+      "kinds_per_prompt": {
+        "numeric": 21.62,
+        "function": 5.6,
+        "other": 1.13,
+        "content": 3.65
+      }
+    },
+    "code": {
+      "micro_compression_pct": 11.464276011953274,
+      "base_tokens": 3681,
+      "saved_tokens": 422,
+      "kinds_per_prompt": {
+        "numeric": 25.2,
+        "function": 4.1,
+        "other": 1.25,
+        "content": 1.45
+      }
+    },
+    "instruction": {
+      "micro_compression_pct": 5.236139630390143,
+      "base_tokens": 974,
+      "saved_tokens": 51,
+      "kinds_per_prompt": {
+        "function": 6.85,
+        "other": 1.15,
+        "numeric": 15.1,
+        "content": 8.9
+      }
+    },
+    "reasoning": {
+      "micro_compression_pct": 18.800292611558156,
+      "base_tokens": 2734,
+      "saved_tokens": 514,
+      "kinds_per_prompt": {
+        "numeric": 24.55,
+        "function": 5.85,
+        "other": 1.0,
+        "content": 0.6
+      }
+    }
+  },
+  "content": {
+    "all": {
+      "micro_compression_pct": 3.9924211665989984,
+      "base_tokens": 7389,
+      "saved_tokens": 295,
+      "kinds_per_prompt": {
+        "content": 32.0
+      }
+    },
+    "code": {
+      "micro_compression_pct": 1.3039934800325998,
+      "base_tokens": 3681,
+      "saved_tokens": 48,
+      "kinds_per_prompt": {
+        "content": 32.0
+      }
+    },
+    "instruction": {
+      "micro_compression_pct": 5.13347022587269,
+      "base_tokens": 974,
+      "saved_tokens": 50,
+      "kinds_per_prompt": {
+        "content": 32.0
+      }
+    },
+    "reasoning": {
+      "micro_compression_pct": 7.2055596196049745,
+      "base_tokens": 2734,
+      "saved_tokens": 197,
+      "kinds_per_prompt": {
+        "content": 32.0
+      }
+    }
+  },
+  "prompt_only": {
+    "all": {
+      "micro_compression_pct": 7.416429828122886,
+      "base_tokens": 7389,
+      "saved_tokens": 548,
+      "kinds_per_prompt": {
+        "structural": 4.97,
+        "content": 22.97,
+        "function": 0.97,
+        "punct": 0.1,
+        "numeric": 2.55,
+        "other": 0.17
+      }
+    },
+    "code": {
+      "micro_compression_pct": 0.027166530834012496,
+      "base_tokens": 3681,
+      "saved_tokens": 1,
+      "kinds_per_prompt": {
+        "structural": 5.85,
+        "content": 25.3,
+        "function": 0.35,
+        "punct": 0.05,
+        "numeric": 0.45
+      }
+    },
+    "instruction": {
+      "micro_compression_pct": 6.468172484599589,
+      "base_tokens": 974,
+      "saved_tokens": 63,
+      "kinds_per_prompt": {
+        "structural": 5.5,
+        "content": 24.15,
+        "function": 0.65,
+        "numeric": 0.5,
+        "other": 0.25,
+        "punct": 0.1
+      }
+    },
+    "reasoning": {
+      "micro_compression_pct": 17.702999268471103,
+      "base_tokens": 2734,
+      "saved_tokens": 484,
+      "kinds_per_prompt": {
+        "numeric": 6.7,
+        "function": 1.9,
+        "structural": 3.55,
+        "content": 19.45,
+        "other": 0.25,
+        "punct": 0.15
+      }
+    }
+  },
+  "prompt_content": {
+    "all": {
+      "micro_compression_pct": 3.3022059818649345,
+      "base_tokens": 7389,
+      "saved_tokens": 244,
+      "kinds_per_prompt": {
+        "content": 31.2
+      }
+    },
+    "code": {
+      "micro_compression_pct": 0.0,
+      "base_tokens": 3681,
+      "saved_tokens": 0,
+      "kinds_per_prompt": {
+        "content": 32.0
+      }
+    },
+    "instruction": {
+      "micro_compression_pct": 4.825462012320329,
+      "base_tokens": 974,
+      "saved_tokens": 47,
+      "kinds_per_prompt": {
+        "content": 29.6
+      }
+    },
+    "reasoning": {
+      "micro_compression_pct": 7.2055596196049745,
+      "base_tokens": 2734,
+      "saved_tokens": 197,
+      "kinds_per_prompt": {
+        "content": 32.0
+      }
+    }
+  },
+  "topic": {
+    "all": {
+      "micro_compression_pct": 11.124644742184328,
+      "base_tokens": 7389,
+      "saved_tokens": 822,
+      "kinds_per_prompt": {
+        "structural": 8.95,
+        "function": 6.43,
+        "content": 8.17,
+        "numeric": 8.35,
+        "other": 0.1
+      }
+    },
+    "code": {
+      "micro_compression_pct": 6.818799239337137,
+      "base_tokens": 3681,
+      "saved_tokens": 251,
+      "kinds_per_prompt": {
+        "structural": 25.75,
+        "function": 4.8,
+        "content": 1.35,
+        "numeric": 0.1
+      }
+    },
+    "instruction": {
+      "micro_compression_pct": 6.160164271047228,
+      "base_tokens": 974,
+      "saved_tokens": 60,
+      "kinds_per_prompt": {
+        "function": 8.7,
+        "content": 22.55,
+        "numeric": 0.5,
+        "other": 0.25
+      }
+    },
+    "reasoning": {
+      "micro_compression_pct": 18.690563277249453,
+      "base_tokens": 2734,
+      "saved_tokens": 511,
+      "kinds_per_prompt": {
+        "numeric": 24.45,
+        "function": 5.8,
+        "structural": 1.1,
+        "content": 0.6,
+        "other": 0.05
+      }
+    }
+  }
+}
