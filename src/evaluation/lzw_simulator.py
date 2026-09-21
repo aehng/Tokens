@@ -88,7 +88,11 @@ def compute_lzw_span_compression(
     return {
         "base_prompt": P,
         "base_response": R,
+        "base_total": N,
         "encoded_total": len(encoded),
+        "compressed_prompt": h_prompt,
+        "compressed_response": h_response,
+        "compressed_total": len(encoded),
         "h_prompt": h_prompt,
         "h_response": h_response,
         "compressed_tokens": int(round(h_response)),
@@ -98,6 +102,7 @@ def compute_lzw_span_compression(
         "total_comp_pct": tot_comp,
         "codebook_utilization": len(codebook_used) / budget if budget > 0 else 0.0,
         "codebook_size_used": len(codebook_used),
+        "unique_hypertokens_used": len(codebook_used),
     }
 
 
@@ -199,16 +204,32 @@ def compute_preseeded_hybrid_lzw(
             h_prompt += k_p / span_len
             h_response += k_r / span_len
 
+    p_comp = (1.0 - h_prompt / P) * 100.0 if P > 0 else 0.0
     r_comp = (1.0 - h_response / R) * 100.0 if R > 0 else 0.0
     tot_comp = (1.0 - len(encoded) / N) * 100.0 if N > 0 else 0.0
 
+    total_codebook_slots = next_id - initial_vocab_size
+    preseeded_used = len([t for t in used_hypertokens if t < initial_vocab_size + preseeded_count])
+    reactive_used = len([t for t in used_hypertokens if t >= initial_vocab_size + preseeded_count])
+
     return {
-        "preseeded_count": preseeded_count,
-        "reactive_learned": next_id - initial_vocab_size - preseeded_count,
-        "total_codebook_size": next_id - initial_vocab_size,
+        "base_prompt": P,
+        "base_response": R,
+        "base_total": N,
+        "compressed_prompt": h_prompt,
+        "compressed_response": h_response,
+        "compressed_total": len(encoded),
         "encoded_total": len(encoded),
+        "h_prompt": h_prompt,
         "h_response": h_response,
+        "prompt_comp_pct": p_comp,
         "response_comp_pct": r_comp,
         "total_comp_pct": tot_comp,
-        "codebook_utilization": len(used_hypertokens) / (next_id - initial_vocab_size) if (next_id > initial_vocab_size) else 0.0,
+        "preseeded_count": preseeded_count,
+        "reactive_learned": next_id - initial_vocab_size - preseeded_count,
+        "total_codebook_size": total_codebook_slots,
+        "unique_hypertokens_used": len(used_hypertokens),
+        "preseeded_used": preseeded_used,
+        "reactive_used": reactive_used,
+        "codebook_utilization": len(used_hypertokens) / total_codebook_slots if total_codebook_slots > 0 else 0.0,
     }
