@@ -1,0 +1,160 @@
+{
+  "aggregate": {
+    "Base Phi-3.5 (K=0)": {
+      "n_samples": 15,
+      "mean_step_reduction_pct": 0.0,
+      "std_step_reduction_pct": 0.0,
+      "mean_prefill_comp_pct": 0.0,
+      "mean_total_comp_pct": 0.0,
+      "mean_effective_tok_per_sec": 2.9123860535617334,
+      "mean_raw_steps_per_sec": 2.9123860535617334,
+      "mean_total_latency_ms": 8749.477599999713,
+      "mean_setup_latency_ms": 0.0,
+      "mean_decode_latency_ms": 8749.477599999713,
+      "total_hypertokens_emitted": 0,
+      "hypertokens_per_sample": 0.0
+    },
+    "Official Reactive Zip2Zip (Pure LZW, K=32)": {
+      "n_samples": 15,
+      "mean_step_reduction_pct": 7.88763544232584,
+      "std_step_reduction_pct": 6.183966684868833,
+      "mean_prefill_comp_pct": 0.0,
+      "mean_total_comp_pct": 3.7616959727949064,
+      "mean_effective_tok_per_sec": 3.176450298129632,
+      "mean_raw_steps_per_sec": 2.9035930433291233,
+      "mean_total_latency_ms": 8913.760079998368,
+      "mean_setup_latency_ms": 0.0,
+      "mean_decode_latency_ms": 8913.760079998368,
+      "total_hypertokens_emitted": 34,
+      "hypertokens_per_sample": 2.2666666666666666
+    },
+    "Pure Predictive Seeded (K=32)": {
+      "n_samples": 15,
+      "mean_step_reduction_pct": 0.0,
+      "std_step_reduction_pct": 0.0,
+      "mean_prefill_comp_pct": 8.016272433033794,
+      "mean_total_comp_pct": 4.759931309786287,
+      "mean_effective_tok_per_sec": 3.0798951054757295,
+      "mean_raw_steps_per_sec": 3.0851789589114333,
+      "mean_total_latency_ms": 8263.94690000258,
+      "mean_setup_latency_ms": 15.258446663695699,
+      "mean_decode_latency_ms": 8248.688453338886,
+      "total_hypertokens_emitted": 0,
+      "hypertokens_per_sample": 0.0
+    },
+    "37.5% Pred / 62.5% LZW Hybrid (12/20)": {
+      "n_samples": 15,
+      "mean_step_reduction_pct": 0.0,
+      "std_step_reduction_pct": 0.0,
+      "mean_prefill_comp_pct": 6.259054241517624,
+      "mean_total_comp_pct": 3.5591773684217642,
+      "mean_effective_tok_per_sec": 1.5991508613799748,
+      "mean_raw_steps_per_sec": 1.600549364811628,
+      "mean_total_latency_ms": 15758.065006664643,
+      "mean_setup_latency_ms": 14.632500003790483,
+      "mean_decode_latency_ms": 15743.432506660853,
+      "total_hypertokens_emitted": 0,
+      "hypertokens_per_sample": 0.0
+    },
+    "50/50 Hybrid (16/16)": {
+      "n_samples": 15,
+      "mean_step_reduction_pct": 0.0,
+      "std_step_reduction_pct": 0.0,
+      "mean_prefill_comp_pct": 6.840832015221257,
+      "mean_total_comp_pct": 3.922652133178532,
+      "mean_effective_tok_per_sec": 1.5800653231442028,
+      "mean_raw_steps_per_sec": 1.5814947011807532,
+      "mean_total_latency_ms": 16404.14921999909,
+      "mean_setup_latency_ms": 14.832000001721704,
+      "mean_decode_latency_ms": 16389.317219997367,
+      "total_hypertokens_emitted": 0,
+      "hypertokens_per_sample": 0.0
+    }
+  },
+  "by_domain": {
+    "code": {
+      "Base Phi-3.5 (K=0)": {
+        "n_samples": 10,
+        "step_reduction_pct": 0.0,
+        "prefill_comp_pct": 0.0,
+        "effective_tok_per_sec": 2.9582682495930195,
+        "total_latency_ms": 8558.608089998597,
+        "hypertokens_emitted": 0
+      },
+      "Official Reactive Zip2Zip (Pure LZW, K=32)": {
+        "n_samples": 10,
+        "step_reduction_pct": 8.255358121876478,
+        "prefill_comp_pct": 0.0,
+        "effective_tok_per_sec": 3.280383128068764,
+        "total_latency_ms": 8411.153320001904,
+        "hypertokens_emitted": 24
+      },
+      "Pure Predictive Seeded (K=32)": {
+        "n_samples": 10,
+        "step_reduction_pct": 0.0,
+        "prefill_comp_pct": 7.494168283170839,
+        "effective_tok_per_sec": 3.167712796228086,
+        "total_latency_ms": 7927.871040001628,
+        "hypertokens_emitted": 0
+      },
+      "37.5% Pred / 62.5% LZW Hybrid (12/20)": {
+        "n_samples": 10,
+        "step_reduction_pct": 0.0,
+        "prefill_comp_pct": 6.927719481427921,
+        "effective_tok_per_sec": 1.6165264038149765,
+        "total_latency_ms": 15518.466359996819,
+        "hypertokens_emitted": 0
+      },
+      "50/50 Hybrid (16/16)": {
+        "n_samples": 10,
+        "step_reduction_pct": 0.0,
+        "prefill_comp_pct": 7.494168283170839,
+        "effective_tok_per_sec": 1.6274556264070807,
+        "total_latency_ms": 15405.858839995926,
+        "hypertokens_emitted": 0
+      }
+    },
+    "reasoning": {
+      "Base Phi-3.5 (K=0)": {
+        "n_samples": 5,
+        "step_reduction_pct": 0.0,
+        "prefill_comp_pct": 0.0,
+        "effective_tok_per_sec": 2.820621661499161,
+        "total_latency_ms": 9131.216620001942,
+        "hypertokens_emitted": 0
+      },
+      "Official Reactive Zip2Zip (Pure LZW, K=32)": {
+        "n_samples": 5,
+        "step_reduction_pct": 7.152190083224566,
+        "prefill_comp_pct": 0.0,
+        "effective_tok_per_sec": 2.968584638251368,
+        "total_latency_ms": 9918.973599991295,
+        "hypertokens_emitted": 10
+      },
+      "Pure Predictive Seeded (K=32)": {
+        "n_samples": 5,
+        "step_reduction_pct": 0.0,
+        "prefill_comp_pct": 9.060480732759702,
+        "effective_tok_per_sec": 2.904259723971016,
+        "total_latency_ms": 8936.098620004486,
+        "hypertokens_emitted": 0
+      },
+      "37.5% Pred / 62.5% LZW Hybrid (12/20)": {
+        "n_samples": 5,
+        "step_reduction_pct": 0.0,
+        "prefill_comp_pct": 4.921723761697033,
+        "effective_tok_per_sec": 1.5643997765099706,
+        "total_latency_ms": 16237.262300000293,
+        "hypertokens_emitted": 0
+      },
+      "50/50 Hybrid (16/16)": {
+        "n_samples": 5,
+        "step_reduction_pct": 0.0,
+        "prefill_comp_pct": 5.534159479322094,
+        "effective_tok_per_sec": 1.4852847166184462,
+        "total_latency_ms": 18400.729980005417,
+        "hypertokens_emitted": 0
+      }
+    }
+  }
+}

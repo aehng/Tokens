@@ -1,0 +1,182 @@
+[
+  {
+    "id": "mbpp_81",
+    "domain": "code",
+    "prompt": "Write a Python function to solve the following problem:\nWrite a function to zip the two given tuples.\n",
+    "ref_response_len": 480
+  },
+  {
+    "id": "mbpp_566",
+    "domain": "code",
+    "prompt": "Write a Python function to solve the following problem:\nWrite a function to get the sum of a non-negative integer.\n",
+    "ref_response_len": 187
+  },
+  {
+    "id": "mbpp_465",
+    "domain": "code",
+    "prompt": "Write a Python function to solve the following problem:\nWrite a function to drop empty items from a given dictionary.\n",
+    "ref_response_len": 361
+  },
+  {
+    "id": "mbpp_965",
+    "domain": "code",
+    "prompt": "Write a Python function to solve the following problem:\nWrite a function to convert camel case string to snake case string.\n",
+    "ref_response_len": 371
+  },
+  {
+    "id": "mbpp_939",
+    "domain": "code",
+    "prompt": "Write a Python function to solve the following problem:\nWrite a function to sort a list of dictionaries using lambda function.\n",
+    "ref_response_len": 926
+  },
+  {
+    "id": "mbpp_100",
+    "domain": "code",
+    "prompt": "Write a Python function to solve the following problem:\nWrite a function to find the next smallest palindrome of a specified number.\n",
+    "ref_response_len": 303
+  },
+  {
+    "id": "mbpp_374",
+    "domain": "code",
+    "prompt": "Write a Python function to solve the following problem:\nWrite a function to print all permutations of a given string including duplicates.\n",
+    "ref_response_len": 743
+  },
+  {
+    "id": "mbpp_634",
+    "domain": "code",
+    "prompt": "Write a Python function to solve the following problem:\nWrite a python function to find the sum of fourth power of first n even natural numbers.\n",
+    "ref_response_len": 246
+  },
+  {
+    "id": "mbpp_883",
+    "domain": "code",
+    "prompt": "Write a Python function to solve the following problem:\nWrite a function to find numbers divisible by m and n from a list of numbers using lambda function.\n",
+    "ref_response_len": 311
+  },
+  {
+    "id": "mbpp_239",
+    "domain": "code",
+    "prompt": "Write a Python function to solve the following problem:\nWrite a function to find the number of possible sequences of length n such that each of the next element is greater than or equal to twice of the previous element but less than or equal to m.\n",
+    "ref_response_len": 460
+  },
+  {
+    "id": "gsm_7368",
+    "domain": "reasoning",
+    "prompt": "Solve the following math problem step by step:\nFifteen more than a quarter of a number is 27. What is the number?\n",
+    "ref_response_len": 90
+  },
+  {
+    "id": "gsm_1099",
+    "domain": "reasoning",
+    "prompt": "Solve the following math problem step by step:\nA hot dog stand sells 10 hot dogs every hour, each one selling for $2.  How many hours does the stand need to run to make $200 in sales?\n",
+    "ref_response_len": 355
+  },
+  {
+    "id": "gsm_1911",
+    "domain": "reasoning",
+    "prompt": "Solve the following math problem step by step:\nIf Brooke adds eight balloons to his current 12, and Tracy adds 24 to her current 6, how many balloons will they have in total if Tracy pops half of her balloons?\n",
+    "ref_response_len": 337
+  },
+  {
+    "id": "gsm_2799",
+    "domain": "reasoning",
+    "prompt": "Solve the following math problem step by step:\nJake agrees to work part of his debt off.  He owed someone $100 but paid them $40 before agreeing to work off the rest.   He worked for $15 an hour.  How many hours did he have to work?\n",
+    "ref_response_len": 96
+  },
+  {
+    "id": "gsm_153",
+    "domain": "reasoning",
+    "prompt": "Solve the following math problem step by step:\nTim's cat bit him.  He decided to get himself and the cat checked out.  His doctor's visits $300 and insurance covered 75%.  His cat's visit cost $120 and his pet insurance covered $60.  How much did he pay?\n",
+    "ref_response_len": 188
+  },
+  {
+    "id": "gsm_3824",
+    "domain": "reasoning",
+    "prompt": "Solve the following math problem step by step:\nMaria gave a third of her money to her friend Isha, half of what she gave to Florence. If Florence received three times as much money as Maria's cousin Rene, and Rene received $300, how much money did Maria give her three friends?\n",
+    "ref_response_len": 299
+  },
+  {
+    "id": "gsm_8678",
+    "domain": "reasoning",
+    "prompt": "Solve the following math problem step by step:\nBernie has 4 dogs. They each need a certain amount of exercise per day. The first needs to walk 1 mile. The second needs to walk 4 miles. The third needs to walk 3 miles. On average, they need to walk 3 miles per day. How many miles does the last dog need?\n",
+    "ref_response_len": 205
+  },
+  {
+    "id": "gsm_6744",
+    "domain": "reasoning",
+    "prompt": "Solve the following math problem step by step:\nGenevieve picked some cherries from the supermarket shelves that cost $8 per kilogram. When Genevieve reached the checkout counter, she realized she was $400 short of the total price and her friend Clarice chipped in. If Genevieve had $1600 on her, how many kilograms of cherries did she buy?\n",
+    "ref_response_len": 234
+  },
+  {
+    "id": "gsm_5876",
+    "domain": "reasoning",
+    "prompt": "Solve the following math problem step by step:\nThomas made 4 stacks of wooden blocks. The first stack was 7 blocks tall. The second stack was 3 blocks taller than the first. The third stack was 6 blocks shorter than the second stack, and the fourth stack was 10 blocks taller than the third stack. If the fifth stack has twice as many blocks as the second stack, how many blocks did Thomas use in all?\n",
+    "ref_response_len": 365
+  },
+  {
+    "id": "gsm_3109",
+    "domain": "reasoning",
+    "prompt": "Solve the following math problem step by step:\nLou Senior took 3 cookies out of the cookie jar and ate them.  Since he didn't get caught by his wife, he went back the next day and took another 3 cookies out of the jar.  But after eating just one of the cookies, he felt guilty about it and put the other two cookies back.  His son, Louie Junior saw that his Dad was eating cookies.  So, Louie Junior took seven cookies out of the jar and hid them in his bedroom for later.  The next morning, Debra, Lou's wife looked into the cookie jar and reacted by accusing her husband of eating half of the cookies out of the cookie jar.  How many cookies remained in the jar?\n",
+    "ref_response_len": 372
+  },
+  {
+    "id": "alpaca_540",
+    "domain": "instruction",
+    "prompt": "Instruction: Write a humorous joke.\nAnswer:",
+    "ref_response_len": 60
+  },
+  {
+    "id": "alpaca_995",
+    "domain": "instruction",
+    "prompt": "Instruction: Name the 6 most populous cities in China.\nAnswer:",
+    "ref_response_len": 101
+  },
+  {
+    "id": "alpaca_1782",
+    "domain": "instruction",
+    "prompt": "Instruction: Formulate a hypothesis for why some animals migrate.\nAnswer:",
+    "ref_response_len": 128
+  },
+  {
+    "id": "alpaca_1822",
+    "domain": "instruction",
+    "prompt": "Instruction: Calculate the average of 7, 8, 6, and 9.\nInput: 7, 8, 6, 9\nAnswer:",
+    "ref_response_len": 38
+  },
+  {
+    "id": "alpaca_919",
+    "domain": "instruction",
+    "prompt": "Instruction: What is the meaning of the idiom \"A penny saved is a penny earned\"?\nAnswer:",
+    "ref_response_len": 324
+  },
+  {
+    "id": "alpaca_1196",
+    "domain": "instruction",
+    "prompt": "Instruction: Rewrite the sentence to use a negative adverb.\nInput: He walks carefully.\nAnswer:",
+    "ref_response_len": 20
+  },
+  {
+    "id": "alpaca_435",
+    "domain": "instruction",
+    "prompt": "Instruction: Rewrite the following sentence omitting the pronouns.\nInput: She told us she was busy.\nAnswer:",
+    "ref_response_len": 10
+  },
+  {
+    "id": "alpaca_580",
+    "domain": "instruction",
+    "prompt": "Instruction: Remove any mistakes in the following sentence.\nInput: Everyone whoing to play must sign their name.\nAnswer:",
+    "ref_response_len": 48
+  },
+  {
+    "id": "alpaca_1456",
+    "domain": "instruction",
+    "prompt": "Instruction: Fill in the blanks to complete the sentence.\nInput: Global warming can be reversed by reducing ________ and __________.\nAnswer:",
+    "ref_response_len": 86
+  },
+  {
+    "id": "alpaca_1831",
+    "domain": "instruction",
+    "prompt": "Instruction: Find the most suspicious activity in this police report.\nInput: On October 1st, 2019, at approximately 5:45 PM, Officer Adams responded to 123 Main St. for a reported malicious destruction of property. Upon arriving, Officer Adams noticed damage to the door frame of the residence. There were no apparent witnesses, but Officer Adams was able to find what appeared to be the perpetrator's discarded cell phone.\nAnswer:",
+    "ref_response_len": 262
+  }
+]
