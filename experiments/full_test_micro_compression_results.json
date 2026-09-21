@@ -1,0 +1,331 @@
+{
+  "dataset": "data/corpus_stage3_test.jsonl",
+  "total_samples": 7512,
+  "total_base_tokens": 1504463,
+  "results_by_k": {
+    "16": {
+      "k": 16,
+      "micro_compression_pct": 7.059329475035278,
+      "macro_compression_pct": 5.103235309894514,
+      "median_compression_pct": 3.076923076923077,
+      "p25": 0.0,
+      "p75": 6.605140023744675,
+      "total_base_tokens": 1504463,
+      "total_compressed_tokens": 1398258,
+      "total_positions_saved": 106205,
+      "bucket_breakdown": {
+        "<= 32 tokens": {
+          "count": 3630,
+          "pct_of_samples": 48.322683706070286,
+          "base_tokens": 63020,
+          "pct_of_tokens": 4.188870048648587,
+          "micro_compression_pct": 4.1367819739765155,
+          "macro_compression_pct": 4.571925955382775
+        },
+        "33 - 128 tokens": {
+          "count": 2533,
+          "pct_of_samples": 33.719382321618745,
+          "base_tokens": 158525,
+          "pct_of_tokens": 10.536982298667365,
+          "micro_compression_pct": 5.015612679388108,
+          "macro_compression_pct": 5.315935413115567
+        },
+        "129 - 512 tokens": {
+          "count": 695,
+          "pct_of_samples": 9.251863684771033,
+          "base_tokens": 181675,
+          "pct_of_tokens": 12.07573732288531,
+          "micro_compression_pct": 5.5593780101830195,
+          "macro_compression_pct": 5.225924403515498
+        },
+        "513 - 2048 tokens": {
+          "count": 488,
+          "pct_of_samples": 6.496272630457935,
+          "base_tokens": 505465,
+          "pct_of_tokens": 33.5977023030809,
+          "micro_compression_pct": 6.850325937503091,
+          "macro_compression_pct": 6.636211112170578
+        },
+        "> 2048 tokens": {
+          "count": 166,
+          "pct_of_samples": 2.209797657082002,
+          "base_tokens": 595778,
+          "pct_of_tokens": 39.60070802671784,
+          "micro_compression_pct": 8.546975551295953,
+          "macro_compression_pct": 8.455780393276358
+        }
+      },
+      "eval_time_sec": 12.71308159828186
+    },
+    "32": {
+      "k": 32,
+      "micro_compression_pct": 9.752184001866446,
+      "macro_compression_pct": 10.252811681387538,
+      "median_compression_pct": 5.555555555555555,
+      "p25": 1.0149140708225843,
+      "p75": 12.5,
+      "total_base_tokens": 1504463,
+      "total_compressed_tokens": 1357745,
+      "total_positions_saved": 146718,
+      "bucket_breakdown": {
+        "<= 32 tokens": {
+          "count": 3630,
+          "pct_of_samples": 48.322683706070286,
+          "base_tokens": 63020,
+          "pct_of_tokens": 4.188870048648587,
+          "micro_compression_pct": 8.841637575372898,
+          "macro_compression_pct": 12.69516389552183
+        },
+        "33 - 128 tokens": {
+          "count": 2533,
+          "pct_of_samples": 33.719382321618745,
+          "base_tokens": 158525,
+          "pct_of_tokens": 10.536982298667365,
+          "micro_compression_pct": 7.521841980760133,
+          "macro_compression_pct": 7.7949700655891165
+        },
+        "129 - 512 tokens": {
+          "count": 695,
+          "pct_of_samples": 9.251863684771033,
+          "base_tokens": 181675,
+          "pct_of_tokens": 12.07573732288531,
+          "micro_compression_pct": 7.442410898582634,
+          "macro_compression_pct": 7.065740995662936
+        },
+        "513 - 2048 tokens": {
+          "count": 488,
+          "pct_of_samples": 6.496272630457935,
+          "base_tokens": 505465,
+          "pct_of_tokens": 33.5977023030809,
+          "micro_compression_pct": 9.236049973786512,
+          "macro_compression_pct": 8.930009560253076
+        },
+        "> 2048 tokens": {
+          "count": 166,
+          "pct_of_samples": 2.209797657082002,
+          "base_tokens": 595778,
+          "pct_of_tokens": 39.60070802671784,
+          "micro_compression_pct": 11.584180684751704,
+          "macro_compression_pct": 11.581220339231704
+        }
+      },
+      "eval_time_sec": 12.812840938568115
+    },
+    "64": {
+      "k": 64,
+      "micro_compression_pct": 14.148569954860971,
+      "macro_compression_pct": 26.70459372032647,
+      "median_compression_pct": 18.01045856798069,
+      "p25": 7.142857142857142,
+      "p75": 50.0,
+      "total_base_tokens": 1504463,
+      "total_compressed_tokens": 1291603,
+      "total_positions_saved": 212860,
+      "bucket_breakdown": {
+        "<= 32 tokens": {
+          "count": 3630,
+          "pct_of_samples": 48.322683706070286,
+          "base_tokens": 63020,
+          "pct_of_tokens": 4.188870048648587,
+          "micro_compression_pct": 34.063789273246584,
+          "macro_compression_pct": 41.778844585593966
+        },
+        "33 - 128 tokens": {
+          "count": 2533,
+          "pct_of_samples": 33.719382321618745,
+          "base_tokens": 158525,
+          "pct_of_tokens": 10.536982298667365,
+          "micro_compression_pct": 12.858539662513799,
+          "macro_compression_pct": 13.25950624798404
+        },
+        "129 - 512 tokens": {
+          "count": 695,
+          "pct_of_samples": 9.251863684771033,
+          "base_tokens": 181675,
+          "pct_of_tokens": 12.07573732288531,
+          "micro_compression_pct": 10.429613320489887,
+          "macro_compression_pct": 10.093410092687813
+        },
+        "513 - 2048 tokens": {
+          "count": 488,
+          "pct_of_samples": 6.496272630457935,
+          "base_tokens": 505465,
+          "pct_of_tokens": 33.5977023030809,
+          "micro_compression_pct": 12.523715786454057,
+          "macro_compression_pct": 12.037139608525825
+        },
+        "> 2048 tokens": {
+          "count": 166,
+          "pct_of_samples": 2.209797657082002,
+          "base_tokens": 595778,
+          "pct_of_tokens": 39.60070802671784,
+          "micro_compression_pct": 14.897831071305085,
+          "macro_compression_pct": 14.893546457012908
+        }
+      },
+      "eval_time_sec": 12.217063426971436
+    },
+    "128": {
+      "k": 128,
+      "micro_compression_pct": 22.945197057023,
+      "macro_compression_pct": 49.08465155120725,
+      "median_compression_pct": 61.53846153846154,
+      "p25": 30.76923076923077,
+      "p75": 65.21739130434783,
+      "total_base_tokens": 1504463,
+      "total_compressed_tokens": 1159261,
+      "total_positions_saved": 345202,
+      "bucket_breakdown": {
+        "<= 32 tokens": {
+          "count": 3630,
+          "pct_of_samples": 48.322683706070286,
+          "base_tokens": 63020,
+          "pct_of_tokens": 4.188870048648587,
+          "micro_compression_pct": 64.27642018406856,
+          "macro_compression_pct": 63.87696360159883
+        },
+        "33 - 128 tokens": {
+          "count": 2533,
+          "pct_of_samples": 33.719382321618745,
+          "base_tokens": 158525,
+          "pct_of_tokens": 10.536982298667365,
+          "micro_compression_pct": 38.093676076328656,
+          "macro_compression_pct": 44.3831933806928
+        },
+        "129 - 512 tokens": {
+          "count": 695,
+          "pct_of_samples": 9.251863684771033,
+          "base_tokens": 181675,
+          "pct_of_tokens": 12.07573732288531,
+          "micro_compression_pct": 17.816980872437043,
+          "macro_compression_pct": 17.829621103724136
+        },
+        "513 - 2048 tokens": {
+          "count": 488,
+          "pct_of_samples": 6.496272630457935,
+          "base_tokens": 505465,
+          "pct_of_tokens": 33.5977023030809,
+          "micro_compression_pct": 18.267337995706924,
+          "macro_compression_pct": 17.785115139839593
+        },
+        "> 2048 tokens": {
+          "count": 166,
+          "pct_of_samples": 2.209797657082002,
+          "base_tokens": 595778,
+          "pct_of_tokens": 39.60070802671784,
+          "micro_compression_pct": 20.075095085753418,
+          "macro_compression_pct": 20.223933073736273
+        }
+      },
+      "eval_time_sec": 14.669983148574829
+    },
+    "256": {
+      "k": 256,
+      "micro_compression_pct": 33.15521883888138,
+      "macro_compression_pct": 58.69996944723149,
+      "median_compression_pct": 65.11627906976744,
+      "p25": 61.53846153846154,
+      "p75": 66.66666666666666,
+      "total_base_tokens": 1504463,
+      "total_compressed_tokens": 1005655,
+      "total_positions_saved": 498808,
+      "bucket_breakdown": {
+        "<= 32 tokens": {
+          "count": 3630,
+          "pct_of_samples": 48.322683706070286,
+          "base_tokens": 63020,
+          "pct_of_tokens": 4.188870048648587,
+          "micro_compression_pct": 64.68581402729292,
+          "macro_compression_pct": 64.19196833037223
+        },
+        "33 - 128 tokens": {
+          "count": 2533,
+          "pct_of_samples": 33.719382321618745,
+          "base_tokens": 158525,
+          "pct_of_tokens": 10.536982298667365,
+          "micro_compression_pct": 65.26415391894022,
+          "macro_compression_pct": 65.60410831798211
+        },
+        "129 - 512 tokens": {
+          "count": 695,
+          "pct_of_samples": 9.251863684771033,
+          "base_tokens": 181675,
+          "pct_of_tokens": 12.07573732288531,
+          "micro_compression_pct": 31.844227329021606,
+          "macro_compression_pct": 34.8400592853274
+        },
+        "513 - 2048 tokens": {
+          "count": 488,
+          "pct_of_samples": 6.496272630457935,
+          "base_tokens": 505465,
+          "pct_of_tokens": 33.5977023030809,
+          "micro_compression_pct": 26.895828593473336,
+          "macro_compression_pct": 26.618866026984627
+        },
+        "> 2048 tokens": {
+          "count": 166,
+          "pct_of_samples": 2.209797657082002,
+          "base_tokens": 595778,
+          "pct_of_tokens": 39.60070802671784,
+          "micro_compression_pct": 26.98672995646029,
+          "macro_compression_pct": 27.45946538814468
+        }
+      },
+      "eval_time_sec": 15.737619638442993
+    },
+    "512": {
+      "k": 512,
+      "micro_compression_pct": 43.103552563273404,
+      "macro_compression_pct": 62.18999623835547,
+      "median_compression_pct": 65.57377049180327,
+      "p25": 63.63636363636363,
+      "p75": 66.66666666666666,
+      "total_base_tokens": 1504463,
+      "total_compressed_tokens": 855986,
+      "total_positions_saved": 648477,
+      "bucket_breakdown": {
+        "<= 32 tokens": {
+          "count": 3630,
+          "pct_of_samples": 48.322683706070286,
+          "base_tokens": 63020,
+          "pct_of_tokens": 4.188870048648587,
+          "micro_compression_pct": 64.68581402729292,
+          "macro_compression_pct": 64.19196833037223
+        },
+        "33 - 128 tokens": {
+          "count": 2533,
+          "pct_of_samples": 33.719382321618745,
+          "base_tokens": 158525,
+          "pct_of_tokens": 10.536982298667365,
+          "micro_compression_pct": 66.14035641066079,
+          "macro_compression_pct": 66.06688366483063
+        },
+        "129 - 512 tokens": {
+          "count": 695,
+          "pct_of_samples": 9.251863684771033,
+          "base_tokens": 181675,
+          "pct_of_tokens": 12.07573732288531,
+          "micro_compression_pct": 58.38612907664786,
+          "macro_compression_pct": 61.40060746150565
+        },
+        "513 - 2048 tokens": {
+          "count": 488,
+          "pct_of_samples": 6.496272630457935,
+          "base_tokens": 505465,
+          "pct_of_tokens": 33.5977023030809,
+          "micro_compression_pct": 37.286854678365465,
+          "macro_compression_pct": 37.24079475301046
+        },
+        "> 2048 tokens": {
+          "count": 166,
+          "pct_of_samples": 2.209797657082002,
+          "base_tokens": 595778,
+          "pct_of_tokens": 39.60070802671784,
+          "micro_compression_pct": 34.965708703577505,
+          "macro_compression_pct": 35.903978042431106
+        }
+      },
+      "eval_time_sec": 18.797383785247803
+    }
+  }
+}

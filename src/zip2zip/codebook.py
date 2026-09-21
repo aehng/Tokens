@@ -171,6 +171,12 @@ class CodebookManager:
 
         if any(len(ui) > 0 for ui in self.updates_indices):
             new_weights = encoder_fn(self.updates, base_weight, self.pad_token_id)
+            if self.hyper_embedding_weight_cache.dtype != new_weights.dtype:
+                self.hyper_embedding_weight_cache = torch.zeros(
+                    self.hyper_embedding_weight_cache.shape,
+                    dtype=new_weights.dtype,
+                    device=curr_device,
+                )
 
             for i, ui in enumerate(self.updates_indices):
                 self.hyper_embedding_weight_cache[i, ui] = new_weights[i, : len(ui)]
@@ -201,6 +207,12 @@ class CodebookManager:
 
         if any(len(ui) > 0 for ui in self.updates_indices):
             new_weights = encoder_fn(self.updates, base_weight, self.pad_token_id)
+            if self.hyper_linear_weight_cache.dtype != new_weights.dtype:
+                self.hyper_linear_weight_cache = torch.zeros(
+                    self.hyper_linear_weight_cache.shape,
+                    dtype=new_weights.dtype,
+                    device=curr_device,
+                )
 
             for i, ui in enumerate(self.updates_indices):
                 self.hyper_linear_weight_cache[i, ui] = new_weights[i, : len(ui)]

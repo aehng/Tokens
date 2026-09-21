@@ -319,6 +319,14 @@ class StaticCodebookManager:
             if any(len(ui) > 0 for ui in self.updates_indices):
                 new_weights = encoder_fn(self.updates, base_weight, self.pad_token_id)
                 self.output_encoder_calls += 1
+                if self.hyper_linear_weight_cache.dtype != new_weights.dtype:
+                    self.hyper_linear_weight_cache = torch.zeros(
+                        batch_size,
+                        self.max_codebook_size,
+                        self.embedding_dim,
+                        dtype=new_weights.dtype,
+                        device=curr_device,
+                    )
                 for i, ui in enumerate(self.updates_indices):
                     self.hyper_linear_weight_cache[i, ui] = new_weights[i, : len(ui)]
 
@@ -435,20 +443,29 @@ class StaticCodebookManager:
                 result.append(tid)
         return result
 
-    def reset(self, clear_dictionary: bool = False) -> None:
+    def clear_weight_caches(self) -> None:
+        """Clear autograd weight caches between training steps."""
+        self.hyper_embedding_weight_cache = None
+        self.hyper_linear_weight_cache = None
+        self._prepared_for_embedding = False
+
+    def reset(self, clear_dictionary: bool = False, clear_caches: bool = False) -> None:
         """Reset runtime generation state between requests.
 
         Args:
             clear_dictionary: If True, also clears the seeded codebook dictionary and weight caches.
                               Defaults to False so seeded codebook and synthesized weights persist for generation.
+            clear_caches: If True, clears synthesized weight caches (essential for training backprop).
         """
         self.base_position_offset = None
         self.position_ids = None
         self._prepared_for_embedding = False
 
-        if clear_dictionary:
+        if clear_caches or clear_dictionary:
             self.hyper_embedding_weight_cache = None
             self.hyper_linear_weight_cache = None
+
+        if clear_dictionary:
             self.hyper_to_subtokens.clear()
             self.subtokens_to_hyper.clear()
             self.num_seeded = 0

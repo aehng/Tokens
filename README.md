@@ -7,6 +7,8 @@
 
 zip2zip enables inference-time adaptive token vocabularies for large language models (LLMs). It allows vocabularies to be dynamically augmented at inference time, leading to reduced decoding steps and faster inference.
 
+**This fork is a product effort.** The end goal is a **datacenter plug-and-play accelerator**: keep the customer’s existing model, load our sidecar (encoders, optional LoRA, predictor, runtime), serve with fewer decode steps, unload to roll back. Research on EPFL Zip2Zip / Phi-3.5 is how we find the smallest adapter that works—including on **models we have never trained**. LoRA or a short calibration job is an acceptable changeover; replacing or fully retraining their LLM is not. See [`docs/product.md`](docs/product.md), [`RESEARCH_LOG.md`](RESEARCH_LOG.md), and [`PREDICTIVE_HYPERTOKEN_STUDY.md`](PREDICTIVE_HYPERTOKEN_STUDY.md).
+
 ## News
 
 - **2026-05-03**: Evaluation now works with standard [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness) (`pip install lm_eval`) — no custom fork needed.

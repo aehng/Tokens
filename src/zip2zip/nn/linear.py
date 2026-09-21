@@ -27,15 +27,20 @@ class HyperLinear(nn.Linear):
         self.encoder_fn = encoder.get_encoder_fn()
         self.initial_vocab_size = initial_vocab_size
         self.codebook_manager = codebook_manager
+        self.detach_input = False
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        base_logits = super().forward(x)
+        h = x.detach() if getattr(self, "detach_input", False) else x
+        base_logits = super().forward(h)
 
         hyper_linear_weights = self.codebook_manager.get_hyper_linear_weights(
             self.weight, self.encoder_fn
         )
 
-        hyper_logits = torch.bmm(x, hyper_linear_weights.transpose(-2, -1))
+        h_hyper = h if h.dtype == hyper_linear_weights.dtype else h.to(hyper_linear_weights.dtype)
+        hyper_logits = torch.bmm(h_hyper, hyper_linear_weights.transpose(-2, -1))
+        if hyper_logits.dtype != base_logits.dtype:
+            hyper_logits = hyper_logits.to(base_logits.dtype)
 
         return torch.cat(
             [
