@@ -1,0 +1,80 @@
+{
+  "manifest_version": "1.0",
+  "purpose": "Large-Scale Offline Vocabulary & Tokenization Benchmark",
+  "primary_commercial_datasets": {
+    "OpenAssistant_OASST1": {
+      "source": "OpenAssistant/oasst1",
+      "license": "Apache-2.0",
+      "commercial_use_permitted": true,
+      "attribution_required": true,
+      "domain": "conversation",
+      "language": "en",
+      "response_type": "human_written_and_ranked",
+      "source_models": ["Human volunteer contributors", "OpenAssistant crowd"],
+      "isolation_key": "message_tree_id",
+      "description": "Multi-turn human-assistant conversation trees curated by LAION and OpenAssistant contributors under Apache 2.0."
+    },
+    "AllenAI_WildChat": {
+      "source": "allenai/WildChat",
+      "license": "ODC-By-1.0",
+      "commercial_use_permitted": true,
+      "attribution_required": true,
+      "domain": "conversation",
+      "language": "en",
+      "response_type": "model_generated",
+      "source_models": ["gpt-3.5-turbo", "gpt-4"],
+      "isolation_key": "conversation_id",
+      "description": "Real-world user interactions with ChatGPT under Open Data Commons Attribution License (ODC-By 1.0)."
+    },
+    "CodeAlpaca_20k": {
+      "source": "sahil2801/CodeAlpaca-20k",
+      "license": "CC-BY-4.0",
+      "commercial_use_permitted": true,
+      "attribution_required": true,
+      "domain": "code",
+      "language": "en",
+      "response_type": "model_generated",
+      "source_models": ["text-davinci-003"],
+      "isolation_key": "prompt_hash",
+      "description": "20,000 code instruction and programming tasks released under Creative Commons Attribution 4.0 International."
+    },
+    "GSM8K": {
+      "source": "openai/gsm8k",
+      "license": "MIT",
+      "commercial_use_permitted": true,
+      "attribution_required": true,
+      "domain": "reasoning",
+      "language": "en",
+      "response_type": "human_written",
+      "source_models": ["Human math annotators"],
+      "isolation_key": "prompt_hash",
+      "description": "8,792 grade school math problems with multi-step natural language reasoning under MIT License."
+    },
+    "MBPP": {
+      "source": "google-research/mbpp",
+      "license": "CC-BY-4.0",
+      "commercial_use_permitted": true,
+      "attribution_required": true,
+      "domain": "code",
+      "language": "en",
+      "response_type": "human_written",
+      "source_models": ["Google Research annotators"],
+      "isolation_key": "prompt_hash",
+      "description": "974 mostly basic Python programming tasks and unit tests created by Google Research under CC BY 4.0 (repository code Apache 2.0)."
+    }
+  },
+  "excluded_datasets": {
+    "Alpaca_Cleaned": {
+      "source": "yahma/alpaca-cleaned",
+      "license": "CC-BY-NC-4.0 (Upstream Stanford Alpaca)",
+      "commercial_use_permitted": false,
+      "exclusion_reason": "Upstream Stanford Alpaca is licensed under CC BY-NC 4.0 (Non-Commercial) and subject to OpenAI Terms of Service restrictions on commercial model distillation. Excluded to ensure the primary benchmark corpus is fully clean and unencumbered."
+    },
+    "LMSYS_Chat_1M": {
+      "source": "lmsys/lmsys-chat-1m",
+      "license": "LMSYS Research Only / Gated Agreement",
+      "commercial_use_permitted": false,
+      "exclusion_reason": "Gated access requiring individual click-through terms that prohibit non-research commercial deployment."
+    }
+  }
+}
