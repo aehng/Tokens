@@ -338,9 +338,12 @@ class Zip2ZipModel(PushToHubMixin, nn.Module):
             self.codebook_manager.reset()
 
         if is_training:
-            self.base_model.config.vocab_size += (
-                self.zip2zip_config.compression.max_codebook_size
+            cb_size = getattr(
+                self.codebook_manager,
+                "max_codebook_size",
+                self.zip2zip_config.compression.max_codebook_size,
             )
+            self.base_model.config.vocab_size += cb_size
 
         if self.uses_base_token_positions and kwargs.get("position_ids") is None:
             input_ids = kwargs.get("input_ids")
@@ -361,9 +364,12 @@ class Zip2ZipModel(PushToHubMixin, nn.Module):
         output = self.base_model.forward(*args, **kwargs)
 
         if is_training:
-            self.base_model.config.vocab_size -= (
-                self.zip2zip_config.compression.max_codebook_size
+            cb_size = getattr(
+                self.codebook_manager,
+                "max_codebook_size",
+                self.zip2zip_config.compression.max_codebook_size,
             )
+            self.base_model.config.vocab_size -= cb_size
             self.codebook_manager.reset()
 
         return output

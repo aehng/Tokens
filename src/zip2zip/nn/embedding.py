@@ -50,6 +50,9 @@ class HyperEmbedding(nn.Embedding):
             hyper_input_ids, hyper_embedding_weights.view(-1, self.embedding_dim)
         ) * hyper_token_mask.unsqueeze(-1)
 
+        if hyper_embedding.dtype != base_embedding.dtype:
+            hyper_embedding = hyper_embedding.to(base_embedding.dtype)
+
         return base_embedding + hyper_embedding
 
     @classmethod

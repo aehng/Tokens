@@ -1,102 +1,118 @@
 # experiments/ — Script Directory
 
-> See `../docs/product.md` for the commercial goal (datacenter plug-and-play, frozen customer models).
-> See `../RESEARCH_LOG.md` for full project context and history.
-> See `../PREDICTIVE_HYPERTOKEN_STUDY.md` for the experimental design.
+> See `../docs/product.md` for the commercial goal.
+> See `../RESEARCH_LOG.md` for historical results and current status.
+> See `../PREDICTIVE_HYPERTOKEN_STUDY.md` for the primary implementation plan.
 
-This directory contains all experiment scripts for the Predictive Hypertoken Calibration Study.
+The current research direction is joint predictive-hypertoken training. The
+first gate is continuation correctness after a predicted hypertoken, not a
+large compression percentage or a giant validation sweep.
 
----
+## Current Execution Order
 
-## Scripts
+Do not launch a large training job automatically. The required order is:
+
+1. Formalize the official reactive Zip2Zip regression.
+2. Implement continuation-equivalence measurement.
+3. Build and verify the prompt-only predictive training-data pipeline.
+4. Implement joint input/output hyperencoder + LoRA training with CE and
+   reconstruction losses.
+5. Run a tiny CPU/unit smoke test and estimate GPU resources.
+6. Run the small GPU pilot with fixed 12-prompt validation.
+7. Run the frozen 60-prompt evaluation only after the 12-prompt gates pass.
+
+## Existing and Historical Scripts
 
 ### Training
 
 | Script | Purpose | Status |
 |---|---|---|
-| `train_pure_predictive_calibration.py` | Train `output_encoder` (Level 1 adaptation) | ✅ 100 steps complete |
+| `train_pure_predictive_calibration.py` | Historical output-encoder-only calibration | ✅ 100 steps complete; superseded |
+| `train_predictive_zip2zip.py` | Joint predictive pilot | ⏳ To be implemented |
 
-**Run training** (resume from step 100):
-```bash
-python experiments/train_pure_predictive_calibration.py --max-steps 500 --resume-from experiments/checkpoints/pure_pred_k32_step100.pt
-```
+Do not resume the old output-encoder-only run. Its checkpoint and training log
+are retained as historical evidence of the continuation failure.
 
----
-
-### Evaluation
+### Evaluation and Verification
 
 | Script | Purpose | Status |
 |---|---|---|
-| `eval_60prompt_validation.py` | 5-condition × 60-prompt validation sweep | ❌ Not yet run |
-| `compute_full_test_micro_compression.py` | Offline compression audit (7,512 samples) | ✅ Complete |
-| `verify_prompt_guarantees.py` | Causality + round-trip verification | ✅ Complete |
+| `test_official_checkpoint.py` | Official reactive Zip2Zip regression | ⏳ Must be formalized and passed first |
+| `evaluate_continuation_equivalence.py` | Base-span vs hypertoken next-token comparison | ⏳ To be implemented |
+| `prepare_predictive_training_data.py` | Prompt-only codebook and exact round-trip pipeline | ⏳ To be implemented or consolidated |
+| `evaluate_predictive_checkpoint.py` | Fixed 12-prompt checkpoint evaluation | ⏳ To be implemented |
+| `eval_60prompt_validation.py` | Frozen 60-prompt comparison | ⏸ Blocked until 12-prompt gates pass |
+| `compute_full_test_micro_compression.py` | Offline compression audit | ✅ Complete; not the current acceptance gate |
+| `verify_prompt_guarantees.py` | Causality, round-trip, and pre-prefill checks | ✅ Complete |
+| `true_hypertoken_decode.py` | Exploratory live predictive decode | ⚠ Diagnostic only; not an acceptance evaluation |
 
-**Run the main evaluation sweep**:
+The intended commands are:
+
 ```bash
-python experiments/eval_60prompt_validation.py
+python experiments/train_predictive_zip2zip.py \
+  --config configs/predictive_joint_pilot.yaml
+
+python experiments/evaluate_predictive_checkpoint.py \
+  --checkpoint <path>
 ```
-Results are saved incrementally to `experiments/checkpoints/eval_60prompt_results.json`.
-Safe to interrupt and resume — already-completed (prompt, condition) pairs are skipped.
 
----
+## Planned Pilot Configuration
 
-### Diagnostics (scratch/)
+The configuration must specify:
 
-| Script | Purpose |
+- base model and codebook budget (`K=32` initially);
+- predictor policy and category caps;
+- trainable modules and LoRA targets;
+- CE and reconstruction-loss weights;
+- curriculum density;
+- reactive/predictive training mix;
+- batch size and sequence length;
+- learning rate and optimizer;
+- checkpoint and validation frequency; and
+- hardware/precision settings.
+
+The original base transformer must remain frozen. The first pilot should use
+small mixed-domain data, conservative learning rates, frequent checkpoints, and
+candidate checkpoints around steps 0, 100, 250, 500, 1,000, and 2,000.
+
+## Required Validation Gates
+
+The fixed smoke set contains four code, four reasoning/math, and four
+instruction/general prompts. Every checkpoint must report:
+
+- predictive hypertokens available and emitted;
+- actual decode steps and base-equivalent output tokens;
+- decode-step reduction;
+- truncation, repetition, and output length;
+- domain-appropriate correctness;
+- CE and reconstruction losses; and
+- continuation-equivalence metrics: KL, top-k agreement, and correct-next-token probability.
+
+The first hard gate is one predicted hypertoken inside a complete valid answer,
+with real skipped transformer steps and normal continuation afterward. The
+second requires this on multiple prompts/domains. The third requires quality to
+remain comparable to the base reference.
+
+## Historical Artifacts
+
+| File | Contents |
 |---|---|
-| `scratch/phase0_audit.py` | Full parameter inventory + hash verification of base model |
-| `scratch/inspect_lora.py` | LoRA structure inspection (rank, targets, requires_grad) |
+| `checkpoints/cached_predictor.pkl` | 23 MB prompt phrase predictor |
+| `checkpoints/pure_pred_k32_step50.pt` | Historical output encoder + optimizer state |
+| `checkpoints/pure_pred_k32_step100.pt` | Historical output encoder + optimizer state |
+| `checkpoints/pure_pred_k32_stageA_training_log.json` | Historical per-step loss, gradient, and timing log |
+| `true_hypertoken_decode_results.json` | Exploratory six-prompt live predictive results |
 
----
+The old 100-step run increased hypertoken emission on a tiny probe, but the
+answer could truncate or drift after a selected hypertoken. Those artifacts are
+not evidence that the predictive architecture is ready for scale-up.
 
-## Checkpoints
+## Diagnostic and Architecture References
 
-| File | Size | Contents |
-|---|---|---|
-| `checkpoints/cached_predictor.pkl` | 23 MB | Pre-trained phrase predictor |
-| `checkpoints/pure_pred_k32_step50.pt` | 2.718 GB | output_encoder + AdamW optimizer at step 50 |
-| `checkpoints/pure_pred_k32_step100.pt` | 2.718 GB | output_encoder + AdamW optimizer at step 100 |
-| `checkpoints/pure_pred_k32_stageA_training_log.json` | ~20 KB | Full per-step training log |
-| `checkpoints/eval_60prompt_results.json` | *(not yet created)* | 60-prompt validation sweep results |
-
-### Checkpoint Format
-
-```
-{
-    'step': int,
-    'output_encoder_state_dict': ...,   # 226.5M fp32 params = ~906 MB
-    'optimizer_state_dict': ...,        # AdamW m+v = ~1.812 GB  
-    'loss': float,
-}
-```
-
-**Why 2.718 GB?** The checkpoint stores only the `output_encoder` (our trained module) + AdamW optimizer state. The 3.8B base model is NOT in the checkpoint.
-
----
-
-## Training Log Summary
-
-From `checkpoints/pure_pred_k32_stageA_training_log.json`:
-
-| Checkpoint | 3-Probe GSM8k Hypers | Decode Step Savings |
-|---|---|---|
-| Step 0 (zero-shot) | 1 | 1.54% |
-| Step 50 | 2 | 3.03% |
-| Step 100 | 3 | 4.48% |
-
-Loss range: 1.3–4.2 (noisy, no plateau at step 100 → likely undertrained).
-Average step time: ~27.65 s/step on CPU.
-
----
-
-## Key Findings So Far
-
-1. **EPFL LoRA already present**: The `epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1` checkpoint contains a rank-32 LoRA across all 32 layers (50.33M params, frozen at load time). This is EPFL's original adaptation, not added by us.
-
-2. **Base model confirmed unchanged**: MD5 hash verification shows Phi-3.5 base weights and EPFL LoRA matrices are identical before and after our 100-step training run.
-
-3. **Only `output_encoder` was trained**: Our 100-step run is correctly Level 1 on the adaptation ladder (least invasive).
-
-4. **Hypertoken emission is increasing**: 1 → 2 → 3 hypertokens on the 3-sample probe across steps 0, 50, 100. But this needs verification on the full 60-prompt set.
-
-5. **Loss has not converged**: Training appears undertrained at 100 steps. Model likely benefits from 200–500 steps.
+- `src/zip2zip/model.py` — model wrapper and generation lifecycle
+- `src/zip2zip/codebook.py` — official dynamic codebook path
+- `src/zip2zip/static_codebook.py` — seeded predictive codebook path
+- `src/zip2zip/nn/embedding.py` — input hyperembedding
+- `src/zip2zip/nn/linear.py` — output hyperprojection
+- `src/evaluation/offline_segmenter.py` — exact DP segmentation
+- `scratch/` and `experiments/scratch/` — exploratory diagnostics, not final gates

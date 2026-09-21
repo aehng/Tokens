@@ -1,0 +1,68 @@
+# Predictive Joint Training Pilot Configuration (Updated with Safe Semantic-First Curriculum)
+# Phase 16: One-Command Training Configuration
+
+model:
+  name_or_path: "epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1"
+  torch_dtype: "bfloat16"           # bfloat16 on GPU / float32 on CPU
+  gradient_checkpointing: true
+
+compression:
+  budget_k: 32                      # K=32 active hypertoken slots per prompt
+  max_subtokens: 4                  # Up to 4 base tokens per hypertoken (architecture limit)
+  initial_vocab_size: 32011
+  pad_token_id: 32000
+
+policy:
+  mode: "no_structural_no_punct"    # Initial pilot eliminates structural/newline/punct tokens
+  initial_structural_slots: 0       # 0 structural slots initially (pure semantic/function/numeric)
+  filter_bare_punctuation: true
+  filter_global_filler: true
+
+trainable_modules:
+  freeze_base_model: true           # Freeze base_layer weights (customer base model intact)
+  train_lora: true                  # Jointly train Zip2Zip LoRA adapters (r=32, alpha=32, 50.3M params)
+  train_input_encoder: true         # Jointly train input_encoder (226.5M params)
+  train_output_encoder: true        # Jointly train output_encoder (226.5M params)
+
+loss:
+  lm_ce_weight: 1.0                 # Standard language model cross entropy on compressed targets
+  reconstruction_weight: 0.1        # Auxiliary auto-encoding reconstruction loss for input_encoder
+  continuation_weight: 0.0          # Continuation consistency loss (ablation only, default 0.0)
+
+curriculum:
+  enabled: true
+  stages:
+    # Stage 1: Safe semantic/function/numeric entries only (no structural risk)
+    - { step: 0,   density: 0.25, max_structural_slots: 0 }
+    # Stage 2: Moderate density, conservative structural entries added
+    - { step: 250, density: 0.50, max_structural_slots: 4 }
+    # Stage 3: High density, capped structural policy
+    - { step: 500, density: 0.75, max_structural_slots: 6 }
+    # Stage 4: Full policy
+    - { step: 750, density: 1.00, max_structural_slots: 8 }
+
+training_mix:
+  predictive_ratio: 0.50            # 50% prompt-predicted codebooks
+  reactive_ratio: 0.50              # 50% native reactive Zip2Zip examples (prevent forgetting)
+
+training:
+  batch_size: 1                     # Per-device micro batch size
+  gradient_accumulation_steps: 16   # Effective batch size = 16
+  max_length: 1024                  # Max token sequence length
+  learning_rate: 1.0e-5             # Conservative LR matching upstream Zip2Zip fine-tuning
+  min_learning_rate: 1.0e-6
+  lr_scheduler: "cosine"
+  warmup_steps: 50
+  max_steps: 1000
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+
+checkpointing:
+  save_steps: 100                   # Checkpoint every 100 steps
+  checkpoints_to_keep: 5
+  output_dir: "experiments/checkpoints/predictive_joint_pilot"
+
+validation:
+  eval_steps: 50                    # Run 12-prompt smoke validation every 50 steps
+  smoke_val_file: "data/smoke_val_12.json"
+  eval_max_new_tokens: 150

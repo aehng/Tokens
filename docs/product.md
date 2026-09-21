@@ -32,7 +32,7 @@ Ideal install shape:
 customer_serving_stack/
 ├── their_base_model/          # already in the datacenter — UNCHANGED
 ├── our_runtime/               # generate wrapper, codebook, serving hooks
-├── our_adapter/               # output_encoder and/or LoRA, plus predictor
+├── our_adapter/               # hyperencoders and/or LoRA, plus predictor
 └── config.json                # K, max_subtokens, attach points
 ```
 
@@ -66,7 +66,12 @@ Keep experiments cheap and local. Every adaptation level is judged by **deployab
 | One calibration job per new model family | Per-request or per-tenant retraining |
 | Hash-stable rollback | Irreversible weight edits |
 
-Decision rule from the study still applies: climb the adaptation ladder only until we hit ≥5% MICRO decode reduction with quality held. Then productize that artifact for datacenter load.
+The research decision order is correctness first: prove that a predicted
+hypertoken can skip real decode steps and preserve continuation inside a complete
+answer, then demonstrate that behavior across domains, and only then optimize
+MICRO decode reduction and adapter size. The later commercial target remains at
+least 5% MICRO decode reduction with quality held; compression from truncated or
+degraded output does not count.
 
 ## Non-goals for the v1 product
 

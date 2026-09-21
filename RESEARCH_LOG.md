@@ -22,11 +22,11 @@ This is a **product codebase** that uses research experiments on top of **[EPFL'
 |---|---|
 | **Hypertoken** | A single token ID ≥ 32011 that represents a multi-token phrase (e.g., `["the", "model"]` → hypertoken ID 32011). Decodes as 2+ base tokens but costs only 1 decode step. |
 | **Reactive Zip2Zip** | Original EPFL mode: codebook is built dynamically during generation using LZW on the tokens already generated. No prediction needed. |
-| **Predictive (Pure Predictive)** | Our mode: codebook is built from the **prompt only**, before any tokens are generated. Requires a predictor and a calibrated output encoder to work. |
+| **Predictive (Pure Predictive)** | Our mode: codebook is built from the **prompt only**, before any tokens are generated. Requires a predictor and jointly trained input/output hypermodules to preserve continuation. |
 | **Codebook** | The set of K active phrase→hypertoken mappings for a given request. At K=32, up to 32 phrases can be active. |
 | **Predictor** | A pre-trained phrase-frequency model (`cached_predictor.pkl`, 23 MB) that selects the K most likely phrases given a prompt, without seeing the response. |
-| **output_encoder** | A 2-layer, 226.5M-parameter transformer (part of Zip2Zip) that generates the logit weights for hypertoken positions. This is the component we are training. |
-| **input_encoder** | A mirror 226.5M-parameter transformer that generates the embedding for hypertoken input positions. Frozen in our experiments so far. |
+| **output_encoder** | A 2-layer, 226.5M-parameter transformer (part of Zip2Zip) that generates the logit weights for hypertoken positions. It was the only component trained in the historical calibration; the new plan trains it jointly with the input encoder and LoRA. |
+| **input_encoder** | A mirror 226.5M-parameter transformer that generates the embedding for hypertoken input positions. It was frozen in the historical calibration and is trainable in the new joint pilot. |
 | **MICRO compression** | Total tokens saved / total base tokens across all samples. Primary metric for compute economics. |
 | **MACRO compression** | Mean per-request compression percentage. Useful for characterizing individual samples. |
 | **Realization ratio** | Actual live decode-step reduction / offline available reduction. Measures how much of the theoretical savings we actually capture. |
@@ -41,19 +41,20 @@ Zip2ZipModel
 ├── base_model: PeftModel (Phi-3.5-mini-instruct + EPFL LoRA r=32)
 │   ├── embed_tokens [32011, 3072] fp16 — FROZEN
 │   ├── layers[0..31] — FROZEN base weights
-│   │   ├── self_attn.qkv_proj  — frozen + EPFL LoRA A/B (r=32)
-│   │   ├── self_attn.o_proj    — frozen + EPFL LoRA A/B (r=32)
-│   │   ├── mlp.gate_up_proj    — frozen + EPFL LoRA A/B (r=32)
-│   │   └── mlp.down_proj       — frozen + EPFL LoRA A/B (r=32)
+│   │   ├── self_attn.qkv_proj  — frozen base + EPFL LoRA A/B (r=32)
+│   │   ├── self_attn.o_proj    — frozen base + EPFL LoRA A/B (r=32)
+│   │   ├── mlp.gate_up_proj    — frozen base + EPFL LoRA A/B (r=32)
+│   │   └── mlp.down_proj       — frozen base + EPFL LoRA A/B (r=32)
 │   └── lm_head → HyperLinear   — wraps output_encoder at inference
 │       (vocabulary is extended to 32011 + K slots during generation)
 │
 ├── input_encoder: TransformerEncoder [2 layers, hidden=3072, heads=32]
-│   └── 226.5M params — FROZEN in current experiments
+│   └── 226.5M params — frozen historically; trainable in the planned pilot
 │   └── Generates embeddings for hypertoken input positions
 │
 └── output_encoder: TransformerEncoder [2 layers, hidden=3072, heads=32]
-    └── 226.5M params — OUR TRAINABLE COMPONENT
+    └── 226.5M params — only component trained in the historical calibration;
+                         trainable in the planned joint pilot
     └── Generates logit weights for hypertoken output positions
 ```
 
@@ -75,9 +76,9 @@ requires_grad:  False at load time (all frozen)
 | Component | Params | % of Total | Status |
 |---|---|---|---|
 | Phi-3.5 base weights | ~3.82B | 88.3% | Frozen — hash verified |
-| EPFL LoRA A/B matrices | 50.33M | 1.16% | Frozen — requires_grad=False |
-| `input_encoder` | 226.5M | 5.24% | Frozen in current experiments |
-| **`output_encoder`** | **226.5M** | **5.24%** | **Trained by us** |
+| EPFL LoRA A/B matrices | 50.33M | 1.16% | Frozen historically; planned pilot trains them |
+| `input_encoder` | 226.5M | 5.24% | Frozen historically; planned pilot trains it |
+| **`output_encoder`** | **226.5M** | **5.24%** | **Trained historically; planned pilot trains jointly** |
 | **Total** | **4.324B** | 100% | — |
 
 ---
@@ -97,8 +98,11 @@ src/evaluation/
   offline_segmenter.py        segment_tokens_dp() — DP segmenter for compressing prompt with codebook
 
 experiments/
-  train_pure_predictive_calibration.py   Phase 1 training script (COMPLETED 100 steps)
-  eval_60prompt_validation.py            60-prompt validation sweep (WRITTEN, NOT YET RUN)
+  train_pure_predictive_calibration.py   Historical output-only training (100 steps)
+  train_predictive_zip2zip.py            Planned joint predictive pilot
+  evaluate_continuation_equivalence.py  Planned continuation diagnostic
+  evaluate_predictive_checkpoint.py      Planned 12-prompt checkpoint evaluation
+  eval_60prompt_validation.py            Frozen 60-prompt sweep (gated, do not run yet)
   scratch/
     phase0_audit.py           Architecture audit script
     inspect_lora.py           LoRA structure inspection script
@@ -197,60 +201,54 @@ Ran `phase0_audit.py` and `inspect_lora.py`.
 | Causality/round-trip verification | ✅ Complete |
 | Mixed precision bug fix | ✅ Complete |
 | Training data preparation (2k train, 60 val) | ✅ Complete |
-| 100-step output_encoder calibration | ✅ Complete |
+| 100-step output_encoder-only calibration | ✅ Complete, historical; superseded by the joint-training plan |
 | Phase 0 architecture audit | ✅ Complete |
-| 60-prompt full validation sweep | ⏸ Stopped after the first code prompt. Calibration emitted `\nassert` and truncated the answer. Do not resume the 300-generation sweep until a content codebook can commit a hypertoken inside an intact sentence. |
-| Level 1b (input+output encoder training) | ❌ Not yet |
-| Level 2 (unfreeze EPFL LoRA) | ❌ Not yet |
-| Level 3 (fresh small LoRA) | ❌ Not yet |
+| Official Zip2Zip regression test | ⏳ Required before predictive training |
+| Continuation-equivalence diagnostic | ⏳ Required; new primary metric |
+| Predictive codebook/data pipeline with category constraints | ⏳ Planned |
+| Joint input/output hyperencoder + LoRA pilot | ⏳ Planned; base transformer remains frozen |
+| Fixed 12-prompt validation gates | ⏳ Planned |
+| 60-prompt full validation sweep | ⏸ Blocked until the 12-prompt gates pass |
 
 ---
 
-## The Core Research Question
+## Plan Revision — 2026-09-21
 
-> **What is the minimum adapter we can ship so a datacenter can accelerate a frozen customer model (including families we never trained) with predictive hypertokens?**
+The output-encoder-only experiment showed that the model can select predictive
+hypertokens and skip later base-token steps, but continuation often changes,
+truncates, repeats, or drifts afterward. More training of that same setup is not
+the next step.
 
-Phi-3.5 Zip2Zip is the lab model for answering that. Product success is: same recipe, new base model, simple changeover (sidecar + optional LoRA).
+The primary question is now:
 
-### Adaptation Ladder (least → most invasive)
+> Can joint predictive training make a frozen-base Zip2Zip model emit a predicted
+> hypertoken, skip real transformer steps, and continue to a complete correct
+> answer?
 
-| Level | What is trained | New adapter size (deploy) | Status |
-|---|---|---|---|
-| 0 | Nothing | 0 | Reference baseline |
-| 1 | `output_encoder` only (226.5M) | ~906 MB | **100 steps done; needs full 60-prompt eval** |
-| 1b | `input_encoder` + `output_encoder` | ~1.81 GB | Not started |
-| 2 | `output_encoder` + EPFL LoRA unfrozen | ~1.1 GB | Not started |
-| 3 | `output_encoder` + fresh small LoRA r=4 | ~930 MB | Not started |
-| 4 | `output_encoder` + broader LoRA | ~960 MB+ | Not started |
-| 5 | Partial base unfreeze | — | STOP: requires approval |
-| 6 | Full fine-tuning | — | DO NOT RUN |
+The new order is:
 
-**Decision rule**: proceed to the next level only if the current level fails to achieve ≥5% MICRO decode step reduction with quality preserved.
+1. Formalize the official reactive Zip2Zip regression path.
+2. Measure continuation equivalence before training.
+3. Build prompt-only predictive examples with a diverse `K=32` codebook.
+4. Jointly train the input hyperencoder, output hyperencoder, and Zip2Zip LoRA.
+5. Use language-model cross-entropy plus reconstruction loss, with an optional
+   continuation-consistency ablation only if needed.
+6. Pilot on a small GPU experiment with frequent checkpoints.
+7. Gate on a fixed 12-prompt set before considering the 60-prompt evaluation.
+8. Minimize the adapter only after correctness is demonstrated.
 
----
+The first hard gate is not a percentage target. It is a complete valid answer
+containing at least one predictive hypertoken that skips real decode steps and is
+followed by normal continuation. This must occur on multiple prompts/domains
+with comparable quality. If hypertoken emission rises while continuation
+divergence worsens, stop.
 
-## Immediate Next Steps (ordered)
+The full phased plan is in [`PREDICTIVE_HYPERTOKEN_STUDY.md`](PREDICTIVE_HYPERTOKEN_STUDY.md).
 
-1. **Do not train the output encoder longer and do not resume the 60-prompt sweep.** On `mbpp_769`, step 50 and step 100 both emitted the codebook phrase `\nassert` and stopped after 35 tokens. Step 0 wrote a normal 192-token answer and emitted nothing. The K=32 codebook for that prompt was 31 punctuation, newline, and digit fragments, because the global frequency prior fills the budget. More steps of the same loss will practice that failure.
-
-2. **Zip2Zip's own recipe is the consistent solution.** Paper: [arXiv:2506.01084](https://arxiv.org/abs/2506.01084). They train LoRA and both hyper-encoders together, on LZW-compressed documents, plus a reconstruction loss (λ=0.1) that converged to ~0. The codebook starts empty and only gains a code after the phrase has occurred. LZW, not a side predictor, decides when that code is the next symbol. The released Phi-3.5 checkpoint was trained that way (`max_codebook_size=2048`, `max_subtokens=4`).
-
-3. **Forcing our predictor phrases into that model does not compress.** `experiments/scratch/commit_agreed_phrase.py` used the original encoders and content phrases from the prompt. On all 3 probes the expanded text matched the frozen greedy text (20/20 tokens) and committed 0 hypertokens. The two candidate phrases were rejected because the next token after the hyper-embedding was not the next token after the real phrase. The embedding is not a drop-in substitute unless the LM was trained on that code.
-
-4. **The official path does both jobs.** `experiments/scratch/official_lzw_probe.py` compresses with `Zip2ZipTokenizer`, generates with the untouched checkpoint, and decompresses. At 40 decode steps: code 13 hypertokens / 24.5% fewer steps, instruction 19 hypertokens / 33.3%, GSM8K 4 hypertokens / 9.1%. All three completions are coherent. Prompt LZW savings were 4.2%, 0%, and 6.3%. Our earlier live bench fed raw token ids and set `max_codebook_size=32`, so it was not this procedure.
-
-3. **Report results and decide** — if Level 1 at ~300–500 steps achieves first-stage success (≥5% decode reduction, quality preserved), report that as the candidate commercial architecture. If not, evaluate Level 2 or Level 3.
-
----
-
-## Success Thresholds
-
-| Tier | Criterion |
-|---|---|
-| Failure | <2% MICRO decode step reduction after 300 steps at any level |
-| First success | ≥5% MICRO decode reduction, quality ≤1pp below base, frozen base weights |
-| Strong success | ≥8% MICRO decode reduction, quality preserved, adapter ≤1 GB |
-| Exceptional | >12% MICRO decode reduction approaching offline opportunity |
+The earlier findings remain important historical evidence: official reactive
+Zip2Zip probes were coherent and showed real savings; forced predictor phrases
+did not reliably preserve continuation; and the old 60-prompt sweep stopped at
+the first truncating code example.
 
 ---
 
@@ -269,7 +267,7 @@ Phi-3.5 Zip2Zip is the lab model for answering that. Product success is: same re
 | bitsandbytes | ❌ Not installed |
 | $0 budget | CPU-only by default; XPU usable if correctness confirmed |
 
-**XPU memory constraint**: Phi-3.5 in bf16 = 3.87B × 2 bytes = ~7.74 GB. With overhead, likely OOM on 8.47 GB VRAM. Recommended strategy: keep backbone on CPU, optionally move `output_encoder` to XPU for training (~453 MB bf16, trivially fits).
+**XPU memory constraint**: Phi-3.5 in bf16 = 3.87B × 2 bytes = ~7.74 GB. With overhead, likely OOM on 8.47 GB VRAM. Moving only the historical `output_encoder` to XPU was considered, but that is not a plan for the new joint pilot. Estimate the complete joint-training footprint before selecting hardware; do not squeeze the new architecture onto this laptop.
 
 ---
 
@@ -277,9 +275,13 @@ Phi-3.5 Zip2Zip is the lab model for answering that. Product success is: same re
 
 - **No response leakage**: predictor uses only prompt tokens. This is a hard scientific requirement.
 - **No tuning on val set**: the 60-prompt held-out set is never used for training decisions.
+- **Continuation is the first hard gate**: a selected hypertoken must be followed by normal continuation inside a complete valid answer.
 - **Quality is a hard gate**: step savings from producing worse/shorter output don't count.
+- **Base weights stay frozen**: joint hyperencoder/LoRA training is allowed; full base-model fine-tuning is not approved.
+- **Do not scale early**: no large training job or 60-prompt sweep before the official regression, round-trip checks, continuation test, tiny smoke test, and GPU resource estimate pass.
 - **No full fine-tuning without approval**: stop and report if all lighter approaches fail.
-- **MICRO compression is primary**: total tokens saved / total base tokens (token-weighted). MACRO (per-request mean %) is secondary.
+- **Continuation-equivalence is primary during the pilot**: track KL divergence, top-k agreement, and correct-next-token probability alongside emission and quality.
+- **MICRO compression is primary after correctness**: total tokens saved / total base tokens (token-weighted). MACRO (per-request mean %) is secondary.
 - **\$0 compute budget**: everything runs locally on CPU (or XPU if safe).
 
 ---
@@ -287,16 +289,21 @@ Phi-3.5 Zip2Zip is the lab model for answering that. Product success is: same re
 ## Key Files to Read First (in order)
 
 1. This file (`RESEARCH_LOG.md`) ← you are here
-2. `PREDICTIVE_HYPERTOKEN_STUDY.md` ← the forward-looking experimental design
-3. `experiments/train_pure_predictive_calibration.py` ← how training works
-4. `experiments/eval_60prompt_validation.py` ← the validation sweep (run this next)
-5. `src/zip2zip/static_codebook.py` ← the StaticCodebookManager (core runtime)
-6. `src/zip2zip/nn/linear.py` ← HyperLinear (patched for mixed precision)
-7. `experiments/checkpoints/pure_pred_k32_stageA_training_log.json` ← full training history
+2. `PREDICTIVE_HYPERTOKEN_STUDY.md` ← the primary implementation plan
+3. `src/zip2zip/model.py` and `src/zip2zip/codebook.py` ← official runtime path
+4. `src/zip2zip/static_codebook.py` ← predictive seeded-codebook runtime
+5. `experiments/true_hypertoken_decode.py` ← exploratory live predictive decode
+6. `experiments/train_pure_predictive_calibration.py` ← superseded output-only training
+7. `experiments/checkpoints/pure_pred_k32_stageA_training_log.json` ← historical training history
 
 ---
 
 ## Reproducibility
+
+The commands below reproduce the historical step-100 output-encoder-only
+probe. They are retained for evidence and comparison only; they are not an
+instruction to resume that training path. The new implementation order is in
+`PREDICTIVE_HYPERTOKEN_STUDY.md`.
 
 ### Load the model and the step-100 checkpoint
 
