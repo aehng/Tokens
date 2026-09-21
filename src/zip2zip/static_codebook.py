@@ -55,6 +55,10 @@ class StaticCodebookManager:
         self.position_ids: Optional[torch.Tensor] = None
         self._prepared_for_embedding: bool = False
 
+        # Instrumentation
+        self.input_encoder_calls: int = 0
+        self.output_encoder_calls: int = 0
+
     def set_seeded_codebook(
         self,
         dictionary: Union[Dict[int, List[int]], List[List[int]]],
@@ -279,6 +283,7 @@ class StaticCodebookManager:
             self.updates = self.updates.to(curr_device)
             if any(len(ui) > 0 for ui in self.updates_indices):
                 new_weights = encoder_fn(self.updates, base_weight, self.pad_token_id)
+                self.input_encoder_calls += 1
                 for i, ui in enumerate(self.updates_indices):
                     self.hyper_embedding_weight_cache[i, ui] = new_weights[i, : len(ui)]
 
@@ -313,10 +318,36 @@ class StaticCodebookManager:
             self.updates = self.updates.to(curr_device)
             if any(len(ui) > 0 for ui in self.updates_indices):
                 new_weights = encoder_fn(self.updates, base_weight, self.pad_token_id)
+                self.output_encoder_calls += 1
                 for i, ui in enumerate(self.updates_indices):
                     self.hyper_linear_weight_cache[i, ui] = new_weights[i, : len(ui)]
 
         return self.hyper_linear_weight_cache
+
+    def synthesize_hyper_vectors(
+        self, model: torch.nn.Module, batch_size: int = 1, dummy_input_ids: Optional[torch.Tensor] = None
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Precompute both input embeddings and output linear weights ONCE before generation."""
+        self.runtime_batch_size = batch_size
+        base = getattr(model, "base_model", model)
+        inp_emb = base.get_input_embeddings()
+        out_emb = base.get_output_embeddings()
+
+        inp_enc_fn = model.input_encoder.get_encoder_fn()
+        out_enc_fn = (
+            model.output_encoder.get_encoder_fn()
+            if getattr(model, "output_encoder", None) is not None
+            else inp_enc_fn
+        )
+
+        device = inp_emb.weight.device
+        if dummy_input_ids is None:
+            dummy_input_ids = torch.zeros((batch_size, 1), dtype=torch.long, device=device)
+
+        with torch.no_grad():
+            w_emb = self.get_hyper_embedding_weights(dummy_input_ids, inp_emb.weight, inp_enc_fn)
+            w_lin = self.get_hyper_linear_weights(out_emb.weight, out_enc_fn)
+        return w_emb, w_lin
 
     def attach_to_model(self, model: torch.nn.Module) -> None:
         """Attach this static codebook manager to a Zip2ZipModel."""
@@ -408,16 +439,16 @@ class StaticCodebookManager:
         """Reset runtime generation state between requests.
 
         Args:
-            clear_dictionary: If True, also clears the seeded codebook dictionary.
-                              Defaults to False so seeded codebook persists for generation.
+            clear_dictionary: If True, also clears the seeded codebook dictionary and weight caches.
+                              Defaults to False so seeded codebook and synthesized weights persist for generation.
         """
-        self.hyper_embedding_weight_cache = None
-        self.hyper_linear_weight_cache = None
         self.base_position_offset = None
         self.position_ids = None
         self._prepared_for_embedding = False
 
         if clear_dictionary:
+            self.hyper_embedding_weight_cache = None
+            self.hyper_linear_weight_cache = None
             self.hyper_to_subtokens.clear()
             self.subtokens_to_hyper.clear()
             self.num_seeded = 0
@@ -425,6 +456,8 @@ class StaticCodebookManager:
             self.updates_indices = None
             self.hyper_token_spans = None
             self.runtime_batch_size = None
+            self.input_encoder_calls = 0
+            self.output_encoder_calls = 0
 
     @classmethod
     def from_config(cls, config: Zip2ZipConfig) -> StaticCodebookManager:

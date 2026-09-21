@@ -186,3 +186,47 @@ def test_static_codebook_reset():
     mgr.reset(clear_dictionary=True)
     assert mgr.num_seeded == 0
     assert len(mgr.hyper_to_subtokens) == 0
+
+
+def test_hyper_vector_cache_persistence_and_instrumentation():
+    """Verify that once synthesized, hyper-vectors persist across resets and encoders run exactly ONCE."""
+    initial_vocab_size = 100
+    max_codebook_size = 16
+    dim = 32
+    mgr = StaticCodebookManager(
+        initial_vocab_size=initial_vocab_size,
+        max_codebook_size=max_codebook_size,
+        max_subtokens=3,
+        embedding_dim=dim,
+        pad_token_id=0,
+    )
+    mgr.set_seeded_codebook([[5, 10], [15, 20, 25]], batch_size=1)
+
+    encoder_mock_calls = 0
+    def mock_encoder(updates, base_weight, pad_id):
+        nonlocal encoder_mock_calls
+        encoder_mock_calls += 1
+        b, n, s = updates.shape
+        return torch.randn(b, n, dim)
+
+    base_weight = torch.randn(initial_vocab_size, dim)
+    dummy_ids = torch.tensor([[10]])
+
+    # Call 1: Synthesize
+    w1 = mgr.get_hyper_linear_weights(base_weight, mock_encoder)
+    assert mgr.output_encoder_calls == 1
+    assert encoder_mock_calls == 1
+
+    # Call 2: Second access (simulating next step in generation)
+    w2 = mgr.get_hyper_linear_weights(base_weight, mock_encoder)
+    assert mgr.output_encoder_calls == 1
+    assert encoder_mock_calls == 1, "Encoder must NOT be called again when cache is valid"
+    assert torch.equal(w1, w2)
+
+    # Call 3: reset(clear_dictionary=False) simulating model.generate() start
+    mgr.reset(clear_dictionary=False)
+    w3 = mgr.get_hyper_linear_weights(base_weight, mock_encoder)
+    assert mgr.output_encoder_calls == 1
+    assert encoder_mock_calls == 1, "Encoder must NOT be called after step-level reset"
+    assert torch.equal(w1, w3)
+

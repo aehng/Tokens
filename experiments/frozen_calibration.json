@@ -1,0 +1,77 @@
+{
+  "frozen_bias": 1.0,
+  "records": [
+    {
+      "bias": 0.0,
+      "emitted_mean": 1.0,
+      "steps_saved_mean": 1.0,
+      "hyper_prob_pct": 0.9235534103936516,
+      "quality_pass_pct": 100.0,
+      "status": "RECOMMENDED"
+    },
+    {
+      "bias": 1.0,
+      "emitted_mean": 1.3333333333333333,
+      "steps_saved_mean": 1.3333333333333333,
+      "hyper_prob_pct": 2.4456863883339492,
+      "quality_pass_pct": 100.0,
+      "status": "RECOMMENDED"
+    },
+    {
+      "bias": 2.0,
+      "emitted_mean": 1.6666666666666667,
+      "steps_saved_mean": 1.6666666666666667,
+      "hyper_prob_pct": 6.215395386486003,
+      "quality_pass_pct": 66.66666666666666,
+      "status": "DEGRADED"
+    },
+    {
+      "bias": 3.0,
+      "emitted_mean": 3.0,
+      "steps_saved_mean": 3.0,
+      "hyper_prob_pct": 14.39285472345849,
+      "quality_pass_pct": 66.66666666666666,
+      "status": "DEGRADED"
+    },
+    {
+      "bias": 4.0,
+      "emitted_mean": 4.0,
+      "steps_saved_mean": 4.333333333333333,
+      "hyper_prob_pct": 28.13484741685291,
+      "quality_pass_pct": 66.66666666666666,
+      "status": "DEGRADED"
+    },
+    {
+      "bias": 5.0,
+      "emitted_mean": 15.666666666666666,
+      "steps_saved_mean": 27.0,
+      "hyper_prob_pct": 44.01556670976181,
+      "quality_pass_pct": 66.66666666666666,
+      "status": "DEGRADED"
+    },
+    {
+      "bias": 6.0,
+      "emitted_mean": 22.666666666666668,
+      "steps_saved_mean": 34.0,
+      "hyper_prob_pct": 56.34142868220806,
+      "quality_pass_pct": 33.33333333333333,
+      "status": "DEGRADED"
+    },
+    {
+      "bias": 7.0,
+      "emitted_mean": 30.333333333333332,
+      "steps_saved_mean": 45.333333333333336,
+      "hyper_prob_pct": 63.80560075243314,
+      "quality_pass_pct": 33.33333333333333,
+      "status": "DEGRADED"
+    },
+    {
+      "bias": 8.0,
+      "emitted_mean": 31.0,
+      "steps_saved_mean": 42.333333333333336,
+      "hyper_prob_pct": 69.14205501476923,
+      "quality_pass_pct": 33.33333333333333,
+      "status": "DEGRADED"
+    }
+  ]
+}
