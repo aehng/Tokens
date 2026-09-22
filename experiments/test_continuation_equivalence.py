@@ -236,12 +236,34 @@ def evaluate_continuation_suite(model: Zip2ZipModel, tokenizer: Any, output_path
     top5_acc = sum(r["top5_overlap"] for r in results) / len(results)
     cont_match = sum(1 for r in results if r["continuation_match"]) / len(results)
 
+    # Category summaries
+    categories = sorted(list(set(r["category"] for r in results)))
+    cat_summaries = {}
+    for cat in categories:
+        cat_probes = [r for r in results if r["category"] == cat]
+        cat_summaries[cat] = {
+            "count": len(cat_probes),
+            "mean_kl": round(sum(r["kl_divergence"] for r in cat_probes) / len(cat_probes), 4),
+            "mean_cos_sim": round(sum(r["hidden_cosine_sim"] for r in cat_probes) / len(cat_probes), 4),
+            "top1_agreement": round(sum(1 for r in cat_probes if r["top1_match"]) / len(cat_probes), 4),
+            "top5_overlap": round(sum(r["top5_overlap"] for r in cat_probes) / len(cat_probes), 4),
+            "continuation_match_rate": round(sum(1 for r in cat_probes if r["continuation_match"]) / len(cat_probes), 4),
+        }
+
+    sem_summary = cat_summaries.get("semantic", {})
+
     print(f"\nSUMMARY ACROSS ALL {len(results)} PROBES:")
-    print(f"  Mean KL Divergence:        {mean_kl:.3f}")
-    print(f"  Mean Cosine Similarity:    {mean_cos:.4f}")
-    print(f"  Top-1 Agreement Rate:      {top1_acc*100:.1f}%")
-    print(f"  Top-5 Overlap:             {top5_acc*100:.1f}%")
-    print(f"  5-Step Continuation Match: {cont_match*100:.1f}%")
+    print(f"  Overall Mean KL Divergence:    {mean_kl:.3f}")
+    print(f"  Overall Mean Cosine Sim:       {mean_cos:.4f}")
+    print(f"  Overall Top-1 Agreement Rate:  {top1_acc*100:.1f}%")
+    print(f"  Overall Top-5 Overlap:         {top5_acc*100:.1f}%")
+    print(f"  Overall 5-Step Cont. Match:    {cont_match*100:.1f}%")
+    print(f"\nSEMANTIC SUBSET ({sem_summary.get('count', 0)} probes):")
+    print(f"  Semantic Mean KL Divergence:   {sem_summary.get('mean_kl', 0.0):.3f}")
+    print(f"  Semantic Mean Cosine Sim:      {sem_summary.get('mean_cos_sim', 0.0):.4f}")
+    print(f"  Semantic Top-1 Agreement Rate: {sem_summary.get('top1_agreement', 0.0)*100:.1f}%")
+    print(f"  Semantic Top-5 Overlap:        {sem_summary.get('top5_overlap', 0.0)*100:.1f}%")
+    print(f"  Semantic 5-Step Cont. Match:   {sem_summary.get('continuation_match_rate', 0.0)*100:.1f}%")
     print(f"{'='*80}\n")
 
     if output_path:
@@ -253,7 +275,13 @@ def evaluate_continuation_suite(model: Zip2ZipModel, tokenizer: Any, output_path
                     "top1_agreement": round(top1_acc, 4),
                     "top5_overlap": round(top5_acc, 4),
                     "continuation_match_rate": round(cont_match, 4),
+                    "semantic_mean_kl": sem_summary.get("mean_kl", 0.0),
+                    "semantic_mean_cos_sim": sem_summary.get("mean_cos_sim", 0.0),
+                    "semantic_top1_agreement": sem_summary.get("top1_agreement", 0.0),
+                    "semantic_top5_overlap": sem_summary.get("top5_overlap", 0.0),
+                    "semantic_continuation_match_rate": sem_summary.get("continuation_match_rate", 0.0),
                 },
+                "category_summaries": cat_summaries,
                 "probes": results,
             }, f, indent=2)
         print(f"Saved probe report to {output_path}")
@@ -262,11 +290,28 @@ def evaluate_continuation_suite(model: Zip2ZipModel, tokenizer: Any, output_path
 
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Evaluate continuation equivalence.")
+    parser.add_argument("--checkpoint", type=str, default=None, help="Path to checkpoint pt file")
+    parser.add_argument("--output", type=str, default="experiments/checkpoints/continuation_equivalence_baseline.json")
+    args = parser.parse_args()
+
     model_id = "epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1"
     tok = AutoTokenizer.from_pretrained("microsoft/Phi-3.5-mini-instruct")
     m = Zip2ZipModel.from_pretrained(model_id, torch_dtype=torch.float16, low_cpu_mem_usage=True)
-    m.eval()
 
-    out_file = os.path.join("experiments", "checkpoints", "continuation_equivalence_baseline.json")
-    os.makedirs(os.path.dirname(out_file), exist_ok=True)
-    evaluate_continuation_suite(m, tok, output_path=out_file)
+    if args.checkpoint and os.path.exists(args.checkpoint):
+        print(f"Loading checkpoint weights from {args.checkpoint}...")
+        ckpt = torch.load(args.checkpoint, map_location="cpu")
+        if "lora_state_dict" in ckpt:
+            for k, v in ckpt["lora_state_dict"].items():
+                m.base_model.load_state_dict({k: v}, strict=False)
+        if "input_encoder_state_dict" in ckpt:
+            m.input_encoder.load_state_dict(ckpt["input_encoder_state_dict"], strict=False)
+        if "output_encoder_state_dict" in ckpt and getattr(m, "output_encoder", None) is not None:
+            m.output_encoder.load_state_dict(ckpt["output_encoder_state_dict"], strict=False)
+        print("Checkpoint weights loaded successfully.")
+
+    m.eval()
+    os.makedirs(os.path.dirname(args.output), exist_ok=True)
+    evaluate_continuation_suite(m, tok, output_path=args.output)

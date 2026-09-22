@@ -97,6 +97,22 @@ class TestPredictivePipelineRoundTrip(unittest.TestCase):
         # Response portion must match compressed response tokens
         self.assertEqual(sample["labels"][prompt_len:], sample["compressed_response_ids"])
 
+    def test_05_prompt_only_causality(self):
+        """Test that codebook selection depends strictly on the prompt and is invariant to the response."""
+        prompt = "def compute_factorial(n):\n    if n <= 1:\n        return 1\n"
+        response_a = "    return n * compute_factorial(n - 1)"
+        response_b = "    result = 1\n    for i in range(2, n + 1):\n        result *= i\n    return result"
+
+        sample_a = self.pipeline.process_sample(prompt, response_a, domain="code")
+        sample_b = self.pipeline.process_sample(prompt, response_b, domain="code")
+
+        # The codebook dictionary must be 100% identical regardless of response
+        self.assertEqual(
+            sample_a["codebook_dict"],
+            sample_b["codebook_dict"],
+            "Causality violation: changing the response altered the predicted codebook!",
+        )
+
     def policy_to_dict(self, sample):
         return {eval(k) if isinstance(k, str) else k: v for k, v in sample["codebook_dict"].items()}
 

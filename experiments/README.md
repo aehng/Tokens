@@ -28,32 +28,40 @@ Do not launch a large training job automatically. The required order is:
 | Script | Purpose | Status |
 |---|---|---|
 | `train_pure_predictive_calibration.py` | Historical output-encoder-only calibration | ✅ 100 steps complete; superseded |
-| `train_predictive_zip2zip.py` | Joint predictive pilot | ⏳ To be implemented |
-
-Do not resume the old output-encoder-only run. Its checkpoint and training log
-are retained as historical evidence of the continuation failure.
+| `train_predictive_zip2zip.py` | Joint predictive pilot (LoRA + input/output encoders) with exact resume | ✅ Implemented; Steps 0–200 completed |
 
 ### Evaluation and Verification
 
 | Script | Purpose | Status |
 |---|---|---|
-| `test_official_checkpoint.py` | Official reactive Zip2Zip regression | ⏳ Must be formalized and passed first |
-| `evaluate_continuation_equivalence.py` | Base-span vs hypertoken next-token comparison | ⏳ To be implemented |
-| `prepare_predictive_training_data.py` | Prompt-only codebook and exact round-trip pipeline | ⏳ To be implemented or consolidated |
-| `evaluate_predictive_checkpoint.py` | Fixed 12-prompt checkpoint evaluation | ⏳ To be implemented |
-| `eval_60prompt_validation.py` | Frozen 60-prompt comparison | ⏸ Blocked until 12-prompt gates pass |
-| `compute_full_test_micro_compression.py` | Offline compression audit | ✅ Complete; not the current acceptance gate |
+| `tests/test_official_zip2zip_regression.py` | Official reactive Zip2Zip regression suite | ✅ 5/5 tests passed |
+| `tests/test_predictive_pipeline_roundtrip.py` | Predictor pipeline causality & round-trip suite | ✅ 5/5 tests passed |
+| `tests/test_reconstruction_loss.py` | Positional query reconstruction loss verification | ✅ 2/2 tests passed |
+| `tests/test_curriculum_ranking.py` | Deterministic ranked curriculum verification | ✅ 4/4 tests passed |
+| `tests/test_joint_training_smoke.py` | Base weight frozen hash & backward flow check | ✅ 2/2 tests passed |
+| `experiments/test_continuation_equivalence.py` | Base-span vs hypertoken next-token continuation comparison | ✅ Fully operational (overall + semantic) |
+| `experiments/run_smoke_generation_check.py` | 3-prompt (code, reasoning, instruction) real-generation test | ✅ Fully operational |
+| `compute_full_test_micro_compression.py` | Offline compression audit | ✅ Complete |
 | `verify_prompt_guarantees.py` | Causality, round-trip, and pre-prefill checks | ✅ Complete |
-| `true_hypertoken_decode.py` | Exploratory live predictive decode | ⚠ Diagnostic only; not an acceptance evaluation |
 
-The intended commands are:
+The standard training and evaluation commands are:
 
 ```bash
+# Cumulative training with resume support
 python experiments/train_predictive_zip2zip.py \
-  --config configs/predictive_joint_pilot.yaml
+  --resume-from experiments/checkpoints/predictive_joint_pilot/checkpoint_step_150.pt \
+  --target-steps 200 \
+  --checkpoint-interval 50
 
-python experiments/evaluate_predictive_checkpoint.py \
-  --checkpoint <path>
+# Continuation equivalence evaluation
+python experiments/test_continuation_equivalence.py \
+  --checkpoint experiments/checkpoints/predictive_joint_pilot/checkpoint_step_150.pt \
+  --output experiments/checkpoints/predictive_joint_pilot/continuation_step_150.json
+
+# Real generation smoke check
+python experiments/run_smoke_generation_check.py \
+  --checkpoint experiments/checkpoints/predictive_joint_pilot/checkpoint_step_150.pt \
+  --output experiments/checkpoints/predictive_joint_pilot/smoke_step_150.json
 ```
 
 ## Planned Pilot Configuration

@@ -137,8 +137,29 @@ class TestJointTrainingSmoke(unittest.TestCase):
             if "lora" not in name.lower():
                 self.assertIsNone(param.grad, f"Base weight {name} must have no gradient")
 
+        # Compute base model weight hashes before optimizer step
+        def hash_tensor(t):
+            import hashlib
+            return hashlib.sha256(t.detach().cpu().contiguous().numpy().tobytes()).hexdigest()
+
+        base_hashes_before = {
+            name: hash_tensor(param)
+            for name, param in self.model.base_model.named_parameters()
+            if "lora" not in name.lower() and any(x in name for x in ["embed_tokens", "layers.0.", "layers.16.", "layers.31."])
+        }
+
         # Optimizer step
         optimizer.step()
+
+        # Verify base model weights are 100% byte-identical after optimizer step
+        for name, h_before in base_hashes_before.items():
+            param = dict(self.model.base_model.named_parameters())[name]
+            h_after = hash_tensor(param)
+            self.assertEqual(
+                h_before,
+                h_after,
+                f"SAFETY VIOLATION: Base model weight {name} was modified by optimizer step!",
+            )
 
 
 if __name__ == "__main__":

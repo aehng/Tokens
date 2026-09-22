@@ -67,14 +67,15 @@ class PredictivePipeline:
 
         # 1. Select codebook using PROMPT ONLY
         codebook_dict, policy_meta = self.policy.select_codebook(prompt_ids)
-        phrases_set = set(codebook_dict.keys())
+        ordered_phrases = list(codebook_dict.keys())
 
-        # Curriculum density support: if curriculum_density < 1.0, prune phrases
-        if curriculum_density < 1.0 and phrases_set:
-            keep_count = max(1, int(len(phrases_set) * curriculum_density))
-            active_phrases = list(phrases_set)[:keep_count]
-            phrases_set = set(active_phrases)
-            codebook_dict = {p: self.initial_vocab_size + i for i, p in enumerate(active_phrases)}
+        # Curriculum density support: if curriculum_density < 1.0, take top slice of deterministic ranked list
+        if curriculum_density < 1.0 and ordered_phrases:
+            import math
+            keep_count = max(1, int(math.ceil(len(ordered_phrases) * curriculum_density)))
+            ordered_phrases = ordered_phrases[:keep_count]
+            codebook_dict = {p: self.initial_vocab_size + i for i, p in enumerate(ordered_phrases)}
+        phrases_set = set(ordered_phrases)
 
         # 2. Segment prompt with codebook
         p_comp_len, p_tiles, _ = segment_tokens_dp(prompt_ids, phrases_set)

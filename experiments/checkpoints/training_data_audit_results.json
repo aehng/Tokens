@@ -1,0 +1,43 @@
+{
+  "overall": {
+    "samples_audited": 999,
+    "covered_resp_ge1_count": 945,
+    "covered_resp_ge1_pct": 94.59,
+    "covered_resp_ge2_count": 911,
+    "covered_resp_ge2_pct": 91.19,
+    "target_hypertoken_density_pct": 14.37,
+    "micro_response_compression_pct": 15.45,
+    "avg_tokens_saved_per_response": 18.64,
+    "content_hypers_total": 8946,
+    "structural_hypers_total": 5697
+  },
+  "domain_breakdown": {
+    "code": {
+      "samples": 73,
+      "covered_ge1_pct": 100.0,
+      "covered_ge2_pct": 100.0,
+      "density_pct": 12.76,
+      "micro_compression_pct": 14.94,
+      "content_hypers": 1014,
+      "structural_hypers": 434
+    },
+    "instruction": {
+      "samples": 181,
+      "covered_ge1_pct": 70.17,
+      "covered_ge2_pct": 54.7,
+      "density_pct": 5.04,
+      "micro_compression_pct": 6.2,
+      "content_hypers": 423,
+      "structural_hypers": 87
+    },
+    "reasoning": {
+      "samples": 745,
+      "covered_ge1_pct": 100.0,
+      "covered_ge2_pct": 99.19,
+      "density_pct": 15.77,
+      "micro_compression_pct": 16.55,
+      "content_hypers": 7509,
+      "structural_hypers": 5176
+    }
+  }
+}

@@ -1,0 +1,91 @@
+[
+  {
+    "domain": "code",
+    "name": "python_binary_search",
+    "step_0": {
+      "decode_steps": 80,
+      "expanded_tokens": 85,
+      "hypertokens_count": 5,
+      "hypertokens_emitted": [
+        "(arr",
+        "(arr",
+        "1",
+        "2",
+        "1"
+      ],
+      "output_text": "\n```python\ndef binary_search(arr, target):\n    left = 0\n    right = len(arr) - 1\n    while left <= right:\n        mid = (left + right) // 2\n        if arr[mid] == target:\n            return mid\n        elif arr[mid] < target:\n            left = mid + 1\n        else:"
+    },
+    "step_100": {
+      "decode_steps": 80,
+      "expanded_tokens": 86,
+      "hypertokens_count": 6,
+      "hypertokens_emitted": [
+        "(arr",
+        "0",
+        "(arr",
+        "1",
+        "2",
+        "1"
+      ],
+      "output_text": "\ndef binary_search(arr, target):\n    left = 0\n    right = len(arr) - 1\n    while left <= right:\n        mid = (left + right) // 2\n        if arr[mid] == target:\n            return mid\n        elif arr[mid] < target:\n            left = mid + 1\n        else:\n            right ="
+    }
+  },
+  {
+    "domain": "reasoning",
+    "name": "gsm8k_math_problem",
+    "step_0": {
+      "decode_steps": 80,
+      "expanded_tokens": 87,
+      "hypertokens_count": 6,
+      "hypertokens_emitted": [
+        "4",
+        "5",
+        "1",
+        "10",
+        "1",
+        "10"
+      ],
+      "output_text": "- Monday: 45 books\n- Tuesday: \\(2 \\times 55 = 110\\) books\n- Wednesday: \\(110 - 15 = 95\\) books\nTotal: \\(55 + 100 + 95 = \\boxed{250}\\) books\nGiven the function $f(x) = \\frac{1"
+    },
+    "step_100": {
+      "decode_steps": 80,
+      "expanded_tokens": 91,
+      "hypertokens_count": 11,
+      "hypertokens_emitted": [
+        "4",
+        "4",
+        "2",
+        "= <<",
+        "0>>",
+        "1",
+        "= <<",
+        "15",
+        "4",
+        "= <<",
+        "0>>"
+      ],
+      "output_text": "- Monday: 45 books\n- Tuesday: 45 * 2 = <<45*2=90>>90 books\n- Wednesday: 90 - 15 = <<90-15=75>>75 books\nTotal: 45 + 90 + 75 = <<45+90+75=210>>210"
+    }
+  },
+  {
+    "domain": "instruction",
+    "name": "alpaca_renewable_energy",
+    "step_0": {
+      "decode_steps": 80,
+      "expanded_tokens": 80,
+      "hypertokens_count": 0,
+      "hypertokens_emitted": [],
+      "output_text": "1. Solar energy: Solar panels convert sunlight into electricity through the photovoltaic effect.\n2. Wind energy: Wind turbines use the kinetic energy of wind to turn a generator and produce electricity.\n3. Hydro energy: Hydroelectric power plants use the force of falling water to turn a turbine and generate electric power.<|end|>"
+    },
+    "step_100": {
+      "decode_steps": 80,
+      "expanded_tokens": 82,
+      "hypertokens_count": 2,
+      "hypertokens_emitted": [
+        "of the",
+        "of the"
+      ],
+      "output_text": "1. Solar energy: Solar panels convert sunlight into electricity through the photovoltaic effect.\n2. Wind energy: Wind turbines use the kinetic energy of the wind to turn a generator and produce electricity.\n3. Hydro energy: Hydroelectric power plants use the force of the falling water to turn a turbine and generate electricity.<|end|>"
+    }
+  }
+]

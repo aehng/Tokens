@@ -1,0 +1,14 @@
+{
+  "status": "success",
+  "start_step": 150,
+  "target_steps": 200,
+  "steps_trained_this_session": 50,
+  "session_elapsed_s": 3386.2,
+  "cumulative_time_s": 12557.83,
+  "latest_checkpoint": "experiments/checkpoints/predictive_joint_pilot\\checkpoint_step_200.pt",
+  "final_losses": {
+    "total_loss": 0.6902,
+    "lm_loss": 0.5721,
+    "recon_loss": 1.1806
+  }
+}

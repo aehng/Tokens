@@ -27,24 +27,50 @@ from typing import Dict, List, Optional, Sequence, Set, Tuple, Any
 from transformers import PreTrainedTokenizerBase
 
 
-def is_structural_or_numeric(phrase_tokens: Tuple[int, ...], tokenizer: PreTrainedTokenizerBase) -> bool:
-    """Classify whether a phrase is structural (newlines/whitespace) or numeric."""
+def is_structural(phrase_tokens: Tuple[int, ...], tokenizer: PreTrainedTokenizerBase) -> bool:
+    """Classify whether a phrase is structural (newlines, indentation, tabs, whitespace)."""
     text = tokenizer.decode(list(phrase_tokens))
-    # Newline / indentation / whitespace
+    # Newline / indentation / whitespace or empty
     if text.strip() == "" or all(c in " \t\r\n" for c in text):
         return True
-    # Pure numbers or numbers with basic symbols (e.g. $100, 120/80)
-    if re.match(r"^[\$\€\£]?\s*\d+([\.,/]\d+)*\s*\%?$", text.strip()):
+    # Contains newlines/tabs with no alphanumeric tokens (e.g. '\n{\n', '\t#')
+    if any(c in "\n\r\t" for c in text) and not any(c.isalnum() for c in text):
+        return True
+    return False
+
+
+def is_numeric(phrase_tokens: Tuple[int, ...], tokenizer: PreTrainedTokenizerBase) -> bool:
+    """Classify whether a phrase is numeric (pure numbers, currency, percents, decimals, ratios)."""
+    text = tokenizer.decode(list(phrase_tokens)).strip()
+    if not text:
+        return False
+    # Pure numbers or numbers with basic symbols (e.g. 100, $100, 120/80, 3.1415, 95%)
+    if re.match(r"^[\$\€\£\¥]?\s*[-+]?\d+([\.,/:\-]\d+)*\s*\%?$", text):
         return True
     return False
 
 
 def is_bare_punctuation(phrase_tokens: Tuple[int, ...], tokenizer: PreTrainedTokenizerBase) -> bool:
     """Detect uninformative bare punctuation chains."""
-    text = tokenizer.decode(list(phrase_tokens))
+    text = tokenizer.decode(list(phrase_tokens)).strip()
     punct_chars = set(".,!?:;\"'()[]{}<>-=_+*&^%$#@~`|\\/")
-    # If phrase consists solely of punctuation without any alphanumeric or newline characters
-    return len(text.strip()) > 0 and all(c in punct_chars for c in text.strip())
+    return len(text) > 0 and all(c in punct_chars for c in text)
+
+
+def classify_phrase(phrase_tokens: Tuple[int, ...], tokenizer: PreTrainedTokenizerBase) -> str:
+    """Classify phrase into one of: 'structural', 'numeric', 'bare_punct', 'content'."""
+    if is_structural(phrase_tokens, tokenizer):
+        return "structural"
+    if is_bare_punctuation(phrase_tokens, tokenizer):
+        return "bare_punct"
+    if is_numeric(phrase_tokens, tokenizer):
+        return "numeric"
+    return "content"
+
+
+def is_structural_or_numeric(phrase_tokens: Tuple[int, ...], tokenizer: PreTrainedTokenizerBase) -> bool:
+    """Backward compatibility helper."""
+    return is_structural(phrase_tokens, tokenizer) or is_numeric(phrase_tokens, tokenizer)
 
 
 class CappedPredictorPolicy:
@@ -55,13 +81,19 @@ class CappedPredictorPolicy:
         predictor_index: Any,
         tokenizer: PreTrainedTokenizerBase,
         budget: int = 32,
-        max_structural_slots: int = 8,
+        max_structural_slots: int = 0,
+        allow_numeric: bool = True,
+        max_numeric_slots: Optional[int] = None,
+        filter_bare_punctuation: bool = True,
         initial_vocab_size: int = 32011,
     ) -> None:
         self.index = predictor_index
         self.tokenizer = tokenizer
         self.budget = budget
         self.max_structural_slots = max_structural_slots
+        self.allow_numeric = allow_numeric
+        self.max_numeric_slots = max_numeric_slots
+        self.filter_bare_punctuation = filter_bare_punctuation
         self.initial_vocab_size = initial_vocab_size
         self.disabled_ids = set(getattr(predictor_index, "disabled_ids", []))
         self.max_subtokens = getattr(predictor_index, "max_subtokens", 4)
@@ -94,7 +126,6 @@ class CappedPredictorPolicy:
         p_ngrams = self.extract_prompt_ngrams(prompt_ids)
         for gram, cnt in p_ngrams.items():
             savings = len(gram) - 1
-            # Give higher weight to repeated phrases in the prompt
             scores[gram] += cnt * savings * 8.0
 
         # 2. Association prior from prompt tokens via offline index
@@ -104,48 +135,61 @@ class CappedPredictorPolicy:
             for gram, weight in cands:
                 scores[gram] += weight
 
-        # Filter out bare punctuation chains
+        # Filter bare punctuation chains
         filtered_candidates: List[Tuple[Tuple[int, ...], float]] = []
         for gram, sc in scores.items():
-            if is_bare_punctuation(gram, self.tokenizer):
+            if self.filter_bare_punctuation and is_bare_punctuation(gram, self.tokenizer):
                 continue
             filtered_candidates.append((gram, sc))
 
-        # Rank all candidates by score
-        ranked = sorted(filtered_candidates, key=lambda x: x[1], reverse=True)
+        # Rank all candidates deterministically: descending score, tie-break by token tuple
+        ranked = sorted(filtered_candidates, key=lambda x: (-x[1], x[0]))
 
-        # Apply category caps
-        structural_slots: List[Tuple[Tuple[int, ...], float]] = []
-        content_slots: List[Tuple[Tuple[int, ...], float]] = []
+        # Apply category partition
+        structural_cands: List[Tuple[Tuple[int, ...], float]] = []
+        numeric_cands: List[Tuple[Tuple[int, ...], float]] = []
+        content_cands: List[Tuple[Tuple[int, ...], float]] = []
 
         for gram, sc in ranked:
-            if is_structural_or_numeric(gram, self.tokenizer):
-                if len(structural_slots) < self.max_structural_slots:
-                    structural_slots.append((gram, sc))
-            else:
-                content_slots.append((gram, sc))
+            cat = classify_phrase(gram, self.tokenizer)
+            if cat == "structural":
+                structural_cands.append((gram, sc))
+            elif cat == "numeric":
+                if self.allow_numeric:
+                    numeric_cands.append((gram, sc))
+            elif cat == "content":
+                content_cands.append((gram, sc))
 
-        # Combine: prioritize content, cap structural
-        selected: List[Tuple[int, ...]] = []
-        # Add top content phrases first up to budget - len(structural_slots)
-        target_content_count = max(0, self.budget - len(structural_slots))
-        for gram, _ in content_slots[:target_content_count]:
-            selected.append(gram)
+        # Cap structural slots
+        accepted_structural = structural_cands[: self.max_structural_slots]
+
+        # Cap numeric slots if configured
+        if self.max_numeric_slots is not None:
+            accepted_numeric = numeric_cands[: self.max_numeric_slots]
+        else:
+            accepted_numeric = numeric_cands
+
+        # Primary pool: content + allowed numeric, sorted by score
+        primary_pool = sorted(content_cands + accepted_numeric, key=lambda x: (-x[1], x[0]))
+
+        # Allocate budget: primary pool gets budget - structural slots
+        target_primary_count = max(0, self.budget - len(accepted_structural))
+        selected: List[Tuple[int, ...]] = [gram for gram, _ in primary_pool[:target_primary_count]]
 
         # Add structural phrases
-        for gram, _ in structural_slots:
-            if len(selected) < self.budget:
+        for gram, _ in accepted_structural:
+            if len(selected) < self.budget and gram not in selected:
                 selected.append(gram)
 
-        # If still room, fill with more content phrases
+        # If still room, fill with remainder of primary pool
         if len(selected) < self.budget:
-            for gram, _ in content_slots[target_content_count:]:
+            for gram, _ in primary_pool[target_primary_count:]:
                 if gram not in selected:
                     selected.append(gram)
                     if len(selected) >= self.budget:
                         break
 
-        # Map to hypertoken IDs
+        # Map to hypertoken IDs (preserving deterministic ranked order)
         codebook = {
             gram: self.initial_vocab_size + i
             for i, gram in enumerate(selected)
@@ -154,20 +198,22 @@ class CappedPredictorPolicy:
         t1 = time.perf_counter()
         latency_ms = (t1 - t0) * 1000.0
 
-        num_structural = sum(1 for g in codebook if is_structural_or_numeric(g, self.tokenizer))
-        num_content = len(codebook) - num_structural
+        num_structural = sum(1 for g in codebook if is_structural(g, self.tokenizer))
+        num_numeric = sum(1 for g in codebook if is_numeric(g, self.tokenizer))
+        num_content = len(codebook) - num_structural - num_numeric
 
         meta = {
             "latency_ms": round(latency_ms, 2),
             "total_phrases": len(codebook),
             "content_phrases": num_content,
+            "numeric_phrases": num_numeric,
             "structural_phrases": num_structural,
             "phrases": [
                 {
                     "id": hid,
                     "text": self.tokenizer.decode(list(gram)),
                     "tokens": list(gram),
-                    "is_structural": is_structural_or_numeric(gram, self.tokenizer),
+                    "category": classify_phrase(gram, self.tokenizer),
                 }
                 for gram, hid in codebook.items()
             ],

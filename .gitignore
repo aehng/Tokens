@@ -1,7 +1,11 @@
 eleutherai_eval/
 *.pkl
 data/corpus_stage*.jsonl
-experiments/checkpoints/
+experiments/checkpoints/*.pt
+experiments/checkpoints/**/*.pt
+experiments/checkpoints/*.bin
+experiments/checkpoints/**/*.bin
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

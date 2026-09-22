@@ -131,7 +131,7 @@ def compute_reconstruction_loss(
     # Differentiably encode hypertoken embeddings: (B, K, dim)
     hyper_embeds = input_encoder(codebook_tensor, base_embedding_weight, pad_token_id)
 
-    # Reconstruct constituent tokens via dot product with base embedding table
+    # Reconstruct constituent tokens via position-conditioned dot product with base embedding table
     # hyper_embeds: (B*K, dim)
     flat_embeds = hyper_embeds.view(B * K, -1)
     flat_codes = codebook_tensor.view(B * K, S)
@@ -143,21 +143,32 @@ def compute_reconstruction_loss(
     if active_embeds.shape[0] == 0:
         return torch.tensor(0.0, device=device, requires_grad=True)
 
-    # Dot product against base embedding matrix: (N_active, vocab_size)
-    # Using float32 for numerical stability in cross entropy
-    logits = F.linear(active_embeds.float(), base_embedding_weight.float())  # (N_active, vocab_size)
+    pos_embed_layer = getattr(input_encoder, "pos_embed", None)
+    emb_w = base_embedding_weight.float()
 
-    # Loss: average cross entropy predicting each constituent non-pad token
+    # Upstream Zip2Zip Section 2.4: f_psi: R^d -> V^M
+    # Each constituent position s in [0..S-1] is decoded using its position query P_s
     total_recon_loss = torch.tensor(0.0, device=device)
     total_tokens = 0
 
     for s in range(S):
         targets = active_codes[:, s]  # (N_active,)
         mask = targets != pad_token_id
-        if mask.any():
-            loss_s = F.cross_entropy(logits[mask], targets[mask], reduction="sum")
-            total_recon_loss = total_recon_loss + loss_s
-            total_tokens += mask.sum().item()
+        if not mask.any():
+            continue
+
+        if pos_embed_layer is not None:
+            pos_id = torch.tensor(s, device=device, dtype=torch.long)
+            p_s = pos_embed_layer(pos_id).view(1, -1).float()  # (1, dim)
+            h_s = active_embeds.float() + p_s  # position-conditioned latent representation
+        else:
+            h_s = active_embeds.float()
+
+        # Position-specific vocabulary logits: (N_active, vocab_size)
+        logits_s = F.linear(h_s, emb_w)
+        loss_s = F.cross_entropy(logits_s[mask], targets[mask], reduction="sum")
+        total_recon_loss = total_recon_loss + loss_s
+        total_tokens += mask.sum().item()
 
     return total_recon_loss / max(total_tokens, 1)
 
