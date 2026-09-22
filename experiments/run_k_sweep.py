@@ -23,6 +23,7 @@ sys.path.insert(0, os.path.abspath("src"))
 
 from zip2zip import Zip2ZipModel, StaticCodebookManager
 from zip2zip.evidence_selector import EvidenceAwareSelector
+from experiments.load_joint_checkpoint import load_joint_checkpoint, stamp_generation_record, accept_cached_generation, CHECKPOINT_LOADER_ID
 from experiments.run_quality_benchmark import (
     evaluate_mbpp_code,
     evaluate_gsm8k_reasoning,
@@ -37,7 +38,7 @@ TOKENIZER_NAME = "microsoft/Phi-3.5-mini-instruct"
 VAL_DATA_PATH = "data/cached_pure_pred_val_60.json"
 PREDICTOR_PATH = "experiments/checkpoints/cached_predictor.pkl"
 CKPT_STEP100_PATH = "experiments/checkpoints/predictive_joint_pilot/checkpoint_step_100.pt"
-POC_RESULTS_PATH = "experiments/checkpoints/quality_benchmark/poc_selector_results.json"
+POC_RESULTS_PATH = "experiments/checkpoints/quality_benchmark/poc_selector_results_joint_nested_v1.json"
 
 
 def codebook_hash(codebook_dict: Dict[Tuple[int, ...], int]) -> str:
@@ -104,7 +105,7 @@ def run_sweep(
             for r in poc.get("raw_records", []):
                 pid = r["prompt_id"]
                 s = samples_map.get(pid)
-                if not s:
+                if not s or not accept_cached_generation(r):
                     continue
                 p_text = s["prompt"]
                 p_ids_tok = tokenizer.encode(p_text, add_special_tokens=False)
@@ -128,6 +129,8 @@ def run_sweep(
                 sweep_data = json.load(f)
                 cached_runs = sweep_data.get("cached_generations", {})
                 for k_str, val in cached_runs.items():
+                    if not accept_cached_generation(val):
+                        continue
                     pid, chash = k_str.split("::")
                     gen_cache[(pid, chash)] = val
             print(f"Loaded existing sweep data with {len(cached_runs)} cached generations.", flush=True)
@@ -145,21 +148,13 @@ def run_sweep(
     ).to(device)
     model.output_encoder.to(torch.float32)
 
-    sd = torch.load(CKPT_STEP100_PATH, map_location=device, weights_only=True)
-    prefix_map = {
-        "model.input_hyperencoder.": "input_hyperencoder.",
-        "model.output_hyperencoder.": "output_hyperencoder.",
-    }
-    remapped = {}
-    for k, v in sd.items():
-        renamed = k
-        for pfx, target in prefix_map.items():
-            if k.startswith(pfx):
-                renamed = target + k[len(pfx) :]
-                break
-        remapped[renamed] = v
-    model.load_state_dict(remapped, strict=False)
-    print(f"Model loaded and weights remapped in {time.time() - t0:.1f}s.", flush=True)
+    load_report = load_joint_checkpoint(model, CKPT_STEP100_PATH)
+    print(
+        f"Model loaded with {load_report['lora_tensors']} LoRA tensors and "
+        f"{load_report['input_encoder_tensors'] + load_report['output_encoder_tensors']} encoder tensors "
+        f"in {time.time() - t0:.1f}s.",
+        flush=True,
+    )
 
     dim = model.zip2zip_config.encoder.hidden_size
     pad_id = tokenizer.pad_token_id or 32000
@@ -251,7 +246,7 @@ def run_sweep(
         dead_slots = cb_size - used_slots
         utilization_pct = round(used_slots / cb_size * 100, 1) if cb_size > 0 else 0.0
 
-        res = {
+        res = stamp_generation_record({
             "prompt_id": pid,
             "domain": dom,
             "codebook_hash": chash,
@@ -268,7 +263,7 @@ def run_sweep(
             "dead_slots": dead_slots,
             "utilization_pct": utilization_pct,
             "output_text": output_text,
-        }
+        })
 
         if dom == "code":
             asserts = [line.strip() for line in sample["ground_truth_response"].splitlines() if line.strip().startswith("assert")]
@@ -350,6 +345,7 @@ def run_sweep(
 
         # Save intermediate checkpoint
         inter_save = {
+            "checkpoint_loader": CHECKPOINT_LOADER_ID,
             "configs": {k: {k2: v2 for k2, v2 in v.items() if k2 != "records"} for k, v in configs_results.items()},
             "cached_generations": {f"{k[0]}::{k[1]}": v for k, v in gen_cache.items()},
         }
@@ -358,6 +354,7 @@ def run_sweep(
 
     # 6. Final Outputs
     final_output = {
+        "checkpoint_loader": CHECKPOINT_LOADER_ID,
         "summary_table": {k: {k2: v2 for k2, v2 in v.items() if k2 != "records"} for k, v in configs_results.items()},
         "configs_detailed": configs_results,
         "cached_generations": {f"{k[0]}::{k[1]}": v for k, v in gen_cache.items()},
@@ -371,6 +368,7 @@ def run_sweep(
         "# Phase 4: K-Sweep & Adaptive-K Pareto Analysis",
         "",
         "This experiment sweeps fixed codebook sizes $K \\in [4, 8, 16, 24, 32]$ and adaptive acceptance thresholds $\\tau \\in [10.0, 15.0, 20.0, 25.0]$ using the EvidenceAwareSelector on the fixed 12-prompt evaluation subset.",
+        "The policy rankings below are computed from this run's measurements. Historical narrative claims about diminishing returns or adaptive-policy dominance are not carried forward as corrected findings.",
         "",
         "## 1. Full Policy Comparison",
         "",
@@ -411,9 +409,8 @@ def run_sweep(
         f"- **Mean Allocated K:** {best_adaptive['mean_codebook_size']} slots",
         f"- **Dead Slots:** {best_adaptive['dead_slots']} (Capacity Utilization: {best_adaptive['utilization_pct']}%)",
         "",
-        "### Key Insights:",
-        "1. **Fixed K Diminishing Returns:** Expanding fixed K from 8/16 to 32 yields near-zero additional compression while accumulating massive dead slots.",
-        "2. **Adaptive K Dominance:** Adaptive thresholding dynamically tailors codebook capacity per domain (allocating ~7-10 slots to code/instruction and ~20-32 slots to math), achieving maximum quality with minimal wasted overhead.",
+        "### Interpretation:",
+        "The best fixed-K and adaptive configurations above are selected from this run's measured accuracy and micro-reduction values. No unconditional dominance or diminishing-returns conclusion is asserted.",
     ])
 
     with open(out_md, "w", encoding="utf-8") as f:
@@ -427,8 +424,8 @@ def main():
     parser.add_argument("--prompts_file", type=str, default="experiments/checkpoints/quality_benchmark/poc_12_prompt_ids.json")
     parser.add_argument("--k_values", nargs="+", type=int, default=[4, 8, 16, 24, 32])
     parser.add_argument("--tau_values", nargs="+", type=float, default=[10.0, 15.0, 20.0, 25.0])
-    parser.add_argument("--out_json", type=str, default="experiments/checkpoints/quality_benchmark/k_sweep_results.json")
-    parser.add_argument("--out_md", type=str, default="experiments/checkpoints/quality_benchmark/k_sweep_results.md")
+    parser.add_argument("--out_json", type=str, default="experiments/checkpoints/quality_benchmark/k_sweep_results_joint_nested_v1.json")
+    parser.add_argument("--out_md", type=str, default="experiments/checkpoints/quality_benchmark/k_sweep_results_joint_nested_v1.md")
     parser.add_argument("--device", type=str, default="cpu")
     args = parser.parse_args()
 

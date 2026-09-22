@@ -11,8 +11,8 @@ Conditions:
 5. NEW Oracle-Guided Predictor (K=8)
 
 Generates:
-- experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results.json
-- experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results.md
+- experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_joint_nested_v1.json
+- experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_joint_nested_v1.md
 """
 
 import json
@@ -32,6 +32,12 @@ sys.path.insert(0, os.path.abspath("src"))
 
 from zip2zip import Zip2ZipModel, StaticCodebookManager
 from zip2zip.evidence_selector import EvidenceAwareSelector
+from experiments.load_joint_checkpoint import (
+    load_joint_checkpoint,
+    stamp_generation_record,
+    accept_cached_generation,
+    is_historical_provisional_baseline,
+)
 from zip2zip.predictor_policy import CappedPredictorPolicy
 from experiments.train_oracle_guided_predictor import OracleGuidedPredictor
 from experiments.run_quality_benchmark import (
@@ -47,11 +53,11 @@ from experiments.run_quality_benchmark import (
 MODEL_NAME = "epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1"
 POC_IDS_PATH = "experiments/checkpoints/quality_benchmark/poc_12_prompt_ids.json"
 VAL_DATA_PATH = "data/cached_pure_pred_val_60.json"
-POC_PREV_RESULTS_PATH = "experiments/checkpoints/quality_benchmark/poc_selector_results.json"
+POC_PREV_RESULTS_PATH = "experiments/checkpoints/quality_benchmark/poc_selector_results_joint_nested_v1.json"
 ORACLE_PRED_PATH = "experiments/checkpoints/oracle_guided_predictor.pkl"
 CKPT_STEP100_PATH = "experiments/checkpoints/predictive_joint_pilot/checkpoint_step_100.pt"
-OUT_JSON = "experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results.json"
-OUT_MD = "experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results.md"
+OUT_JSON = "experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_joint_nested_v1.json"
+OUT_MD = "experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_joint_nested_v1.md"
 
 
 def is_correct(r: Dict[str, Any]) -> bool:
@@ -87,7 +93,9 @@ def main():
         with open(POC_PREV_RESULTS_PATH, "r", encoding="utf-8") as f:
             prev_data = json.load(f)
             for r in prev_data.get("raw_records", []):
-                cached_prior_runs[(r["prompt_id"], r["condition"])] = r
+                # Condition A is retained only as explicitly provisional report context.
+                if accept_cached_generation(r) or is_historical_provisional_baseline(r):
+                    cached_prior_runs[(r["prompt_id"], r["condition"])] = r
 
     # 3. Load Model and Trained Oracle-Guided Predictor
     tokenizer = AutoTokenizer.from_pretrained("microsoft/Phi-3.5-mini-instruct")
@@ -106,21 +114,13 @@ def main():
     ).to(device)
     model.output_encoder.to(torch.float32)
 
-    sd = torch.load(CKPT_STEP100_PATH, map_location=device, weights_only=True)
-    prefix_map = {
-        "model.input_hyperencoder.": "input_hyperencoder.",
-        "model.output_hyperencoder.": "output_hyperencoder.",
-    }
-    remapped = {}
-    for k, v in sd.items():
-        renamed = k
-        for pfx, target in prefix_map.items():
-            if k.startswith(pfx):
-                renamed = target + k[len(pfx) :]
-                break
-        remapped[renamed] = v
-    model.load_state_dict(remapped, strict=False)
-    print(f"Model loaded and checkpoint applied in {time.time() - t0_load:.1f}s.", flush=True)
+    load_report = load_joint_checkpoint(model, CKPT_STEP100_PATH)
+    print(
+        f"Model loaded with {load_report['lora_tensors']} LoRA tensors and "
+        f"{load_report['input_encoder_tensors'] + load_report['output_encoder_tensors']} encoder tensors "
+        f"in {time.time() - t0_load:.1f}s.",
+        flush=True,
+    )
 
     dim = model.zip2zip_config.encoder.hidden_size
     pad_id = tokenizer.pad_token_id or 32000
@@ -133,7 +133,8 @@ def main():
             with open(OUT_JSON, "r", encoding="utf-8") as f:
                 saved = json.load(f)
                 for r in saved.get("raw_records", []):
-                    existing_recs[(r["prompt_id"], r["condition"])] = r
+                    if accept_cached_generation(r):
+                        existing_recs[(r["prompt_id"], r["condition"])] = r
         except Exception:
             pass
 
@@ -259,7 +260,7 @@ def main():
             elif dom == "instruction":
                 corr = not eval_res.get("instruction_failure", False)
 
-            rec = {
+            rec = stamp_generation_record({
                 "prompt_id": pid,
                 "condition": condition_name,
                 "domain": dom,
@@ -281,7 +282,7 @@ def main():
                 "correct": corr,
                 "output_text": text_out,
                 **eval_res,
-            }
+            })
             all_records.append(rec)
             existing_recs[key] = rec
 
@@ -373,6 +374,7 @@ def main():
             "checkpoint": CKPT_STEP100_PATH,
             "predictor_model": ORACLE_PRED_PATH,
             "total_prompts": len(samples),
+            "comparison_status": "provisional_historical_baseline_unverified",
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         },
         "conditions_summary": summary_by_cond,
@@ -397,8 +399,10 @@ def main():
 
 We evaluated the **Oracle-Guided Predictor** (trained via Ridge regression on 2,779 Quality-Aware Oracle targets) on the fixed 12-prompt POC validation benchmark with frozen **Step-100 model weights**.
 
+PROVISIONAL COMPARISON: Condition A is a historical baseline whose checkpoint, prompt, and evaluator provenance is unverified. Comparisons against A are not corrected results; rerun a matched Condition A with the shared loader before treating its deltas as corrected.
+
 We compared five distinct operating regimes:
-1. **Condition A: Baseline Step 100 (K=32)** (Legacy `CappedPredictorPolicy`)
+1. **Condition A: Historical, unverified baseline (K=32)** (Legacy `CappedPredictorPolicy`)
 2. **Condition B: Evidence-Aware (K=32)** (Handcrafted evidence bonuses/penalties)
 3. **Condition C: Evidence-Aware Adaptive (tau=20.0)** (Adaptive budget $K=8$)
 4. **Condition D: NEW Oracle-Guided Predictor (K=32)** (Trained value ranker at full $K=32$)
@@ -408,7 +412,7 @@ We compared five distinct operating regimes:
 
 ## 1. Head-to-Head Comparison Table
 
-| Metric | Condition A (Baseline K=32) | Condition B (Evidence K=32) | Condition C (Evidence tau=20) | Condition D (Oracle-Guided K=32) | Condition E (Oracle-Guided K=8) |
+| Metric | Condition A (Historical, unverified K=32) | Condition B (Evidence K=32) | Condition C (Evidence tau=20) | Condition D (Oracle-Guided K=32) | Condition E (Oracle-Guided K=8) |
 | :--- | :---: | :---: | :---: | :---: | :---: |
 | **Overall Accuracy** | {s_a.get('correct')}/12 ({s_a.get('accuracy_pct')}%) | {s_b.get('correct')}/12 ({s_b.get('accuracy_pct')}%) | {s_c.get('correct')}/12 ({s_c.get('accuracy_pct')}%) | **{s_d.get('correct')}/12 ({s_d.get('accuracy_pct')}%)** | **{s_e.get('correct')}/12 ({s_e.get('accuracy_pct')}%)** |
 | **MBPP Code Syntax Valid** | {s_a.get('code_syntax_valid')} | {s_b.get('code_syntax_valid')} | {s_c.get('code_syntax_valid')} | **{s_d.get('code_syntax_valid')}** | **{s_e.get('code_syntax_valid')}** |
@@ -425,19 +429,19 @@ We compared five distinct operating regimes:
 ## 2. Key Findings & Answers to Evaluation Questions
 
 ### Did the new predictor improve accuracy on the 12 prompts?
-- **Yes.** The Oracle-Guided Predictor improved accuracy from **33.3% (4/12)** under the baseline to **{s_e.get('accuracy_pct')}% ({s_e.get('correct')}/12)** at $K=8$ and **{s_d.get('accuracy_pct')}% ({s_d.get('correct')}/12)** at $K=32$.
+- **Not established against Condition A.** Its historical accuracy is shown for context only; matched rerun is required before claiming an improvement. Conditions D and E report their observed standalone accuracy: **{s_e.get('accuracy_pct')}% ({s_e.get('correct')}/12)** at $K=8$ and **{s_d.get('accuracy_pct')}% ({s_d.get('correct')}/12)** at $K=32$.
 
 ### Did it eliminate the catastrophic failures?
-- **Yes.** By penalizing trailing whitespace, ungrounded numbers, and isolated code syntax fragments, the new predictor suppressed the tokenization corruption and infinite repetition loops that plagued the legacy baseline.
+- **Not established against the historical baseline.** The baseline provenance is unverified, so a matched rerun is required for that comparison.
 
 ### Did it increase net decode-step savings?
 - At $K=32$, it achieved **{s_d.get('micro_reduction_pct')}% micro compression** ({s_d.get('net_tokens_saved')} net steps saved).
 - At $K=8$, it delivered **{s_e.get('micro_reduction_pct')}% micro compression** ({s_e.get('net_tokens_saved')} net steps saved) while strictly protecting output validity.
 
-### Did it preserve instruction quality while improving code/math?
-- Instruction quality was maintained at **{s_e.get('alpaca_success')} (100%)**.
-- Code syntax validity improved to **{s_e.get('code_syntax_valid')}**.
-- Math reasoning achieved **{s_e.get('gsm8k_accuracy')}**.
+### What were the standalone Condition E measurements?
+- Alpaca success: **{s_e.get('alpaca_success')}**.
+- Code syntax validity: **{s_e.get('code_syntax_valid')}**.
+- GSM8K accuracy: **{s_e.get('gsm8k_accuracy')}**.
 """
 
     with open(OUT_MD, "w", encoding="utf-8") as f:

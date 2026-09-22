@@ -5,8 +5,8 @@ Determines the new Pareto frontier and whether the optimal operating budget
 shifted upward with the quality-aware predictor.
 
 Outputs:
-- experiments/checkpoints/quality_benchmark/poc_k_recalibration.json
-- experiments/checkpoints/quality_benchmark/poc_k_recalibration.md
+- experiments/checkpoints/quality_benchmark/poc_k_recalibration_joint_nested_v1.json
+- experiments/checkpoints/quality_benchmark/poc_k_recalibration_joint_nested_v1.md
 """
 
 import json
@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.abspath("src"))
 
 from zip2zip import Zip2ZipModel, StaticCodebookManager
 from experiments.train_oracle_guided_predictor import OracleGuidedPredictor
+from experiments.load_joint_checkpoint import load_joint_checkpoint, stamp_generation_record, accept_cached_generation
 from experiments.run_quality_benchmark import (
     evaluate_mbpp_code,
     evaluate_gsm8k_reasoning,
@@ -37,12 +38,12 @@ from experiments.run_quality_benchmark import (
 MODEL_NAME = "epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1"
 POC_IDS_PATH = "experiments/checkpoints/quality_benchmark/poc_12_prompt_ids.json"
 VAL_DATA_PATH = "data/cached_pure_pred_val_60.json"
-PHASE6_RESULTS_PATH = "experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results.json"
+PHASE6_RESULTS_PATH = "experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_joint_nested_v1.json"
 ORACLE_PRED_PATH = "experiments/checkpoints/oracle_guided_predictor.pkl"
 CKPT_STEP100_PATH = "experiments/checkpoints/predictive_joint_pilot/checkpoint_step_100.pt"
 RAW_RESULTS_PATH = "experiments/checkpoints/quality_benchmark/raw_results.jsonl"
-OUT_JSON = "experiments/checkpoints/quality_benchmark/poc_k_recalibration.json"
-OUT_MD = "experiments/checkpoints/quality_benchmark/poc_k_recalibration.md"
+OUT_JSON = "experiments/checkpoints/quality_benchmark/poc_k_recalibration_joint_nested_v1.json"
+OUT_MD = "experiments/checkpoints/quality_benchmark/poc_k_recalibration_joint_nested_v1.md"
 
 K_SWEEP = [4, 8, 16, 24, 32]
 
@@ -81,6 +82,7 @@ def main():
             for line in f:
                 r = json.loads(line)
                 if r.get("condition") == "original_phi" and r.get("prompt_id") in poc_ids_set:
+                    r["baseline_provenance"] = "historical_unverified"
                     vanilla_records.append(r)
     vanilla_records.sort(key=lambda s: order_map[s["prompt_id"]])
 
@@ -90,6 +92,8 @@ def main():
         with open(PHASE6_RESULTS_PATH, "r", encoding="utf-8") as f:
             p6_data = json.load(f)
             for r in p6_data.get("raw_records", []):
+                if not accept_cached_generation(r):
+                    continue
                 cond = r.get("condition")
                 pid = r.get("prompt_id")
                 if cond == "cond_e_oracle_guided_k8":
@@ -103,6 +107,8 @@ def main():
             with open(OUT_JSON, "r", encoding="utf-8") as f:
                 saved = json.load(f)
                 for r in saved.get("raw_records", []):
+                    if not accept_cached_generation(r):
+                        continue
                     k_val = r.get("k", r.get("hypertokens_in_codebook"))
                     if k_val is not None:
                         cached_records[(r["prompt_id"], int(k_val))] = r
@@ -136,21 +142,13 @@ def main():
         ).to(device)
         model.output_encoder.to(torch.float32)
 
-        sd = torch.load(CKPT_STEP100_PATH, map_location=device, weights_only=True)
-        prefix_map = {
-            "model.input_hyperencoder.": "input_hyperencoder.",
-            "model.output_hyperencoder.": "output_hyperencoder.",
-        }
-        remapped = {}
-        for k_sd, v in sd.items():
-            renamed = k_sd
-            for pfx, target in prefix_map.items():
-                if k_sd.startswith(pfx):
-                    renamed = target + k_sd[len(pfx) :]
-                    break
-            remapped[renamed] = v
-        model.load_state_dict(remapped, strict=False)
-        print(f"Model loaded in {time.time() - t0_m:.1f}s.", flush=True)
+        load_report = load_joint_checkpoint(model, CKPT_STEP100_PATH)
+        print(
+            f"Model loaded with {load_report['lora_tensors']} LoRA tensors and "
+            f"{load_report['input_encoder_tensors'] + load_report['output_encoder_tensors']} encoder tensors "
+            f"in {time.time() - t0_m:.1f}s.",
+            flush=True,
+        )
 
         dim = model.zip2zip_config.encoder.hidden_size
         pad_id = tokenizer.pad_token_id or 32000
@@ -243,7 +241,7 @@ def main():
             elif dom == "instruction":
                 corr = not eval_res.get("instruction_failure", False)
 
-            rec = {
+            rec = stamp_generation_record({
                 "prompt_id": pid,
                 "k": k,
                 "condition": f"oracle_guided_k{k}",
@@ -262,7 +260,7 @@ def main():
                 "correct": corr,
                 "output_text": text_out,
                 **eval_res,
-            }
+            })
             cached_records[(pid, k)] = rec
             status = "PASS" if corr else "FAIL"
             print(f"[K={k:2d}] {pid} ({dom:11s}): {status} | DecSteps: {decode_steps} | "
@@ -353,6 +351,7 @@ def main():
             "predictor_model": ORACLE_PRED_PATH,
             "total_prompts": len(samples),
             "sweep_k_values": K_SWEEP,
+            "comparison_status": "provisional_historical_k0_baseline_unverified",
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         },
         "summary_by_k": summary_by_k,
@@ -369,7 +368,7 @@ def main():
     md_table = "| Budget K | Overall Accuracy | GSM8K Reasoning | Alpaca Instruction | MBPP Code Pass@1 | Net Steps Saved | Micro Decode Reduction | Total Hypertokens | Mean Latency |\n"
     md_table += "| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n"
     if v_info:
-        md_table += f"| **K=0 (Vanilla Phi)** | {v_info.get('accuracy')} | {v_info.get('gsm8k_acc')} | {v_info.get('alpaca_acc')} | {v_info.get('code_pass')} | 0 | 0.0% | 0 | {v_info.get('mean_wall_s')}s |\n"
+        md_table += f"| **K=0 historical, unverified** | {v_info.get('accuracy')} | {v_info.get('gsm8k_acc')} | {v_info.get('alpaca_acc')} | {v_info.get('code_pass')} | 0 | 0.0% | 0 | {v_info.get('mean_wall_s')}s |\n"
 
     for k in K_SWEEP:
         sk = summary_by_k[k]
@@ -381,9 +380,9 @@ def main():
 
 ## Executive Summary
 
-Earlier experiments with the legacy heuristic predictor established that $K=32$ caused severe generation quality degradation (dropping from 50.0% to 33.3% accuracy on the 12-prompt POC), forcing the use of tiny budgets ($K=4$ or $K=8$) to survive inference.
+PROVISIONAL CROSS-RUN COMPARISON: The $K=0$ row comes from historical raw_results and its checkpoint, prompt, and evaluator provenance is unverified. Comparisons against $K=0$, claims about a shift from earlier operating points, and deployment-safety conclusions are not corrected findings until a matched $K=0$ baseline is rerun.
 
-In Phase 7, we re-swept codebook budget $K \\in [4, 8, 16, 24, 32]$ using our newly trained **Oracle-Guided Predictor** with frozen **Step-100 Zip2Zip model weights**.
+This report records the observed measurements for codebook budgets $K \\in [4, 8, 16, 24, 32]$ using the **Oracle-Guided Predictor** and frozen **Step-100 Zip2Zip model weights**.
 
 ### The Pareto Frontier Across K
 
@@ -391,30 +390,15 @@ In Phase 7, we re-swept codebook budget $K \\in [4, 8, 16, 24, 32]$ using our ne
 
 ---
 
-## 1. Key Answers to Scientific Questions
+## 1. Comparison Status
 
-### 1. What is the highest K that does not degrade quality compared to K=0?
-- **K = 32.**
-- Under the Oracle-Guided Predictor, **accuracy is preserved or improved at EVERY single tested budget**:
-  - Vanilla Phi ($K=0$): **50.0% (6/12)**
-  - $K=4$: **{summary_by_k[4]['accuracy']}**
-  - $K=8$: **{summary_by_k[8]['accuracy']}**
-  - $K=16$: **{summary_by_k[16]['accuracy']}**
-  - $K=24$: **{summary_by_k[24]['accuracy']}**
-  - $K=32$: **{summary_by_k[32]['accuracy']}**
-- At $K=32$, accuracy reached **{summary_by_k[32]['accuracy']}**, beating Vanilla Phi ($K=0$) by **+{summary_by_k[32]['accuracy_pct'] - v_info.get('accuracy_pct', 50.0):.1f} percentage points** while delivering **{summary_by_k[32]['net_tokens_saved']} net decode steps saved ({summary_by_k[32]['micro_reduction_pct']}% micro reduction)**.
-
-### 2. Has the optimal operating point shifted upward from our earlier finding?
-- **YES, DRAMATICALLY.**
-- Under the legacy predictor, $K=32$ suffered catastrophic tokenization desynchronization and hallucinated digits, making $K=4$ / $K=8$ the only viable operating points.
-- With the Quality-Aware Oracle-Guided Predictor, the safety filters (penalizing ungrounded numbers, trailing whitespace, and syntax fragments) **completely stabilized the codebook at full capacity $K=32$**.
-- The optimal operating budget has shifted from **$K=8 \\to K=32$**, capturing **{summary_by_k[32]['micro_reduction_pct'] / max(0.1, summary_by_k[8]['micro_reduction_pct']):.1f}x higher net decode-step savings** without any accuracy penalty.
+The table reports this sweep's per-budget observations. It does not establish whether any budget preserves quality relative to $K=0$, whether the optimal operating point shifted from earlier experiments, or whether $K=32$ is safe for deployment. Those conclusions require matched, provenance-verified baselines and evaluation.
 
 ---
 
-## 2. Conclusion for Datacenter Deployment
+## 2. Deployment
 
-The historical assumption that pure predictive Zip2Zip requires severe capacity restrictions ($K \\le 8$) was an artifact of crude candidate prediction. A lightweight ($<10$ ms) supervised predictor trained against a Quality-Aware Oracle unlocks safe operation at **$K=32$**, delivering higher throughput and step savings while preserving reasoning and instruction quality.
+This report makes no deployment recommendation. Treat prior claims about safe $K=32$ operation, throughput gains, and quality preservation as historical and provisional until remeasured against matched, provenance-verified baselines.
 """
 
     with open(OUT_MD, "w", encoding="utf-8") as f:

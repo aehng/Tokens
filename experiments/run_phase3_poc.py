@@ -22,6 +22,12 @@ sys.path.insert(0, os.path.abspath("src"))
 
 from zip2zip import Zip2ZipModel, StaticCodebookManager
 from zip2zip.evidence_selector import EvidenceAwareSelector
+from experiments.load_joint_checkpoint import (
+    load_joint_checkpoint,
+    stamp_generation_record,
+    mark_historical_baseline,
+    accept_cached_generation,
+)
 from experiments.run_quality_benchmark import (
     evaluate_mbpp_code,
     evaluate_gsm8k_reasoning,
@@ -39,8 +45,8 @@ VAL_DATA_PATH = "data/cached_pure_pred_val_60.json"
 RAW_RESULTS_PATH = "experiments/checkpoints/quality_benchmark/raw_results.jsonl"
 PREDICTOR_PATH = "experiments/checkpoints/cached_predictor.pkl"
 CKPT_STEP100_PATH = "experiments/checkpoints/predictive_joint_pilot/checkpoint_step_100.pt"
-OUT_JSON = "experiments/checkpoints/quality_benchmark/poc_selector_results.json"
-OUT_MD = "experiments/checkpoints/quality_benchmark/poc_selector_results.md"
+OUT_JSON = "experiments/checkpoints/quality_benchmark/poc_selector_results_joint_nested_v1.json"
+OUT_MD = "experiments/checkpoints/quality_benchmark/poc_selector_results_joint_nested_v1.md"
 
 
 def main():
@@ -69,7 +75,7 @@ def main():
             if r["condition"] == "predictive_step_100" and r["prompt_id"] in poc_ids_set:
                 r_copy = dict(r)
                 r_copy["condition"] = "cond_a_baseline_k32"
-                cond_a_recs.append(r_copy)
+                cond_a_recs.append(mark_historical_baseline(r_copy))
     cond_a_recs.sort(key=lambda s: order_map[s["prompt_id"]])
     assert len(cond_a_recs) == 12, f"Expected 12 records for Condition A, got {len(cond_a_recs)}"
     print(f"Loaded {len(cond_a_recs)} baseline records for Condition A.", flush=True)
@@ -99,21 +105,13 @@ def main():
     model.output_encoder.to(torch.float32)
 
     # Load Step 100 checkpoint
-    sd = torch.load(CKPT_STEP100_PATH, map_location=device, weights_only=True)
-    prefix_map = {
-        "model.input_hyperencoder.": "input_hyperencoder.",
-        "model.output_hyperencoder.": "output_hyperencoder.",
-    }
-    remapped = {}
-    for k, v in sd.items():
-        renamed = k
-        for pfx, target in prefix_map.items():
-            if k.startswith(pfx):
-                renamed = target + k[len(pfx) :]
-                break
-        remapped[renamed] = v
-    load_res = model.load_state_dict(remapped, strict=False)
-    print(f"Model loaded and checkpoint applied in {time.time() - t0:.1f}s.", flush=True)
+    load_report = load_joint_checkpoint(model, CKPT_STEP100_PATH)
+    print(
+        f"Model loaded with {load_report['lora_tensors']} LoRA tensors and "
+        f"{load_report['input_encoder_tensors'] + load_report['output_encoder_tensors']} encoder tensors "
+        f"in {time.time() - t0:.1f}s.",
+        flush=True,
+    )
 
     dim = model.zip2zip_config.encoder.hidden_size
     pad_id = tokenizer.pad_token_id or 32000
@@ -126,7 +124,8 @@ def main():
             with open(OUT_JSON, "r", encoding="utf-8") as f:
                 saved = json.load(f)
                 for r in saved.get("raw_records", []):
-                    existing_recs[(r["prompt_id"], r["condition"])] = r
+                    if accept_cached_generation(r):
+                        existing_recs[(r["prompt_id"], r["condition"])] = r
         except Exception:
             pass
 
@@ -228,7 +227,7 @@ def main():
             dead_slots = cb_size - used_slots
             utilization_pct = round(used_slots / cb_size * 100, 1) if cb_size > 0 else 0.0
 
-            rec = {
+            rec = stamp_generation_record({
                 "prompt_id": pid,
                 "domain": dom,
                 "condition": condition_name,
@@ -245,7 +244,7 @@ def main():
                 "dead_slots": dead_slots,
                 "utilization_pct": utilization_pct,
                 "output_text": output_text,
-            }
+            })
 
             if dom == "code":
                 asserts = [line.strip() for line in s["ground_truth_response"].splitlines() if line.strip().startswith("assert")]
@@ -335,6 +334,7 @@ def main():
         }
 
     agg_results = {
+        "comparison_status": "provisional_historical_baseline_unverified",
         "condition_a_baseline_k32": aggregate(cond_a_recs),
         "condition_b_evidence_k32": aggregate(cond_b_recs),
         "condition_c_adaptive_tau20": aggregate(cond_c_recs),
@@ -354,9 +354,11 @@ def main():
         "",
         "This evaluation tests whether evidence-aware codebook reranking and adaptive K selection alone improve quality and capacity efficiency on a fixed 12-prompt subset without any model retraining.",
         "",
+        "PROVISIONAL COMPARISON: Condition A comes from historical raw_results and its checkpoint, prompt, and evaluator provenance is unverified. Deltas against A are not corrected results; rerun a matched Condition A with the shared loader before treating them as corrected.",
+        "",
         "## 1. Executive Comparison Across Conditions",
         "",
-        "| Metric | Condition A: Baseline (K=32) | Condition B: Evidence-Aware (K=32) | Condition C: Adaptive-K (tau=20.0) | Delta (C vs A) |",
+        "| Metric | Condition A: Historical, unverified (K=32) | Condition B: Evidence-Aware (K=32) | Condition C: Adaptive-K (tau=20.0) | Provisional Delta (C vs A) |",
         "| :--- | :---: | :---: | :---: | :---: |",
         f"| **Overall Accuracy** | **{a_agg['total_correct']} ({a_agg['accuracy_pct']}%)** | **{b_agg['total_correct']} ({b_agg['accuracy_pct']}%)** | **{c_agg['total_correct']} ({c_agg['accuracy_pct']}%)** | **{c_agg['accuracy_pct'] - a_agg['accuracy_pct']:+.1f}%** |",
         f"| **Realized Micro Compression** | **{a_agg['micro_reduction_pct']}%** | **{b_agg['micro_reduction_pct']}%** | **{c_agg['micro_reduction_pct']}%** | {c_agg['micro_reduction_pct'] - a_agg['micro_reduction_pct']:+.2f}% |",
