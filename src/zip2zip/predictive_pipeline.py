@@ -64,6 +64,12 @@ class PredictivePipeline:
         """Process one (prompt, response) pair into a compressed training sample."""
         prompt_ids = self.tokenizer.encode(prompt_text, add_special_tokens=False)
         response_ids = self.tokenizer.encode(response_text, add_special_tokens=False)
+        eos_token_id = self.tokenizer.eos_token_id
+        if eos_token_id is None:
+            raise ValueError("Tokenizer must define eos_token_id to build response training targets")
+        if not response_ids or response_ids[-1] != eos_token_id:
+            response_ids.append(eos_token_id)
+        response_content_ids = response_ids[:-1]
 
         # 1. Select codebook using PROMPT ONLY
         codebook_dict, policy_meta = self.policy.select_codebook(prompt_ids)
@@ -85,11 +91,13 @@ class PredictivePipeline:
         ]
 
         # 3. Segment response with the SAME codebook
-        r_comp_len, r_tiles, _ = segment_tokens_dp(response_ids, phrases_set)
+        r_comp_len, r_tiles, _ = segment_tokens_dp(response_content_ids, phrases_set)
         compressed_response: List[int] = [
             t[0] if len(t) == 1 else codebook_dict[tuple(t)]
             for t in r_tiles
         ]
+        # Keep EOS as a literal terminal token, outside codebook segmentation.
+        compressed_response.append(eos_token_id)
 
         # 4. Lossless Round-Trip Verification (Hard Assertion)
         recon_prompt = self.decode_sequence(compressed_prompt, codebook_dict)
