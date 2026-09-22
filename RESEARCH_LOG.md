@@ -535,14 +535,19 @@ Following the definitive 60-prompt quality benchmark, we launched a phased progr
   - On Alpaca instruction, Condition C achieved **4/4 (100.0%)** pass rate (up from 50% in Condition A), completely resolving repetition and formatting failures.
   - In code, filtering ungrounded numeric and structural tokens cut runaway emissions from 67.0 to 1.5 per prompt.
 
-### Phase 4: K-Sweep & Adaptive-K Sweep (In Progress)
-- Runner implemented in `experiments/run_k_sweep.py` with codebook hash caching to eliminate redundant forward passes.
-- Sweeping fixed $K \in [4, 8, 16, 24, 32]$ and adaptive $\tau \in [10.0, 15.0, 20.0, 25.0]$ on the 12-prompt evaluation subset.
-- **Early Result (`fixed_k_4` completed):**
-  - **Accuracy: 7/12 (58.3%)** (beating Condition A's 33.3% and Condition C's 41.7%).
-  - **Micro Reduction: 1.9%**, **Codebook Slot Utilization: 37.5%**, Dead slots: 30.
-  - Demonstrates that smaller, high-precision codebooks sharply reduce generation distortion while retaining core savings.
-- Currently executing remaining sweep points (`fixed_k_8` through `fixed_k_32` and adaptive $\tau$).
+### Phase 4: K-Sweep & Adaptive-K Sweep — COMPLETE (2026-09-22)
+- Reusable runner implemented in `experiments/run_k_sweep.py` with codebook hash caching to eliminate redundant forward passes.
+- Swept fixed $K \in [4, 8, 16, 24, 32]$ and adaptive $\tau \in [10.0, 15.0, 20.0, 25.0]$ across the 12 validation prompts (`k_sweep_results.json` and `k_sweep_results.md`):
+  - **fixed_k_4:** **7/12 (58.3%)** accuracy, 1.90% micro reduction (59 tokens saved), **30 dead slots**, 37.5% slot utilization.
+  - **fixed_k_8:** **7/12 (58.3%)** accuracy, 1.99% micro reduction (62 tokens saved), 67 dead slots, 30.2% slot utilization.
+  - **fixed_k_16:** 6/12 (50.0%) accuracy, 5.46% micro reduction (182 tokens saved), 146 dead slots, 24.0% slot utilization.
+  - **fixed_k_24:** 4/12 (33.3%) accuracy, 5.24% micro reduction (171 tokens saved), 235 dead slots, 18.4% slot utilization.
+  - **fixed_k_32:** 4/12 (33.3%) accuracy, 6.82% micro reduction (231 tokens saved), 313 dead slots, 18.5% slot utilization.
+  - **adaptive_tau_20.0:** **5/12 (41.7%)** accuracy, **5.49% micro reduction** (183 tokens saved), 131 dead slots (mean allocated $K=15.7$), 30.3% slot utilization.
+  - **adaptive_tau_25.0:** **5/12 (41.7%)** accuracy, 5.13% micro reduction (165 tokens saved), **95 dead slots** (mean allocated $K=12.3$), **35.8% slot utilization**.
+- **Core Findings & Pareto Recommendations:**
+  1. **Fixed-K Pareto Peak at $K=8$:** $K=4$ and $K=8$ tie for highest quality (**58.3% vs 33.3% at $K=32$**). Pushing fixed $K > 16$ creates steep quality regression without meaningful compression gains, while accumulating massive dead slots (up to 313).
+  2. **Adaptive-K Pareto Peak at $\tau=20.0$ / $\tau=25.0$:** Delivers the best compromise between quality (41.7%) and compression (5.1–5.5%), dynamically scaling capacity per domain while cutting dead slots by up to 70%.
 
 ---
 

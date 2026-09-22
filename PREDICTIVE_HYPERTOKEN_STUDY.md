@@ -447,10 +447,10 @@ We benchmarked 4 distinct conditions across 60 held-out prompts (`data/cached_pu
   - Condition B (Evidence-Aware K=32): 4/12 (33.3%) accuracy, 6.82% micro compression, 313 dead slots.
   - Condition C (Adaptive K, $\tau=20.0$): **5/12 (41.7%) accuracy (+8.4% gain)**, **131 dead slots (-55.1% dead capacity)**, and **100% (4/4) success on Alpaca instruction**.
 
-### Phase 4: K-Sweep & Adaptive-K Sweep (In Progress)
-- Executing sweep on the 12 prompts across $K \in [4, 8, 16, 24, 32]$ and $\tau \in [10, 15, 20, 25]$ with forward-pass caching.
-- `fixed_k_4` completed: **58.3% accuracy (7/12)**, 1.9% micro compression, 37.5% codebook utilization.
-- Remaining configurations executing.
+### Phase 4: K-Sweep & Adaptive-K Sweep — COMPLETE
+- Fixed-K: $K=4$ and $K=8$ achieved **58.3% accuracy (7/12)**, vastly outperforming $K=32$ (**33.3%**).
+- Adaptive-K: $\tau=20.0$ and $\tau=25.0$ achieved **41.7% accuracy** with **5.1–5.5% micro compression**, cutting dead slots by up to 70% ($K=12.3$ mean allocated slots).
+- Key takeaway: Codebook capacity must be restricted to high-confidence evidence-grounded phrases to avoid token distortion. $K=8$ is the optimal fixed budget; $\tau=20.0$ is the optimal adaptive threshold.
 
 ---
 
