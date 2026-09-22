@@ -238,6 +238,13 @@ def evaluate_alpaca_instruction(output_text: str, eos_reached: bool) -> Dict[str
 
 import collections
 
+def sequence_reached_eos(generated_ids: List[int], eos_token_id: Optional[int]) -> bool:
+    """True only when the last generated token is the tokenizer EOS id."""
+    if not generated_ids or eos_token_id is None:
+        return False
+    return generated_ids[-1] == eos_token_id
+
+
 # ==============================================================================
 # Model Condition Evaluators
 # ==============================================================================
@@ -289,7 +296,7 @@ def run_condition_original_phi(
         gen_ids = out[0, base_prompt_len:].tolist()
         decode_steps = len(gen_ids)
         expanded_output_tokens = len(gen_ids)
-        eos_reached = (len(gen_ids) > 0 and gen_ids[-1] == tok.eos_token_id) or (decode_steps < max_new_tokens)
+        eos_reached = sequence_reached_eos(gen_ids, tok.eos_token_id)
         hit_max_length = decode_steps >= max_new_tokens
 
         output_text = tok.decode(gen_ids, skip_special_tokens=True)
@@ -426,7 +433,7 @@ def run_condition_official_zip2zip(
         tokens_saved = max(0, expanded_output_tokens - decode_steps)
         decode_reduction_pct = round((1.0 - decode_steps / max(expanded_output_tokens, 1)) * 100, 2) if expanded_output_tokens > decode_steps else 0.0
 
-        eos_reached = (len(gen_ids) > 0 and gen_ids[-1] == tok.eos_token_id) or (decode_steps < max_new_tokens)
+        eos_reached = sequence_reached_eos(gen_ids, tok.eos_token_id)
         hit_max_length = decode_steps >= max_new_tokens
 
         # Check emitted dynamic tokens
@@ -624,7 +631,7 @@ def run_condition_predictive(
         tokens_saved = max(0, expanded_output_tokens - decode_steps)
         decode_reduction_pct = round((1.0 - decode_steps / max(expanded_output_tokens, 1)) * 100, 2) if expanded_output_tokens > decode_steps else 0.0
 
-        eos_reached = (len(gen_ids) > 0 and gen_ids[-1] == tok.eos_token_id) or (decode_steps < max_new_tokens)
+        eos_reached = sequence_reached_eos(gen_ids, tok.eos_token_id)
         hit_max_length = decode_steps >= max_new_tokens
 
         ttft = timing_proc.ttft or 0.0
