@@ -1,0 +1,157 @@
+{
+  "metadata": {
+    "validation_samples": 60,
+    "total_target_tokens": 7389,
+    "feature_names": [
+      "log_raw_weight",
+      "exact_in_prompt",
+      "prompt_count",
+      "word_overlap_ratio",
+      "phrase_len_2",
+      "phrase_len_3",
+      "phrase_len_4",
+      "char_len",
+      "leading_space",
+      "trailing_space",
+      "mid_word_start",
+      "is_numeric",
+      "numeric_grounded",
+      "numeric_ungrounded",
+      "is_function_name",
+      "function_grounded",
+      "syntax_hazard",
+      "is_grammatical_glue",
+      "domain_code",
+      "domain_reasoning",
+      "domain_instruction"
+    ],
+    "weights": {
+      "log_raw_weight": 0.0166,
+      "exact_in_prompt": 0.0002,
+      "prompt_count": 0.017,
+      "word_overlap_ratio": -0.0106,
+      "phrase_len_2": 0.0124,
+      "phrase_len_3": 0.018,
+      "phrase_len_4": 0.0,
+      "char_len": -0.0014,
+      "leading_space": -0.0226,
+      "trailing_space": -0.0225,
+      "mid_word_start": -0.0198,
+      "is_numeric": 0.0209,
+      "numeric_grounded": 0.0545,
+      "numeric_ungrounded": -0.042,
+      "is_function_name": 0.0119,
+      "function_grounded": -0.002,
+      "syntax_hazard": -0.0171,
+      "is_grammatical_glue": -0.0043,
+      "domain_code": 0.0293,
+      "domain_reasoning": 0.0147,
+      "domain_instruction": 0.0116
+    },
+    "bias": -0.0198
+  },
+  "comparison": {
+    "legacy_capped": {
+      "total_slots": 1920,
+      "appeared_slots": 546,
+      "precision_pct": 28.44,
+      "dead_slots": 1374,
+      "dead_slot_rate_pct": 71.56,
+      "dangerous_slots": 1154,
+      "dangerous_slot_rate_pct": 60.1,
+      "tokens_saved": 1153,
+      "micro_compression_pct": 15.6,
+      "quality_weighted_score": 586.17,
+      "mean_latency_ms": 7.62,
+      "p90_latency_ms": 11.01,
+      "by_domain": {
+        "code": {
+          "saved": 512,
+          "micro_pct": 13.91,
+          "precision_pct": 40.47,
+          "dangerous": 464
+        },
+        "reasoning": {
+          "saved": 588,
+          "micro_pct": 21.51,
+          "precision_pct": 37.97,
+          "dangerous": 424
+        },
+        "instruction": {
+          "saved": 53,
+          "micro_pct": 5.44,
+          "precision_pct": 6.88,
+          "dangerous": 266
+        }
+      }
+    },
+    "evidence_aware": {
+      "total_slots": 1920,
+      "appeared_slots": 397,
+      "precision_pct": 20.68,
+      "dead_slots": 1523,
+      "dead_slot_rate_pct": 79.32,
+      "dangerous_slots": 397,
+      "dangerous_slot_rate_pct": 20.68,
+      "tokens_saved": 762,
+      "micro_compression_pct": 10.31,
+      "quality_weighted_score": 648.1,
+      "mean_latency_ms": 8.93,
+      "p90_latency_ms": 13.37,
+      "by_domain": {
+        "code": {
+          "saved": 112,
+          "micro_pct": 3.04,
+          "precision_pct": 8.28,
+          "dangerous": 68
+        },
+        "reasoning": {
+          "saved": 571,
+          "micro_pct": 20.89,
+          "precision_pct": 41.72,
+          "dangerous": 271
+        },
+        "instruction": {
+          "saved": 79,
+          "micro_pct": 8.11,
+          "precision_pct": 12.03,
+          "dangerous": 58
+        }
+      }
+    },
+    "oracle_guided_new": {
+      "total_slots": 1920,
+      "appeared_slots": 521,
+      "precision_pct": 27.14,
+      "dead_slots": 1399,
+      "dead_slot_rate_pct": 72.86,
+      "dangerous_slots": 510,
+      "dangerous_slot_rate_pct": 26.56,
+      "tokens_saved": 959,
+      "micro_compression_pct": 12.98,
+      "quality_weighted_score": 983.94,
+      "mean_latency_ms": 8.77,
+      "p90_latency_ms": 14.8,
+      "by_domain": {
+        "code": {
+          "saved": 326,
+          "micro_pct": 8.86,
+          "precision_pct": 26.56,
+          "dangerous": 79
+        },
+        "reasoning": {
+          "saved": 584,
+          "micro_pct": 21.36,
+          "precision_pct": 47.5,
+          "dangerous": 372
+        },
+        "instruction": {
+          "saved": 49,
+          "micro_pct": 5.03,
+          "precision_pct": 7.34,
+          "dangerous": 59
+        }
+      }
+    }
+  }
+}
