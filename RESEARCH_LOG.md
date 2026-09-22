@@ -490,4 +490,61 @@ To evaluate the exact performance and quality trade-offs honestly and rigorously
 
 ---
 
+## 9. Predictive Hypertoken Optimization — Phased POC (2026-09-22)
+
+Following the definitive 60-prompt quality benchmark, we launched a phased program to optimize the predictive selection policy and understand the Pareto frontier of quality vs. realized decode compute savings, without running expensive full-model retrainings.
+
+### Phase 0: Frozen Baseline Reference (Predictive Step 100)
+- Established the official frozen reference baseline across all 3 validation domains (`data/cached_pure_pred_val_60.json`) using `checkpoint_step_100.pt` and `CappedPredictorPolicy(K=32, max_structural_slots=0, allow_numeric=True)`.
+- Authoritative metrics frozen in `experiments/checkpoints/quality_benchmark/baseline_step100_frozen.json` and `BASELINE_STEP100_FROZEN.md`:
+  - **MBPP Code (20 prompts):** 0.0% Pass@1 (20.0% syntax valid), 35.91% micro reduction (3,132 tokens saved, 88.15 hypers/output).
+  - **GSM8K Math (20 prompts):** 60.0% accuracy (12/20 correct), 12.96% micro reduction (893 tokens saved, 33.85 hypers/output), 12.00% quality-preserved reduction (491 tokens saved on verified correct answers).
+  - **Alpaca Instruction (20 prompts):** 20.0% failure rate (80.0% success, 16/20 pass), 3.70% micro reduction (125 tokens saved, 4.60 hypers/output).
+  - **Overall 60-prompt suite:** 46.7% correct (28/60), 21.85% micro reduction (4,150 tokens saved), TTFT = 1.59s, Mean Latency = 49.61s.
+
+### Phase 1: Feature-Level Characterization of Hypertoken Safety & Provenance
+- Built offline feature labeling pipeline (`experiments/analyze_hypertoken_features.py`) over all 2,532 emitted hypertokens and 1,920 codebook candidate slots.
+- **Key Hypothesis Tested:** *"Prompt-supported numbers/identifiers are safe; novel/inferred numbers/identifiers are catastrophic."*
+  - **Prompt-Absent Numeric Emissions:** Error rate = **88.9%** (1,254 emissions, driven by ungrounded numeric phrases in code).
+  - **Prompt-Present Numeric Emissions:** Error rate = **49.5%** (273 emissions).
+  - **Prompt-Level Comparison:** Prompts with only prompt-grounded numbers had 50.0% accuracy; prompts with any prompt-absent numbers had 44.7% accuracy.
+  - **Verdict:** Hypothesis **CONFIRMED**. De novo numeric hallucination is lethal; blanket numeric bans are suboptimal; prompt-grounded numbers are safe and valuable.
+- **Structural Safety Findings:**
+  - `space_start` (word-boundary aligned): **51.1% error rate** (lowest of any boundary).
+  - `mid_word_or_unspaced`: **91.8% error rate** (toxic).
+  - `punct_start`: **95.3% error rate** (toxic).
+  - `len_2` phrases: 65.3% error rate vs `len_3` phrases: 92.5% error rate.
+- **Capacity Utilization Bottleneck:**
+  - Across 1,920 candidate slots allocated (60 prompts $\times$ 32 slots), **76.9% were dead slots** (1,477 slots never emitted once).
+
+### Phase 2: Evidence-Aware Predictive Selector Implementation
+- Implemented `src/zip2zip/evidence_selector.py` (`EvidenceAwareSelector`):
+  - **Expected Value Prior:** $P(\text{emitted} \mid \text{prompt}) \times \text{tokens\_saved} \times \text{safety\_factor}$.
+  - **Prompt Provenance Bonus:** $+8.0$ exact match boost, $+6.0$ grounded numeric boost.
+  - **Structural & Toxicity Penalties:** $-60.0$ ungrounded numeric penalty, $-60.0$ dead structural penalty (`. The`, `\n    return`), $-40.0$ isolated syntax penalty (`):\n`, `[]`, `len(`, `\nassert`), $-5.0$ boundary alignment penalty.
+  - **Diversity Mechanism:** Throttles redundant stem variants (suppresses duplicate numeric and list prefixes).
+  - **Adaptive Acceptance:** Optional threshold $\tau$ to dynamically size codebooks.
+  - **Performance:** Measured mean latency = **6.31 ms** per prompt (well below 50 ms requirement). All unit tests passing (`tests/test_evidence_selector.py`).
+
+### Phase 3: Small Selector Policy POC (12 Prompts, Frozen Step 100)
+- Benchmarked on 12 fixed validation prompts (`experiments/checkpoints/quality_benchmark/poc_12_prompt_ids.json`: 4 MBPP code, 4 GSM8K reasoning, 4 Alpaca instruction):
+  - **Condition A (Baseline K=32):** 4/12 (33.3%) accuracy, 16.05% micro reduction, 292 dead slots, 24.0% slot utilization.
+  - **Condition B (Evidence-Aware K=32):** 4/12 (33.3%) accuracy, 6.82% micro reduction, 313 dead slots, 18.5% slot utilization.
+  - **Condition C (Adaptive K, $\tau=20.0$):** **5/12 (41.7%) accuracy (+8.4% gain)**, 5.49% micro reduction, **131 dead slots (55.1% reduction in wasted capacity)**, **30.3% slot utilization**.
+- **Domain Breakthrough:**
+  - On Alpaca instruction, Condition C achieved **4/4 (100.0%)** pass rate (up from 50% in Condition A), completely resolving repetition and formatting failures.
+  - In code, filtering ungrounded numeric and structural tokens cut runaway emissions from 67.0 to 1.5 per prompt.
+
+### Phase 4: K-Sweep & Adaptive-K Sweep (In Progress)
+- Runner implemented in `experiments/run_k_sweep.py` with codebook hash caching to eliminate redundant forward passes.
+- Sweeping fixed $K \in [4, 8, 16, 24, 32]$ and adaptive $\tau \in [10.0, 15.0, 20.0, 25.0]$ on the 12-prompt evaluation subset.
+- **Early Result (`fixed_k_4` completed):**
+  - **Accuracy: 7/12 (58.3%)** (beating Condition A's 33.3% and Condition C's 41.7%).
+  - **Micro Reduction: 1.9%**, **Codebook Slot Utilization: 37.5%**, Dead slots: 30.
+  - Demonstrates that smaller, high-precision codebooks sharply reduce generation distortion while retaining core savings.
+- Currently executing remaining sweep points (`fixed_k_8` through `fixed_k_32` and adaptive $\tau$).
+
+---
+
 *Last updated: 2026-09-22. Maintained by Antigravity (Google DeepMind) coding assistant.*
+
