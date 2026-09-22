@@ -1,0 +1,1086 @@
+{
+  "metadata": {
+    "num_val_samples": 60,
+    "total_target_tokens": 7389,
+    "total_candidate_instances": 15457,
+    "total_unique_phrases": 12154,
+    "step100_continuation_anchors": {
+      "code": {
+        "count": 4,
+        "mean_kl": 2.8066,
+        "mean_cos_sim": 0.8443,
+        "top1_agreement": 0.25,
+        "top5_overlap": 0.3,
+        "continuation_match_rate": 0.25
+      },
+      "numeric": {
+        "count": 2,
+        "mean_kl": 0.8474,
+        "mean_cos_sim": 0.8829,
+        "top1_agreement": 0.5,
+        "top5_overlap": 0.7,
+        "continuation_match_rate": 0.5
+      },
+      "repeated": {
+        "count": 2,
+        "mean_kl": 4.998,
+        "mean_cos_sim": 0.8395,
+        "top1_agreement": 0.5,
+        "top5_overlap": 0.3,
+        "continuation_match_rate": 0.5
+      },
+      "semantic": {
+        "count": 4,
+        "mean_kl": 4.1669,
+        "mean_cos_sim": 0.8777,
+        "top1_agreement": 0.0,
+        "top5_overlap": 0.05,
+        "continuation_match_rate": 0.0
+      },
+      "structure": {
+        "count": 3,
+        "mean_kl": 0.0664,
+        "mean_cos_sim": 0.9816,
+        "top1_agreement": 1.0,
+        "top5_overlap": 1.0,
+        "continuation_match_rate": 1.0
+      }
+    }
+  },
+  "quadrant_distribution": {
+    "counts": {
+      "LOW_VALUE_UNSAFE": 2191,
+      "HIGH_VALUE_UNSAFE": 10113,
+      "LOW_VALUE_SAFE": 739,
+      "HIGH_VALUE_SAFE": 2414
+    },
+    "steps_saved": {
+      "LOW_VALUE_UNSAFE": 2191,
+      "HIGH_VALUE_UNSAFE": 32650,
+      "LOW_VALUE_SAFE": 739,
+      "HIGH_VALUE_SAFE": 7917
+    },
+    "by_domain_counts": {
+      "code": {
+        "LOW_VALUE_UNSAFE": 879,
+        "HIGH_VALUE_UNSAFE": 4693,
+        "LOW_VALUE_SAFE": 287,
+        "HIGH_VALUE_SAFE": 1153
+      },
+      "reasoning": {
+        "LOW_VALUE_SAFE": 275,
+        "HIGH_VALUE_UNSAFE": 4054,
+        "LOW_VALUE_UNSAFE": 755,
+        "HIGH_VALUE_SAFE": 914
+      },
+      "instruction": {
+        "LOW_VALUE_SAFE": 177,
+        "LOW_VALUE_UNSAFE": 557,
+        "HIGH_VALUE_SAFE": 347,
+        "HIGH_VALUE_UNSAFE": 1366
+      }
+    },
+    "by_domain_saved": {
+      "code": {
+        "LOW_VALUE_UNSAFE": 879,
+        "HIGH_VALUE_UNSAFE": 16628,
+        "LOW_VALUE_SAFE": 287,
+        "HIGH_VALUE_SAFE": 4012
+      },
+      "reasoning": {
+        "LOW_VALUE_SAFE": 275,
+        "HIGH_VALUE_UNSAFE": 12264,
+        "LOW_VALUE_UNSAFE": 755,
+        "HIGH_VALUE_SAFE": 2830
+      },
+      "instruction": {
+        "LOW_VALUE_SAFE": 177,
+        "LOW_VALUE_UNSAFE": 557,
+        "HIGH_VALUE_SAFE": 1075,
+        "HIGH_VALUE_UNSAFE": 3758
+      }
+    }
+  },
+  "raw_oracle_selections": {
+    "total_slots": 645,
+    "quadrant_counts": {
+      "HIGH_VALUE_UNSAFE": 498,
+      "HIGH_VALUE_SAFE": 146,
+      "LOW_VALUE_UNSAFE": 1
+    },
+    "by_domain": {
+      "code": {
+        "HIGH_VALUE_UNSAFE": 201,
+        "HIGH_VALUE_SAFE": 39
+      },
+      "reasoning": {
+        "HIGH_VALUE_UNSAFE": 206,
+        "HIGH_VALUE_SAFE": 66
+      },
+      "instruction": {
+        "HIGH_VALUE_SAFE": 41,
+        "HIGH_VALUE_UNSAFE": 91,
+        "LOW_VALUE_UNSAFE": 1
+      }
+    }
+  },
+  "head_to_head_comparison": {
+    "raw_oracle": {
+      "total_saved": 4016,
+      "micro_compression_pct": 54.35,
+      "safe_slots": 208,
+      "unsafe_slots": 773,
+      "unsafe_slot_pct": 78.8,
+      "by_domain": {
+        "code": {
+          "saved": 1926,
+          "safe": 74,
+          "unsafe": 335
+        },
+        "reasoning": {
+          "saved": 1491,
+          "safe": 92,
+          "unsafe": 299
+        },
+        "instruction": {
+          "saved": 599,
+          "safe": 42,
+          "unsafe": 139
+        }
+      }
+    },
+    "quality_aware_oracle": {
+      "total_saved": 2590,
+      "micro_compression_pct": 35.05,
+      "safe_slots": 459,
+      "unsafe_slots": 244,
+      "unsafe_slot_pct": 34.71,
+      "by_domain": {
+        "code": {
+          "saved": 1069,
+          "safe": 207,
+          "unsafe": 46
+        },
+        "reasoning": {
+          "saved": 1059,
+          "safe": 172,
+          "unsafe": 127
+        },
+        "instruction": {
+          "saved": 462,
+          "safe": 80,
+          "unsafe": 71
+        }
+      }
+    }
+  },
+  "top_phrases": {
+    "high_value_safe": [
+      {
+        "phrase_text": "'\\r\\n'",
+        "length": 2,
+        "total_occurrences": 80,
+        "total_isolated_saved": 80,
+        "mean_safety_prior": 1.0,
+        "mean_value_score": 4.211,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 3,
+        "top_reasons": [
+          "prompt_grounded_exact"
+        ]
+      },
+      {
+        "phrase_text": "'\\nassert'",
+        "length": 2,
+        "total_occurrences": 60,
+        "total_isolated_saved": 60,
+        "mean_safety_prior": 0.84,
+        "mean_value_score": 2.52,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 1,
+        "top_reasons": []
+      },
+      {
+        "phrase_text": "'\\n\\n# Test'",
+        "length": 4,
+        "total_occurrences": 20,
+        "total_isolated_saved": 60,
+        "mean_safety_prior": 0.84,
+        "mean_value_score": 2.52,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": []
+      },
+      {
+        "phrase_text": "'\\n# Tests'",
+        "length": 4,
+        "total_occurrences": 20,
+        "total_isolated_saved": 60,
+        "mean_safety_prior": 0.84,
+        "mean_value_score": 2.52,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": []
+      },
+      {
+        "phrase_text": "'# Tests\\n'",
+        "length": 4,
+        "total_occurrences": 20,
+        "total_isolated_saved": 60,
+        "mean_safety_prior": 0.8,
+        "mean_value_score": 2.4,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": []
+      },
+      {
+        "phrase_text": "\"', '\"",
+        "length": 2,
+        "total_occurrences": 51,
+        "total_isolated_saved": 51,
+        "mean_safety_prior": 0.84,
+        "mean_value_score": 42.84,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 1,
+        "top_reasons": []
+      },
+      {
+        "phrase_text": "'.\\n'",
+        "length": 2,
+        "total_occurrences": 51,
+        "total_isolated_saved": 51,
+        "mean_safety_prior": 1.0,
+        "mean_value_score": 3.188,
+        "domains": [
+          "instruction",
+          "reasoning"
+        ],
+        "raw_oracle_selections": 6,
+        "top_reasons": [
+          "prompt_grounded_exact"
+        ]
+      },
+      {
+        "phrase_text": "'= <<'",
+        "length": 2,
+        "total_occurrences": 46,
+        "total_isolated_saved": 46,
+        "mean_safety_prior": 0.8,
+        "mean_value_score": 2.3,
+        "domains": [
+          "reasoning"
+        ],
+        "raw_oracle_selections": 2,
+        "top_reasons": []
+      },
+      {
+        "phrase_text": "'\\n\\n#'",
+        "length": 3,
+        "total_occurrences": 20,
+        "total_isolated_saved": 40,
+        "mean_safety_prior": 0.84,
+        "mean_value_score": 1.68,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": []
+      },
+      {
+        "phrase_text": "'\\n# Test'",
+        "length": 3,
+        "total_occurrences": 20,
+        "total_isolated_saved": 40,
+        "mean_safety_prior": 0.84,
+        "mean_value_score": 1.68,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": []
+      },
+      {
+        "phrase_text": "'# Tests'",
+        "length": 3,
+        "total_occurrences": 20,
+        "total_isolated_saved": 40,
+        "mean_safety_prior": 0.8,
+        "mean_value_score": 1.6,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": []
+      },
+      {
+        "phrase_text": "'\\nassert count_'",
+        "length": 4,
+        "total_occurrences": 12,
+        "total_isolated_saved": 36,
+        "mean_safety_prior": 0.714,
+        "mean_value_score": 6.426,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 2,
+        "top_reasons": [
+          "prompt_novel_all_words"
+        ]
+      },
+      {
+        "phrase_text": "'= $<<'",
+        "length": 3,
+        "total_occurrences": 14,
+        "total_isolated_saved": 28,
+        "mean_safety_prior": 0.8,
+        "mean_value_score": 5.6,
+        "domains": [
+          "reasoning"
+        ],
+        "raw_oracle_selections": 3,
+        "top_reasons": []
+      },
+      {
+        "phrase_text": "'.00'",
+        "length": 3,
+        "total_occurrences": 14,
+        "total_isolated_saved": 28,
+        "mean_safety_prior": 0.945,
+        "mean_value_score": 26.46,
+        "domains": [
+          "reasoning"
+        ],
+        "raw_oracle_selections": 1,
+        "top_reasons": [
+          "prompt_grounded_exact",
+          "prompt_grounded_numeric"
+        ]
+      },
+      {
+        "phrase_text": "'\\n\\n'",
+        "length": 2,
+        "total_occurrences": 26,
+        "total_isolated_saved": 26,
+        "mean_safety_prior": 1.0,
+        "mean_value_score": 1.182,
+        "domains": [
+          "code",
+          "instruction"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": [
+          "prompt_grounded_exact"
+        ]
+      }
+    ],
+    "high_value_unsafe": [
+      {
+        "phrase_text": "'00'",
+        "length": 2,
+        "total_occurrences": 145,
+        "total_isolated_saved": 145,
+        "mean_safety_prior": 0.113,
+        "mean_value_score": 1.586,
+        "domains": [
+          "code",
+          "reasoning"
+        ],
+        "raw_oracle_selections": 1,
+        "top_reasons": [
+          "mid_word_boundary_hazard",
+          "hallucinated_ungrounded_numeric"
+        ]
+      },
+      {
+        "phrase_text": "', '",
+        "length": 2,
+        "total_occurrences": 132,
+        "total_isolated_saved": 132,
+        "mean_safety_prior": 0.171,
+        "mean_value_score": 1.855,
+        "domains": [
+          "code",
+          "instruction",
+          "reasoning"
+        ],
+        "raw_oracle_selections": 7,
+        "top_reasons": [
+          "trailing_whitespace_hazard",
+          "prompt_grounded_exact"
+        ]
+      },
+      {
+        "phrase_text": "'1'",
+        "length": 2,
+        "total_occurrences": 107,
+        "total_isolated_saved": 107,
+        "mean_safety_prior": 0.191,
+        "mean_value_score": 0.574,
+        "domains": [
+          "code",
+          "instruction",
+          "reasoning"
+        ],
+        "raw_oracle_selections": 3,
+        "top_reasons": [
+          "mid_word_boundary_hazard",
+          "hallucinated_ungrounded_numeric"
+        ]
+      },
+      {
+        "phrase_text": "'000'",
+        "length": 3,
+        "total_occurrences": 50,
+        "total_isolated_saved": 100,
+        "mean_safety_prior": 0.203,
+        "mean_value_score": 6.349,
+        "domains": [
+          "code",
+          "reasoning"
+        ],
+        "raw_oracle_selections": 1,
+        "top_reasons": [
+          "mid_word_boundary_hazard",
+          "hallucinated_ungrounded_numeric"
+        ]
+      },
+      {
+        "phrase_text": "'10'",
+        "length": 2,
+        "total_occurrences": 74,
+        "total_isolated_saved": 74,
+        "mean_safety_prior": 0.135,
+        "mean_value_score": 0.48,
+        "domains": [
+          "code",
+          "instruction",
+          "reasoning"
+        ],
+        "raw_oracle_selections": 4,
+        "top_reasons": [
+          "mid_word_boundary_hazard",
+          "hallucinated_ungrounded_numeric"
+        ]
+      },
+      {
+        "phrase_text": "', 1'",
+        "length": 3,
+        "total_occurrences": 37,
+        "total_isolated_saved": 74,
+        "mean_safety_prior": 0.167,
+        "mean_value_score": 1.023,
+        "domains": [
+          "code",
+          "instruction"
+        ],
+        "raw_oracle_selections": 4,
+        "top_reasons": [
+          "hallucinated_ungrounded_numeric",
+          "prompt_grounded_constituent"
+        ]
+      },
+      {
+        "phrase_text": "'20'",
+        "length": 2,
+        "total_occurrences": 69,
+        "total_isolated_saved": 69,
+        "mean_safety_prior": 0.156,
+        "mean_value_score": 0.469,
+        "domains": [
+          "code",
+          "reasoning"
+        ],
+        "raw_oracle_selections": 4,
+        "top_reasons": [
+          "mid_word_boundary_hazard",
+          "hallucinated_ungrounded_numeric"
+        ]
+      },
+      {
+        "phrase_text": "'2'",
+        "length": 2,
+        "total_occurrences": 68,
+        "total_isolated_saved": 68,
+        "mean_safety_prior": 0.203,
+        "mean_value_score": 0.552,
+        "domains": [
+          "code",
+          "instruction",
+          "reasoning"
+        ],
+        "raw_oracle_selections": 2,
+        "top_reasons": [
+          "mid_word_boundary_hazard",
+          "hallucinated_ungrounded_numeric"
+        ]
+      },
+      {
+        "phrase_text": "'Tests\\nassert'",
+        "length": 4,
+        "total_occurrences": 20,
+        "total_isolated_saved": 60,
+        "mean_safety_prior": 0.476,
+        "mean_value_score": 1.428,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": [
+          "mid_word_boundary_hazard",
+          "prompt_novel_all_words"
+        ]
+      },
+      {
+        "phrase_text": "'0,'",
+        "length": 2,
+        "total_occurrences": 53,
+        "total_isolated_saved": 53,
+        "mean_safety_prior": 0.057,
+        "mean_value_score": 0.232,
+        "domains": [
+          "code",
+          "reasoning"
+        ],
+        "raw_oracle_selections": 1,
+        "top_reasons": [
+          "mid_word_boundary_hazard",
+          "hallucinated_ungrounded_numeric"
+        ]
+      },
+      {
+        "phrase_text": "'10'",
+        "length": 3,
+        "total_occurrences": 26,
+        "total_isolated_saved": 52,
+        "mean_safety_prior": 0.139,
+        "mean_value_score": 0.456,
+        "domains": [
+          "code",
+          "reasoning"
+        ],
+        "raw_oracle_selections": 1,
+        "top_reasons": [
+          "mid_word_boundary_hazard",
+          "hallucinated_ungrounded_numeric"
+        ]
+      },
+      {
+        "phrase_text": "'0000'",
+        "length": 4,
+        "total_occurrences": 17,
+        "total_isolated_saved": 51,
+        "mean_safety_prior": 0.056,
+        "mean_value_score": 1.428,
+        "domains": [
+          "reasoning"
+        ],
+        "raw_oracle_selections": 1,
+        "top_reasons": [
+          "mid_word_boundary_hazard",
+          "hallucinated_ungrounded_numeric"
+        ]
+      },
+      {
+        "phrase_text": "\"00, '\"",
+        "length": 4,
+        "total_occurrences": 16,
+        "total_isolated_saved": 48,
+        "mean_safety_prior": 0.056,
+        "mean_value_score": 2.688,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 1,
+        "top_reasons": [
+          "mid_word_boundary_hazard",
+          "hallucinated_ungrounded_numeric"
+        ]
+      },
+      {
+        "phrase_text": "'30'",
+        "length": 2,
+        "total_occurrences": 47,
+        "total_isolated_saved": 47,
+        "mean_safety_prior": 0.296,
+        "mean_value_score": 1.47,
+        "domains": [
+          "code",
+          "instruction",
+          "reasoning"
+        ],
+        "raw_oracle_selections": 3,
+        "top_reasons": [
+          "mid_word_boundary_hazard",
+          "hallucinated_ungrounded_numeric"
+        ]
+      },
+      {
+        "phrase_text": "'2,'",
+        "length": 2,
+        "total_occurrences": 47,
+        "total_isolated_saved": 47,
+        "mean_safety_prior": 0.135,
+        "mean_value_score": 0.298,
+        "domains": [
+          "code",
+          "instruction",
+          "reasoning"
+        ],
+        "raw_oracle_selections": 2,
+        "top_reasons": [
+          "mid_word_boundary_hazard",
+          "hallucinated_ungrounded_numeric"
+        ]
+      }
+    ],
+    "low_value_safe": [
+      {
+        "phrase_text": "',li'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.84,
+        "mean_value_score": 0.84,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": []
+      },
+      {
+        "phrase_text": "'+ list'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.8,
+        "mean_value_score": 0.8,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": []
+      },
+      {
+        "phrase_text": "'re\\r'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.7,
+        "mean_value_score": 0.7,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": [
+          "mid_word_boundary_hazard",
+          "prompt_grounded_exact"
+        ]
+      },
+      {
+        "phrase_text": "'.sub'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.84,
+        "mean_value_score": 0.84,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": []
+      },
+      {
+        "phrase_text": "'\", \":'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.84,
+        "mean_value_score": 0.84,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": []
+      },
+      {
+        "phrase_text": "'\":\",'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.84,
+        "mean_value_score": 0.84,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": []
+      },
+      {
+        "phrase_text": "'\", text'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.84,
+        "mean_value_score": 0.84,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": []
+      },
+      {
+        "phrase_text": "\"'B\"",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.84,
+        "mean_value_score": 0.84,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": []
+      },
+      {
+        "phrase_text": "':W'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.84,
+        "mean_value_score": 0.84,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": []
+      },
+      {
+        "phrase_text": "':Ne'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.84,
+        "mean_value_score": 0.84,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": []
+      },
+      {
+        "phrase_text": "':Sound'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.84,
+        "mean_value_score": 0.84,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": []
+      },
+      {
+        "phrase_text": "':S'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.84,
+        "mean_value_score": 0.84,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": []
+      },
+      {
+        "phrase_text": "\"'Pro\"",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.84,
+        "mean_value_score": 0.84,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": []
+      },
+      {
+        "phrase_text": "':Audio'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.84,
+        "mean_value_score": 0.84,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": []
+      },
+      {
+        "phrase_text": "' ASCII'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.84,
+        "mean_value_score": 0.84,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": []
+      }
+    ],
+    "low_value_unsafe": [
+      {
+        "phrase_text": "'def D'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.547,
+        "mean_value_score": 0.547,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": [
+          "mid_word_boundary_hazard",
+          "prompt_novel_all_words"
+        ]
+      },
+      {
+        "phrase_text": "'Diff'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.56,
+        "mean_value_score": 0.56,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": [
+          "mid_word_boundary_hazard"
+        ]
+      },
+      {
+        "phrase_text": "'iff('",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.193,
+        "mean_value_score": 0.193,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": [
+          "mid_word_boundary_hazard",
+          "prompt_grounded_function_name"
+        ]
+      },
+      {
+        "phrase_text": "'(list'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.252,
+        "mean_value_score": 0.252,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": [
+          "unbalanced_bracket_syntax_hazard"
+        ]
+      },
+      {
+        "phrase_text": "')) +'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.252,
+        "mean_value_score": 0.252,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": [
+          "unbalanced_bracket_syntax_hazard"
+        ]
+      },
+      {
+        "phrase_text": "'2)-'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.017,
+        "mean_value_score": 0.017,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": [
+          "mid_word_boundary_hazard",
+          "hallucinated_ungrounded_numeric"
+        ]
+      },
+      {
+        "phrase_text": "'1))))'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.017,
+        "mean_value_score": 0.017,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": [
+          "mid_word_boundary_hazard",
+          "hallucinated_ungrounded_numeric"
+        ]
+      },
+      {
+        "phrase_text": "'))))\\r'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.252,
+        "mean_value_score": 0.252,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": [
+          "unbalanced_bracket_syntax_hazard"
+        ]
+      },
+      {
+        "phrase_text": "'0],'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.017,
+        "mean_value_score": 0.017,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": [
+          "mid_word_boundary_hazard",
+          "hallucinated_ungrounded_numeric"
+        ]
+      },
+      {
+        "phrase_text": "'5]))'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.017,
+        "mean_value_score": 0.017,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": [
+          "mid_word_boundary_hazard",
+          "hallucinated_ungrounded_numeric"
+        ]
+      },
+      {
+        "phrase_text": "'3],'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.017,
+        "mean_value_score": 0.017,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": [
+          "mid_word_boundary_hazard",
+          "hallucinated_ungrounded_numeric"
+        ]
+      },
+      {
+        "phrase_text": "'import re'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.476,
+        "mean_value_score": 0.476,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": [
+          "mid_word_boundary_hazard",
+          "prompt_novel_all_words"
+        ]
+      },
+      {
+        "phrase_text": "'def fill'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.071,
+        "mean_value_score": 0.071,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": [
+          "mid_word_boundary_hazard",
+          "prompt_novel_all_words"
+        ]
+      },
+      {
+        "phrase_text": "'spaces('",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.212,
+        "mean_value_score": 0.212,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": [
+          "mid_word_boundary_hazard",
+          "prompt_grounded_constituent"
+        ]
+      },
+      {
+        "phrase_text": "'(text'",
+        "length": 2,
+        "total_occurrences": 1,
+        "total_isolated_saved": 1,
+        "mean_safety_prior": 0.252,
+        "mean_value_score": 0.252,
+        "domains": [
+          "code"
+        ],
+        "raw_oracle_selections": 0,
+        "top_reasons": [
+          "unbalanced_bracket_syntax_hazard"
+        ]
+      }
+    ]
+  }
+}
