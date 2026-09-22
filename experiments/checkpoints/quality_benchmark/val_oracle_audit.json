@@ -1,0 +1,163 @@
+{
+  "audit_timestamp": "2026-09-22 14:04:06",
+  "validation_samples": 60,
+  "validation_tokens": 7389,
+  "total_steps_saved": 2550,
+  "micro_compression_pct": 34.51,
+  "total_slots_allocated": 683,
+  "safe_slots": 500,
+  "unsafe_slots": 183,
+  "safe_slot_pct": 73.21,
+  "by_domain": {
+    "code": {
+      "samples": 20,
+      "tokens": 3681,
+      "saved": 1050,
+      "micro_compression_pct": 28.52,
+      "slots": 244,
+      "safe_slots": 211,
+      "top_phrases": [
+        {
+          "phrase": "\r\n",
+          "steps_saved": 51
+        },
+        {
+          "phrase": "', '",
+          "steps_saved": 51
+        },
+        {
+          "phrase": "\n\n# Test",
+          "steps_saved": 42
+        },
+        {
+          "phrase": ", '",
+          "steps_saved": 25
+        },
+        {
+          "phrase": "), (",
+          "steps_saved": 24
+        },
+        {
+          "phrase": "\nassert",
+          "steps_saved": 23
+        },
+        {
+          "phrase": ":\r\n",
+          "steps_saved": 13
+        },
+        {
+          "phrase": "_occuring",
+          "steps_saved": 12
+        },
+        {
+          "phrase": "_in_list",
+          "steps_saved": 12
+        },
+        {
+          "phrase": "add_dict",
+          "steps_saved": 12
+        }
+      ]
+    },
+    "reasoning": {
+      "samples": 20,
+      "tokens": 2734,
+      "saved": 1033,
+      "micro_compression_pct": 37.78,
+      "slots": 286,
+      "safe_slots": 192,
+      "top_phrases": [
+        {
+          "phrase": ".00",
+          "steps_saved": 28
+        },
+        {
+          "phrase": "= $<<",
+          "steps_saved": 26
+        },
+        {
+          "phrase": "= <<",
+          "steps_saved": 26
+        },
+        {
+          "phrase": "30",
+          "steps_saved": 25
+        },
+        {
+          "phrase": ",000",
+          "steps_saved": 18
+        },
+        {
+          "phrase": "3000",
+          "steps_saved": 18
+        },
+        {
+          "phrase": "100",
+          "steps_saved": 16
+        },
+        {
+          "phrase": "highlighters",
+          "steps_saved": 15
+        },
+        {
+          "phrase": "muffins.",
+          "steps_saved": 15
+        },
+        {
+          "phrase": ".75",
+          "steps_saved": 14
+        }
+      ]
+    },
+    "instruction": {
+      "samples": 20,
+      "tokens": 974,
+      "saved": 467,
+      "micro_compression_pct": 47.95,
+      "slots": 153,
+      "safe_slots": 97,
+      "top_phrases": [
+        {
+          "phrase": "\nC  G",
+          "steps_saved": 24
+        },
+        {
+          "phrase": " A-min",
+          "steps_saved": 21
+        },
+        {
+          "phrase": ".\n",
+          "steps_saved": 9
+        },
+        {
+          "phrase": "ium,",
+          "steps_saved": 9
+        },
+        {
+          "phrase": " F",
+          "steps_saved": 9
+        },
+        {
+          "phrase": " D  G",
+          "steps_saved": 9
+        },
+        {
+          "phrase": " C\n",
+          "steps_saved": 8
+        },
+        {
+          "phrase": "AI explainability",
+          "steps_saved": 6
+        },
+        {
+          "phrase": "\nChorus",
+          "steps_saved": 6
+        },
+        {
+          "phrase": "the cake",
+          "steps_saved": 6
+        }
+      ]
+    }
+  }
+}
