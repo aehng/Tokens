@@ -1,0 +1,43 @@
+{
+  "code": {
+    "official_zip2zip": {
+      "both_correct": 0,
+      "orig_correct_cand_wrong": 2,
+      "orig_wrong_cand_correct": 0,
+      "both_wrong": 18
+    },
+    "predictive_step_100": {
+      "both_correct": 0,
+      "orig_correct_cand_wrong": 2,
+      "orig_wrong_cand_correct": 0,
+      "both_wrong": 18
+    },
+    "predictive_step_150": {
+      "both_correct": 0,
+      "orig_correct_cand_wrong": 2,
+      "orig_wrong_cand_correct": 0,
+      "both_wrong": 18
+    }
+  },
+  "reasoning": {
+    "official_zip2zip": {
+      "both_correct": 9,
+      "orig_correct_cand_wrong": 4,
+      "orig_wrong_cand_correct": 1,
+      "both_wrong": 6
+    },
+    "predictive_step_100": {
+      "both_correct": 7,
+      "orig_correct_cand_wrong": 6,
+      "orig_wrong_cand_correct": 5,
+      "both_wrong": 2
+    },
+    "predictive_step_150": {
+      "both_correct": 7,
+      "orig_correct_cand_wrong": 6,
+      "orig_wrong_cand_correct": 3,
+      "both_wrong": 4
+    }
+  },
+  "instruction": {}
+}

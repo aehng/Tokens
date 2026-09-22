@@ -1,0 +1,8790 @@
+[
+  {
+    "prompt_id": "mbpp_740",
+    "domain": "code",
+    "prompt": "Write a Python function to solve the following problem:\nWrite a function to convert the given tuple to a key-value dictionary using adjacent elements.\n",
+    "ground_truth": "def tuple_to_dict(test_tup):\r\n  res = dict(test_tup[idx : idx + 2] for idx in range(0, len(test_tup), 2))\r\n  return (res) \n\n# Tests\nassert tuple_to_dict((1, 5, 7, 10, 13, 5)) == {1: 5, 7: 10, 13: 5}\nassert tuple_to_dict((1, 2, 3, 4, 5, 6)) == {1: 2, 3: 4, 5: 6}\nassert tuple_to_dict((7, 8, 9, 10, 11,",
+    "failed_models": [
+      "official_zip2zip",
+      "predictive_step_100",
+      "predictive_step_150"
+    ],
+    "original_output": "\nInput:\n(1, 'apple', 3.14, 'banana')\n\nOutput:\n{1: 'apple', 3.14: 'banana'}\n\nNote:\n- The keys should be the first element of each pair, and the values should be the second element of each pair.\n- If there are multiple pairs with the same key, only the last pair will be considered for the dictionary.\n",
+    "official_zip2zip_output": "\nInput: (1, 2, 3, 4, 5)\n\nOutput: {1: 2, 2: 3, 3: 4, 4: 5}\n\nExample:\n\n```python\ndef convert_to_dict(tup):\n    return dict(zip(tup, tup[1:]))\n\nprint(convert_to_dict(1, 2, 3, 4, 5)))\n```\n\nOutput:\n\n```python\n{1: 2, 2: 3, 3: 4, 4: 5}\n```\n\nExplanation:\n\n- The function `convert_to_dict` takes a tuple `tup`",
+    "predictive_100_output": "\nInput: (1,2,3,4,5)\nOutput: {1:2, 2:3, 3:4, 4:5}\n\ndef convert_to_dict(tup):\n    result = {}\n    for i in range(len(tup)-1):\n        result[tup[i]] = tup[i+1]\n    return result\n\nprint(convert_to_dict((1, 2, 3, 4, 5)))\n# Output: {1:2, 2:3, 3:4, 4:5}\n\n# Test case\nassert convert_to_dict((1,2,3, 4, 5)) =",
+    "predictive_150_output": "\nInput: (1,2,3,4,5)\nOutput: {1,:2, 2:3, 3:4, 4:5}\n\ndef tuple_to_dict(tup):\n    d = {}\n    for i in range(len(tup)-1):\n        d[tup[i]] = tup[i+1]\n    return d\n\nprint(tuple_to_dict((1, 2, 3, 4, 5)))\n# Output: {1, 2:3, 3:4, 4:5}\n\n# Test case 2\nprint(tuple_to_dict((1,2,3, 4, 5, 6)))\n# Output: {1, 2:3,",
+    "predictive_100_hypers": [
+      {
+        "pos": 4,
+        "id": 32021,
+        "phrase": "1,",
+        "subtokens": [
+          29896,
+          29892
+        ]
+      },
+      {
+        "pos": 98,
+        "id": 32022,
+        "phrase": "1, ",
+        "subtokens": [
+          29896,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 99,
+        "id": 32038,
+        "phrase": "2,",
+        "subtokens": [
+          29906,
+          29892
+        ]
+      },
+      {
+        "pos": 100,
+        "id": 32024,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 115,
+        "id": 32038,
+        "phrase": "2,",
+        "subtokens": [
+          29906,
+          29892
+        ]
+      },
+      {
+        "pos": 116,
+        "id": 32015,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 120,
+        "id": 32024,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 134,
+        "id": 32019,
+        "phrase": "\nassert",
+        "subtokens": [
+          13,
+          9294
+        ]
+      },
+      {
+        "pos": 141,
+        "id": 32021,
+        "phrase": "1,",
+        "subtokens": [
+          29896,
+          29892
+        ]
+      },
+      {
+        "pos": 142,
+        "id": 32038,
+        "phrase": "2,",
+        "subtokens": [
+          29906,
+          29892
+        ]
+      },
+      {
+        "pos": 143,
+        "id": 32034,
+        "phrase": "3, ",
+        "subtokens": [
+          29941,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 144,
+        "id": 32026,
+        "phrase": "4, ",
+        "subtokens": [
+          29946,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 151,
+        "id": 32038,
+        "phrase": "2,",
+        "subtokens": [
+          29906,
+          29892
+        ]
+      },
+      {
+        "pos": 152,
+        "id": 32015,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 154,
+        "id": 32034,
+        "phrase": "3, ",
+        "subtokens": [
+          29941,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 157,
+        "id": 32026,
+        "phrase": "4, ",
+        "subtokens": [
+          29946,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 162,
+        "id": 32019,
+        "phrase": "\nassert",
+        "subtokens": [
+          13,
+          9294
+        ]
+      },
+      {
+        "pos": 169,
+        "id": 32032,
+        "phrase": "0,",
+        "subtokens": [
+          29900,
+          29892
+        ]
+      },
+      {
+        "pos": 170,
+        "id": 32021,
+        "phrase": "1,",
+        "subtokens": [
+          29896,
+          29892
+        ]
+      },
+      {
+        "pos": 171,
+        "id": 32038,
+        "phrase": "2,",
+        "subtokens": [
+          29906,
+          29892
+        ]
+      },
+      {
+        "pos": 172,
+        "id": 32034,
+        "phrase": "3, ",
+        "subtokens": [
+          29941,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 173,
+        "id": 32026,
+        "phrase": "4, ",
+        "subtokens": [
+          29946,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 180,
+        "id": 32021,
+        "phrase": "1,",
+        "subtokens": [
+          29896,
+          29892
+        ]
+      },
+      {
+        "pos": 181,
+        "id": 32012,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 183,
+        "id": 32038,
+        "phrase": "2,",
+        "subtokens": [
+          29906,
+          29892
+        ]
+      },
+      {
+        "pos": 184,
+        "id": 32015,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 186,
+        "id": 32034,
+        "phrase": "3, ",
+        "subtokens": [
+          29941,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 189,
+        "id": 32026,
+        "phrase": "4, ",
+        "subtokens": [
+          29946,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 194,
+        "id": 32019,
+        "phrase": "\nassert",
+        "subtokens": [
+          13,
+          9294
+        ]
+      },
+      {
+        "pos": 201,
+        "id": 32032,
+        "phrase": "0,",
+        "subtokens": [
+          29900,
+          29892
+        ]
+      },
+      {
+        "pos": 202,
+        "id": 32022,
+        "phrase": "1, ",
+        "subtokens": [
+          29896,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 203,
+        "id": 32025,
+        "phrase": "2, ",
+        "subtokens": [
+          29906,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 204,
+        "id": 32034,
+        "phrase": "3, ",
+        "subtokens": [
+          29941,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 205,
+        "id": 32026,
+        "phrase": "4, ",
+        "subtokens": [
+          29946,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 215,
+        "id": 32022,
+        "phrase": "1, ",
+        "subtokens": [
+          29896,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 218,
+        "id": 32025,
+        "phrase": "2, ",
+        "subtokens": [
+          29906,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 221,
+        "id": 32034,
+        "phrase": "3, ",
+        "subtokens": [
+          29941,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 224,
+        "id": 32026,
+        "phrase": "4, ",
+        "subtokens": [
+          29946,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 227,
+        "id": 32031,
+        "phrase": "5, ",
+        "subtokens": [
+          29945,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 232,
+        "id": 32019,
+        "phrase": "\nassert",
+        "subtokens": [
+          13,
+          9294
+        ]
+      },
+      {
+        "pos": 239,
+        "id": 32032,
+        "phrase": "0,",
+        "subtokens": [
+          29900,
+          29892
+        ]
+      },
+      {
+        "pos": 240,
+        "id": 32022,
+        "phrase": "1, ",
+        "subtokens": [
+          29896,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 241,
+        "id": 32025,
+        "phrase": "2, ",
+        "subtokens": [
+          29906,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 242,
+        "id": 32034,
+        "phrase": "3, ",
+        "subtokens": [
+          29941,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 243,
+        "id": 32026,
+        "phrase": "4, ",
+        "subtokens": [
+          29946,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 244,
+        "id": 32031,
+        "phrase": "5, ",
+        "subtokens": [
+          29945,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 254,
+        "id": 32022,
+        "phrase": "1, ",
+        "subtokens": [
+          29896,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 257,
+        "id": 32025,
+        "phrase": "2, ",
+        "subtokens": [
+          29906,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 260,
+        "id": 32034,
+        "phrase": "3, ",
+        "subtokens": [
+          29941,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 263,
+        "id": 32026,
+        "phrase": "4, ",
+        "subtokens": [
+          29946,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 266,
+        "id": 32031,
+        "phrase": "5, ",
+        "subtokens": [
+          29945,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 276,
+        "id": 32019,
+        "phrase": "\nassert",
+        "subtokens": [
+          13,
+          9294
+        ]
+      },
+      {
+        "pos": 283,
+        "id": 32032,
+        "phrase": "0,",
+        "subtokens": [
+          29900,
+          29892
+        ]
+      },
+      {
+        "pos": 284,
+        "id": 32022,
+        "phrase": "1, ",
+        "subtokens": [
+          29896,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 285,
+        "id": 32025,
+        "phrase": "2, ",
+        "subtokens": [
+          29906,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 286,
+        "id": 32034,
+        "phrase": "3, ",
+        "subtokens": [
+          29941,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 287,
+        "id": 32026,
+        "phrase": "4, ",
+        "subtokens": [
+          29946,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 288,
+        "id": 32031,
+        "phrase": "5, ",
+        "subtokens": [
+          29945,
+          29892,
+          29871
+        ]
+      }
+    ],
+    "predictive_150_hypers": [
+      {
+        "pos": 4,
+        "id": 32021,
+        "phrase": "1,",
+        "subtokens": [
+          29896,
+          29892
+        ]
+      },
+      {
+        "pos": 5,
+        "id": 32038,
+        "phrase": "2,",
+        "subtokens": [
+          29906,
+          29892
+        ]
+      },
+      {
+        "pos": 16,
+        "id": 32021,
+        "phrase": "1,",
+        "subtokens": [
+          29896,
+          29892
+        ]
+      },
+      {
+        "pos": 18,
+        "id": 32038,
+        "phrase": "2,",
+        "subtokens": [
+          29906,
+          29892
+        ]
+      },
+      {
+        "pos": 96,
+        "id": 32022,
+        "phrase": "1, ",
+        "subtokens": [
+          29896,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 97,
+        "id": 32025,
+        "phrase": "2, ",
+        "subtokens": [
+          29906,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 98,
+        "id": 32034,
+        "phrase": "3, ",
+        "subtokens": [
+          29941,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 99,
+        "id": 32026,
+        "phrase": "4, ",
+        "subtokens": [
+          29946,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 107,
+        "id": 32022,
+        "phrase": "1, ",
+        "subtokens": [
+          29896,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 110,
+        "id": 32034,
+        "phrase": "3, ",
+        "subtokens": [
+          29941,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 113,
+        "id": 32026,
+        "phrase": "4, ",
+        "subtokens": [
+          29946,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 134,
+        "id": 32021,
+        "phrase": "1,",
+        "subtokens": [
+          29896,
+          29892
+        ]
+      },
+      {
+        "pos": 135,
+        "id": 32038,
+        "phrase": "2,",
+        "subtokens": [
+          29906,
+          29892
+        ]
+      },
+      {
+        "pos": 136,
+        "id": 32034,
+        "phrase": "3, ",
+        "subtokens": [
+          29941,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 137,
+        "id": 32026,
+        "phrase": "4, ",
+        "subtokens": [
+          29946,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 148,
+        "id": 32022,
+        "phrase": "1, ",
+        "subtokens": [
+          29896,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 151,
+        "id": 32034,
+        "phrase": "3, ",
+        "subtokens": [
+          29941,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 154,
+        "id": 32026,
+        "phrase": "4, ",
+        "subtokens": [
+          29946,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 157,
+        "id": 32031,
+        "phrase": "5, ",
+        "subtokens": [
+          29945,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 178,
+        "id": 32021,
+        "phrase": "1,",
+        "subtokens": [
+          29896,
+          29892
+        ]
+      },
+      {
+        "pos": 179,
+        "id": 32025,
+        "phrase": "2, ",
+        "subtokens": [
+          29906,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 180,
+        "id": 32034,
+        "phrase": "3, ",
+        "subtokens": [
+          29941,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 181,
+        "id": 32026,
+        "phrase": "4, ",
+        "subtokens": [
+          29946,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 182,
+        "id": 32031,
+        "phrase": "5, ",
+        "subtokens": [
+          29945,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 196,
+        "id": 32022,
+        "phrase": "1, ",
+        "subtokens": [
+          29896,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 199,
+        "id": 32034,
+        "phrase": "3, ",
+        "subtokens": [
+          29941,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 202,
+        "id": 32026,
+        "phrase": "4, ",
+        "subtokens": [
+          29946,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 205,
+        "id": 32031,
+        "phrase": "5, ",
+        "subtokens": [
+          29945,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 256,
+        "id": 32032,
+        "phrase": "0,",
+        "subtokens": [
+          29900,
+          29892
+        ]
+      },
+      {
+        "pos": 257,
+        "id": 32022,
+        "phrase": "1, ",
+        "subtokens": [
+          29896,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 258,
+        "id": 32025,
+        "phrase": "2, ",
+        "subtokens": [
+          29906,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 259,
+        "id": 32034,
+        "phrase": "3, ",
+        "subtokens": [
+          29941,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 260,
+        "id": 32026,
+        "phrase": "4, ",
+        "subtokens": [
+          29946,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 261,
+        "id": 32031,
+        "phrase": "5, ",
+        "subtokens": [
+          29945,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 269,
+        "id": 32027,
+        "phrase": "0, ",
+        "subtokens": [
+          29900,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 272,
+        "id": 32022,
+        "phrase": "1, ",
+        "subtokens": [
+          29896,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 275,
+        "id": 32026,
+        "phrase": "4, ",
+        "subtokens": [
+          29946,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 278,
+        "id": 32031,
+        "phrase": "5, ",
+        "subtokens": [
+          29945,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 298,
+        "id": 32021,
+        "phrase": "1,",
+        "subtokens": [
+          29896,
+          29892
+        ]
+      },
+      {
+        "pos": 299,
+        "id": 32025,
+        "phrase": "2, ",
+        "subtokens": [
+          29906,
+          29892,
+          29871
+        ]
+      }
+    ],
+    "taxonomy": "logic_or_semantic_drift"
+  },
+  {
+    "prompt_id": "mbpp_969",
+    "domain": "code",
+    "prompt": "Write a Python function to solve the following problem:\nWrite a function to join the tuples if they have similar initial elements.\n",
+    "ground_truth": "def join_tuples(test_list):\r\n  res = []\r\n  for sub in test_list:\r\n    if res and res[-1][0] == sub[0]:\r\n      res[-1].extend(sub[1:])\r\n    else:\r\n      res.append([ele for ele in sub])\r\n  res = list(map(tuple, res))\r\n  return (res) \n\n# Tests\nassert join_tuples([(5, 6), (5, 7), (6, 8), (6, 10), (7, 1",
+    "failed_models": [
+      "official_zip2zip",
+      "predictive_step_100",
+      "predictive_step_150"
+    ],
+    "original_output": "\nInput:\n[(1, 'a'), (2, 'b'), (1, 'c'), (3, 'd'), (2, 'e')]\n\nOutput:\n[(1, 'a', 'c'), (2, 'b', 'e'), (3, 'd')]\n\nHere's a Python function that solves the problem:\n\n```python\ndef join_tuples(tuples_list):\n    result = {}\n    for tup in tuples_list:\n        if tup[0] in result:\n            result[tup[0]]",
+    "official_zip2zip_output": "\nExample:\n\nInput:\n[(1, 2), (3, 4), (1, 5), (6, 7), (1, 8), (9, 10)]\n\nOutput:\n[(1, 2), (3, 4), (1, 5), (6, 7), (1, 8), (9, 10)]\n\n## Solution\n\n\n```python\ndef join_similar_tuples(lst):\n    result = []\n    for i in range(len(lst)):\n        if i == 0:\n            result.append(lst[i])\n        else:\n     ",
+    "predictive_100_output": "\nInput:\n[(1, 'a'), (1, 'b'), (2, 'c'), (2, 'd'), (3, 'e'), (4, 'f')]\nOutput: [(1, 'ab'), (2, 'cd'), (3, 'e'), (4, 'f')]\n\ndef join_tuples(lst):\n    result = []\n    for i in range(len(lst)):\n        if i == 0 or lst[i][0] != lst[i-1][0]:\n            result.append(lst[i])\n        else:\n            resu",
+    "predictive_150_output": "\nInput:\n[(1,2),(1,3),(2,4),(2,5),(3,6),(4,7),(5,8),(6,9),(7,10),(8,11),(9,12),(10,11),(11,12)]\nOutput:\n[(1, 2), (1, 3), (2, 4), (2, 5), (3, 6), (4, 7), (5, 8), (6, 9), (7, 10), (8, 11), (9, 12), (10, 11), (11, 12)]\n\ndef join_tuples(lst):\n    result = []\n    for i in range(len(lst)):\n        if i == ",
+    "predictive_100_hypers": [
+      {
+        "pos": 11,
+        "id": 32023,
+        "phrase": "1,",
+        "subtokens": [
+          29896,
+          29892
+        ]
+      },
+      {
+        "pos": 22,
+        "id": 32036,
+        "phrase": "2,",
+        "subtokens": [
+          29906,
+          29892
+        ]
+      },
+      {
+        "pos": 43,
+        "id": 32023,
+        "phrase": "1,",
+        "subtokens": [
+          29896,
+          29892
+        ]
+      },
+      {
+        "pos": 48,
+        "id": 32036,
+        "phrase": "2,",
+        "subtokens": [
+          29906,
+          29892
+        ]
+      },
+      {
+        "pos": 96,
+        "id": 32039,
+        "phrase": "0",
+        "subtokens": [
+          29871,
+          29900
+        ]
+      },
+      {
+        "pos": 156,
+        "id": 32023,
+        "phrase": "1,",
+        "subtokens": [
+          29896,
+          29892
+        ]
+      },
+      {
+        "pos": 161,
+        "id": 32027,
+        "phrase": "1, ",
+        "subtokens": [
+          29896,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 166,
+        "id": 32026,
+        "phrase": "2, ",
+        "subtokens": [
+          29906,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 171,
+        "id": 32026,
+        "phrase": "2, ",
+        "subtokens": [
+          29906,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 175,
+        "id": 32025,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 180,
+        "id": 32035,
+        "phrase": "4",
+        "subtokens": [
+          29871,
+          29946
+        ]
+      },
+      {
+        "pos": 188,
+        "id": 32027,
+        "phrase": "1, ",
+        "subtokens": [
+          29896,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 193,
+        "id": 32026,
+        "phrase": "2, ",
+        "subtokens": [
+          29906,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 197,
+        "id": 32025,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 202,
+        "id": 32035,
+        "phrase": "4",
+        "subtokens": [
+          29871,
+          29946
+        ]
+      },
+      {
+        "pos": 209,
+        "id": 32021,
+        "phrase": "\nassert",
+        "subtokens": [
+          13,
+          9294
+        ]
+      },
+      {
+        "pos": 216,
+        "id": 32027,
+        "phrase": "1, ",
+        "subtokens": [
+          29896,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 220,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 221,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 222,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 223,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 224,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 225,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 226,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 227,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 228,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 229,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 230,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 231,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 232,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 233,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 234,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 235,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 236,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 237,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 238,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 239,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 240,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 241,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 242,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 243,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 244,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 245,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 246,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 247,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 248,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 249,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 250,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 251,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 252,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 253,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 254,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 255,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 256,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 257,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 258,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 259,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 260,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 261,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 262,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 263,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 264,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 265,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 266,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 267,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 268,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 269,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 270,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 271,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 272,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 273,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 274,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 275,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 276,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 277,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 278,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 279,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 280,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 281,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 282,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 283,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 284,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 285,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 286,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 287,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 288,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 289,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 290,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 291,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 292,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 293,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 294,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 295,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 296,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 297,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 298,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 299,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      }
+    ],
+    "predictive_150_hypers": [
+      {
+        "pos": 5,
+        "id": 32023,
+        "phrase": "1,",
+        "subtokens": [
+          29896,
+          29892
+        ]
+      },
+      {
+        "pos": 8,
+        "id": 32023,
+        "phrase": "1,",
+        "subtokens": [
+          29896,
+          29892
+        ]
+      },
+      {
+        "pos": 15,
+        "id": 32036,
+        "phrase": "2,",
+        "subtokens": [
+          29906,
+          29892
+        ]
+      },
+      {
+        "pos": 50,
+        "id": 32022,
+        "phrase": "0,",
+        "subtokens": [
+          29900,
+          29892
+        ]
+      },
+      {
+        "pos": 55,
+        "id": 32023,
+        "phrase": "1,",
+        "subtokens": [
+          29896,
+          29892
+        ]
+      },
+      {
+        "pos": 64,
+        "id": 32027,
+        "phrase": "1, ",
+        "subtokens": [
+          29896,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 66,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 67,
+        "id": 32027,
+        "phrase": "1, ",
+        "subtokens": [
+          29896,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 69,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 70,
+        "id": 32026,
+        "phrase": "2, ",
+        "subtokens": [
+          29906,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 72,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 73,
+        "id": 32026,
+        "phrase": "2, ",
+        "subtokens": [
+          29906,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 75,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 76,
+        "id": 32034,
+        "phrase": "3, ",
+        "subtokens": [
+          29941,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 78,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 79,
+        "id": 32031,
+        "phrase": "4, ",
+        "subtokens": [
+          29946,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 81,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 82,
+        "id": 32033,
+        "phrase": "5, ",
+        "subtokens": [
+          29945,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 84,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 85,
+        "id": 32042,
+        "phrase": "6, ",
+        "subtokens": [
+          29953,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 87,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 89,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 91,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 93,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 95,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 97,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 99,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 100,
+        "id": 32017,
+        "phrase": "10",
+        "subtokens": [
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 101,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 103,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 105,
+        "id": 32027,
+        "phrase": "1, ",
+        "subtokens": [
+          29896,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 200,
+        "id": 32027,
+        "phrase": "1, ",
+        "subtokens": [
+          29896,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 202,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 203,
+        "id": 32027,
+        "phrase": "1, ",
+        "subtokens": [
+          29896,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 205,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 206,
+        "id": 32026,
+        "phrase": "2, ",
+        "subtokens": [
+          29906,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 208,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 209,
+        "id": 32026,
+        "phrase": "2, ",
+        "subtokens": [
+          29906,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 211,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 212,
+        "id": 32034,
+        "phrase": "3, ",
+        "subtokens": [
+          29941,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 214,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 215,
+        "id": 32031,
+        "phrase": "4, ",
+        "subtokens": [
+          29946,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 217,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 218,
+        "id": 32033,
+        "phrase": "5, ",
+        "subtokens": [
+          29945,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 220,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 221,
+        "id": 32042,
+        "phrase": "6, ",
+        "subtokens": [
+          29953,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 223,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 225,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 227,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 229,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 231,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 233,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 235,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 236,
+        "id": 32017,
+        "phrase": "10",
+        "subtokens": [
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 237,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 239,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 241,
+        "id": 32027,
+        "phrase": "1, ",
+        "subtokens": [
+          29896,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 252,
+        "id": 32027,
+        "phrase": "1, ",
+        "subtokens": [
+          29896,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 254,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 255,
+        "id": 32027,
+        "phrase": "1, ",
+        "subtokens": [
+          29896,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 257,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 258,
+        "id": 32026,
+        "phrase": "2, ",
+        "subtokens": [
+          29906,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 260,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 261,
+        "id": 32026,
+        "phrase": "2, ",
+        "subtokens": [
+          29906,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 263,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 264,
+        "id": 32034,
+        "phrase": "3, ",
+        "subtokens": [
+          29941,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 266,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 267,
+        "id": 32031,
+        "phrase": "4, ",
+        "subtokens": [
+          29946,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 269,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 270,
+        "id": 32033,
+        "phrase": "5, ",
+        "subtokens": [
+          29945,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 272,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 273,
+        "id": 32042,
+        "phrase": "6, ",
+        "subtokens": [
+          29953,
+          29892,
+          29871
+        ]
+      },
+      {
+        "pos": 275,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 277,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 279,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 281,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 283,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 285,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 287,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 288,
+        "id": 32017,
+        "phrase": "10",
+        "subtokens": [
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 289,
+        "id": 32012,
+        "phrase": ", 1",
+        "subtokens": [
+          29892,
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 291,
+        "id": 32040,
+        "phrase": "), (",
+        "subtokens": [
+          511,
+          313
+        ]
+      },
+      {
+        "pos": 292,
+        "id": 32027,
+        "phrase": "1, ",
+        "subtokens": [
+          29896,
+          29892,
+          29871
+        ]
+      }
+    ],
+    "taxonomy": "logic_or_semantic_drift"
+  },
+  {
+    "prompt_id": "gsm_3022",
+    "domain": "reasoning",
+    "prompt": "Solve the following math problem step by step:\nTommy's home is worth 25% more than he bought it for. He sells it and buys a new house that costs $500,000. If he had to take a loan for the 75% he can't pay, how much did he buy his first house for?\n",
+    "ground_truth": "He paid 25% of the new home price because 100 - 75 = <<100-75=25>>25\nHe paid $125,000 towards the new home because 500,000 x .25 = <<500000*.25=125000>>125,000\nTherefore he paid $100,000 for his first home because 125,000 / 1.25 = <<125000/1.25=100000>>100,000\n#### 100000",
+    "failed_models": [
+      "official_zip2zip",
+      "predictive_step_100",
+      "predictive_step_150"
+    ],
+    "original_output": "\n\n\nTo solve this problem, we need to work backwards from the information given. Here are the steps:\n\n1. Tommy bought a new house for $500,000.\n2. He took a loan for 75% of the cost of the new house, which means he paid 25% of the cost with his own money.\n3. The 25% he paid with his own money is equa",
+    "official_zip2zip_output": "\nLet's denote the price Tommy bought his first house for as P.\n\nAccording to the information given, Tommy's home is now worth 25% more than he bought it for. This means the current value of his home is P + 0.25P, which can be simplified to 1.25P.\n\nTommy sells his home and buys a new house that costs",
+    "predictive_100_output": "Tommy bought his first house for $375,000.\nTommy bought his house for $375,0000.\nHe sold it for 25% more than he bought it for, so he sold it for $375,0000 * 1.25 = $<<375000*0.25=93750>>93,750.\nHe bought a new house for $500,0000.\nHe had to take a loan for the remaining 75%, so he paid $5000,0000 *",
+    "predictive_150_output": "If Tommy bought his new house for $500,000, then he paid 25% of that amount in down payment.\nSo, he paid 0.25 * $500,000 = $<<0.25*50000=125,000>>125,000 in down payment.\nThe remaining amount he had to pay in cash was $500,000 - $125,000 = $<<50000-12500>>375,000\nSince he took a loan for the remaini",
+    "predictive_100_hypers": [
+      {
+        "pos": 12,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 13,
+        "id": 32037,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 26,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 27,
+        "id": 32037,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 54,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 57,
+        "id": 32012,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 61,
+        "id": 32020,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 65,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 67,
+        "id": 32037,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 75,
+        "id": 32027,
+        "phrase": "0>>",
+        "subtokens": [
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 81,
+        "id": 32037,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 91,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 93,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 94,
+        "id": 32037,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 114,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 116,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 120,
+        "id": 32037,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 123,
+        "id": 32020,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 125,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 127,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 129,
+        "id": 32037,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 137,
+        "id": 32035,
+        "phrase": "00>>",
+        "subtokens": [
+          29900,
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 142,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 143,
+        "id": 32037,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 159,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 160,
+        "id": 32037,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 163,
+        "id": 32024,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 166,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 174,
+        "id": 32014,
+        "phrase": "10",
+        "subtokens": [
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 176,
+        "id": 32014,
+        "phrase": "10",
+        "subtokens": [
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 218,
+        "id": 32023,
+        "phrase": "of the",
+        "subtokens": [
+          310,
+          278
+        ]
+      },
+      {
+        "pos": 247,
+        "id": 32014,
+        "phrase": "10",
+        "subtokens": [
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 251,
+        "id": 32014,
+        "phrase": "10",
+        "subtokens": [
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 260,
+        "id": 32014,
+        "phrase": "10",
+        "subtokens": [
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 262,
+        "id": 32019,
+        "phrase": "100",
+        "subtokens": [
+          29896,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 295,
+        "id": 32015,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      }
+    ],
+    "predictive_150_hypers": [
+      {
+        "pos": 8,
+        "id": 32022,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 11,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 40,
+        "id": 32041,
+        "phrase": "500",
+        "subtokens": [
+          29945,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 42,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 43,
+        "id": 32020,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 44,
+        "id": 32037,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 48,
+        "id": 32041,
+        "phrase": "500",
+        "subtokens": [
+          29945,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 56,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 62,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 80,
+        "id": 32041,
+        "phrase": "500",
+        "subtokens": [
+          29945,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 82,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 89,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 90,
+        "id": 32020,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 91,
+        "id": 32041,
+        "phrase": "500",
+        "subtokens": [
+          29945,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 92,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 97,
+        "id": 32035,
+        "phrase": "00>>",
+        "subtokens": [
+          29900,
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 102,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 131,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 134,
+        "id": 32037,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 137,
+        "id": 32020,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 141,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 143,
+        "id": 32037,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 148,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 150,
+        "id": 32035,
+        "phrase": "00>>",
+        "subtokens": [
+          29900,
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 151,
+        "id": 32022,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 154,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 170,
+        "id": 32041,
+        "phrase": "500",
+        "subtokens": [
+          29945,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 172,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      }
+    ],
+    "taxonomy": "logic_or_semantic_drift"
+  },
+  {
+    "prompt_id": "gsm_6442",
+    "domain": "reasoning",
+    "prompt": "Solve the following math problem step by step:\nHot dog buns come in packages of 8. For the school picnic, Mr. Gates bought 30 packages of hot dog buns. He has four classes with 30 students in each class. How many hot dog buns can each of Mr. Gates' students get?\n",
+    "ground_truth": "Mr. Gates bought 30 x 8 = <<30*8=240>>240 hot dog buns.\nIn his four classes, he has a total of 4 x 30 = <<4*30=120>>120 students.\nTherefore, each of his students can get 240/120 = <<240/120=2>>2 hot dog buns.\n#### 2",
+    "failed_models": [
+      "predictive_step_150"
+    ],
+    "original_output": "\n# Answer\nFirst, we need to find out the total number of hot dog buns Mr. Gates bought.\n\nHe bought 30 packages of hot dog buns, and each package contains 8 buns.\n\nTotal hot dog buns = 30 packages * 8 buns/package = 240 buns\n\nNext, we need to find out the total number of students.\n\nMr. Gates has four",
+    "official_zip2zip_output": "\nFirst, let's find out the total number of hot dog buns Mr. Gates has. Since each package contains 8 buns and he bought 30 packages, we multiply the number of packages by the number of buns per package:\n\n30 packages * 8 buns/package = 240 hot dog buns\n\nNext, we need to find out the total number of s",
+    "predictive_100_output": "Mr. Gates bought 30 packages of hot dog buns. Each package contains 8 hot dog buns. So, he bought 30 x 8 = <<30*8=240>>240 hot dog buns.\nHe has 4 classes with 30 students each, so he has 4 x 30 = <<4*30=120>>120 students in total.\nIf he wants to give each student one hot dog bun, he will need 120 x ",
+    "predictive_150_output": "Mr. Gates bought 30 packages of hot dog buns.\nEach package has 8 hot dog buns.\n30 packages x 8 hot dog buns per package = 240 hot dog buns.\nMr. Gates has 4 classes x 30 students per class = 120 students.\n240 hot dog buns / 1200 students = <<240/120=0.2>>0.2 hot dog buns per student.\nEach student can",
+    "predictive_100_hypers": [
+      {
+        "pos": 5,
+        "id": 32020,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 9,
+        "id": 32042,
+        "phrase": "hot dog b",
+        "subtokens": [
+          7375,
+          11203,
+          289
+        ]
+      },
+      {
+        "pos": 17,
+        "id": 32042,
+        "phrase": "hot dog b",
+        "subtokens": [
+          7375,
+          11203,
+          289
+        ]
+      },
+      {
+        "pos": 24,
+        "id": 32034,
+        "phrase": "30",
+        "subtokens": [
+          29871,
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 28,
+        "id": 32022,
+        "phrase": "= <<",
+        "subtokens": [
+          353,
+          3532
+        ]
+      },
+      {
+        "pos": 29,
+        "id": 32025,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 35,
+        "id": 32032,
+        "phrase": "0>>",
+        "subtokens": [
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 39,
+        "id": 32042,
+        "phrase": "hot dog b",
+        "subtokens": [
+          7375,
+          11203,
+          289
+        ]
+      },
+      {
+        "pos": 45,
+        "id": 32027,
+        "phrase": "4",
+        "subtokens": [
+          29871,
+          29946
+        ]
+      },
+      {
+        "pos": 48,
+        "id": 32034,
+        "phrase": "30",
+        "subtokens": [
+          29871,
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 55,
+        "id": 32027,
+        "phrase": "4",
+        "subtokens": [
+          29871,
+          29946
+        ]
+      },
+      {
+        "pos": 57,
+        "id": 32034,
+        "phrase": "30",
+        "subtokens": [
+          29871,
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 58,
+        "id": 32022,
+        "phrase": "= <<",
+        "subtokens": [
+          353,
+          3532
+        ]
+      },
+      {
+        "pos": 61,
+        "id": 32025,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 65,
+        "id": 32032,
+        "phrase": "0>>",
+        "subtokens": [
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 67,
+        "id": 32017,
+        "phrase": "20",
+        "subtokens": [
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 81,
+        "id": 32042,
+        "phrase": "hot dog b",
+        "subtokens": [
+          7375,
+          11203,
+          289
+        ]
+      },
+      {
+        "pos": 88,
+        "id": 32028,
+        "phrase": "12",
+        "subtokens": [
+          29896,
+          29906
+        ]
+      },
+      {
+        "pos": 91,
+        "id": 32012,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 92,
+        "id": 32022,
+        "phrase": "= <<",
+        "subtokens": [
+          353,
+          3532
+        ]
+      },
+      {
+        "pos": 94,
+        "id": 32017,
+        "phrase": "20",
+        "subtokens": [
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 98,
+        "id": 32028,
+        "phrase": "12",
+        "subtokens": [
+          29896,
+          29906
+        ]
+      },
+      {
+        "pos": 99,
+        "id": 32032,
+        "phrase": "0>>",
+        "subtokens": [
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 100,
+        "id": 32028,
+        "phrase": "12",
+        "subtokens": [
+          29896,
+          29906
+        ]
+      },
+      {
+        "pos": 102,
+        "id": 32042,
+        "phrase": "hot dog b",
+        "subtokens": [
+          7375,
+          11203,
+          289
+        ]
+      },
+      {
+        "pos": 109,
+        "id": 32014,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 110,
+        "id": 32035,
+        "phrase": "40",
+        "subtokens": [
+          29946,
+          29900
+        ]
+      },
+      {
+        "pos": 111,
+        "id": 32042,
+        "phrase": "hot dog b",
+        "subtokens": [
+          7375,
+          11203,
+          289
+        ]
+      },
+      {
+        "pos": 118,
+        "id": 32026,
+        "phrase": "20",
+        "subtokens": [
+          29871,
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 119,
+        "id": 32035,
+        "phrase": "40",
+        "subtokens": [
+          29946,
+          29900
+        ]
+      },
+      {
+        "pos": 122,
+        "id": 32028,
+        "phrase": "12",
+        "subtokens": [
+          29896,
+          29906
+        ]
+      },
+      {
+        "pos": 124,
+        "id": 32022,
+        "phrase": "= <<",
+        "subtokens": [
+          353,
+          3532
+        ]
+      },
+      {
+        "pos": 126,
+        "id": 32035,
+        "phrase": "40",
+        "subtokens": [
+          29946,
+          29900
+        ]
+      },
+      {
+        "pos": 128,
+        "id": 32028,
+        "phrase": "12",
+        "subtokens": [
+          29896,
+          29906
+        ]
+      },
+      {
+        "pos": 132,
+        "id": 32032,
+        "phrase": "0>>",
+        "subtokens": [
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 134,
+        "id": 32042,
+        "phrase": "hot dog b",
+        "subtokens": [
+          7375,
+          11203,
+          289
+        ]
+      },
+      {
+        "pos": 139,
+        "id": 32014,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 145,
+        "id": 32014,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 146,
+        "id": 32042,
+        "phrase": "hot dog b",
+        "subtokens": [
+          7375,
+          11203,
+          289
+        ]
+      },
+      {
+        "pos": 151,
+        "id": 32014,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 157,
+        "id": 32026,
+        "phrase": "20",
+        "subtokens": [
+          29871,
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 175,
+        "id": 32037,
+        "phrase": "\n\nThe",
+        "subtokens": [
+          13,
+          13,
+          1576
+        ]
+      },
+      {
+        "pos": 187,
+        "id": 32012,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 196,
+        "id": 32020,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 201,
+        "id": 32012,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 210,
+        "id": 32020,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 223,
+        "id": 32020,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 226,
+        "id": 32030,
+        "phrase": ", the",
+        "subtokens": [
+          29892,
+          278
+        ]
+      },
+      {
+        "pos": 238,
+        "id": 32020,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 239,
+        "id": 32022,
+        "phrase": "= <<",
+        "subtokens": [
+          353,
+          3532
+        ]
+      },
+      {
+        "pos": 255,
+        "id": 32030,
+        "phrase": ", the",
+        "subtokens": [
+          29892,
+          278
+        ]
+      },
+      {
+        "pos": 261,
+        "id": 32012,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 264,
+        "id": 32012,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 271,
+        "id": 32028,
+        "phrase": "12",
+        "subtokens": [
+          29896,
+          29906
+        ]
+      }
+    ],
+    "predictive_150_hypers": [
+      {
+        "pos": 5,
+        "id": 32020,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 9,
+        "id": 32042,
+        "phrase": "hot dog b",
+        "subtokens": [
+          7375,
+          11203,
+          289
+        ]
+      },
+      {
+        "pos": 18,
+        "id": 32042,
+        "phrase": "hot dog b",
+        "subtokens": [
+          7375,
+          11203,
+          289
+        ]
+      },
+      {
+        "pos": 28,
+        "id": 32042,
+        "phrase": "hot dog b",
+        "subtokens": [
+          7375,
+          11203,
+          289
+        ]
+      },
+      {
+        "pos": 35,
+        "id": 32035,
+        "phrase": "40",
+        "subtokens": [
+          29946,
+          29900
+        ]
+      },
+      {
+        "pos": 36,
+        "id": 32042,
+        "phrase": "hot dog b",
+        "subtokens": [
+          7375,
+          11203,
+          289
+        ]
+      },
+      {
+        "pos": 45,
+        "id": 32027,
+        "phrase": "4",
+        "subtokens": [
+          29871,
+          29946
+        ]
+      },
+      {
+        "pos": 48,
+        "id": 32034,
+        "phrase": "30",
+        "subtokens": [
+          29871,
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 55,
+        "id": 32017,
+        "phrase": "20",
+        "subtokens": [
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 60,
+        "id": 32035,
+        "phrase": "40",
+        "subtokens": [
+          29946,
+          29900
+        ]
+      },
+      {
+        "pos": 61,
+        "id": 32042,
+        "phrase": "hot dog b",
+        "subtokens": [
+          7375,
+          11203,
+          289
+        ]
+      },
+      {
+        "pos": 66,
+        "id": 32036,
+        "phrase": "200",
+        "subtokens": [
+          29906,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 68,
+        "id": 32022,
+        "phrase": "= <<",
+        "subtokens": [
+          353,
+          3532
+        ]
+      },
+      {
+        "pos": 70,
+        "id": 32035,
+        "phrase": "40",
+        "subtokens": [
+          29946,
+          29900
+        ]
+      },
+      {
+        "pos": 73,
+        "id": 32017,
+        "phrase": "20",
+        "subtokens": [
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 82,
+        "id": 32042,
+        "phrase": "hot dog b",
+        "subtokens": [
+          7375,
+          11203,
+          289
+        ]
+      },
+      {
+        "pos": 96,
+        "id": 32042,
+        "phrase": "hot dog b",
+        "subtokens": [
+          7375,
+          11203,
+          289
+        ]
+      },
+      {
+        "pos": 108,
+        "id": 32018,
+        "phrase": "of the",
+        "subtokens": [
+          310,
+          278
+        ]
+      },
+      {
+        "pos": 111,
+        "id": 32031,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 116,
+        "id": 32037,
+        "phrase": "\n\nThe",
+        "subtokens": [
+          13,
+          13,
+          1576
+        ]
+      },
+      {
+        "pos": 180,
+        "id": 32031,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 193,
+        "id": 32031,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 202,
+        "id": 32012,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 212,
+        "id": 32031,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 235,
+        "id": 32031,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 242,
+        "id": 32031,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 250,
+        "id": 32038,
+        "phrase": "5",
+        "subtokens": [
+          29871,
+          29945
+        ]
+      },
+      {
+        "pos": 252,
+        "id": 32022,
+        "phrase": "= <<",
+        "subtokens": [
+          353,
+          3532
+        ]
+      }
+    ],
+    "taxonomy": "logic_or_semantic_drift"
+  },
+  {
+    "prompt_id": "gsm_6613",
+    "domain": "reasoning",
+    "prompt": "Solve the following math problem step by step:\nMr. Curtis has 325 chickens on his farm where 28 are roosters and the rest are hens. Twenty hens do not lay eggs while the rest of the hens do. How many egg-laying hens does Mr. Curtis have on his farm?\n",
+    "ground_truth": "Mr. Curtis has 325 - 28 = <<325-28=297>>297 hens.\nOut of the 297 hens, only 297 - 20 = <<297-20=277>>277 hens lay eggs.\n#### 277",
+    "failed_models": [
+      "predictive_step_100"
+    ],
+    "original_output": "\n# Answer\nTo find out how many egg-laying hens Mr. Curtis has on his farm, we need to follow these steps:\n\n1. Calculate the total number of hens by subtracting the number of roosters from the total number of chickens:\n   Total chickens = 325\n   Roosters = 28\n   Hens = Total chickens - Roosters\n   He",
+    "official_zip2zip_output": "\nFirst, let's find out how many hens Mr. Curtis has on his farm. Since he has 325 chickens in total and 28 of them are roosters, we subtract the number of roosters from the total number of chickens to get the number of hens:\n\n325 chickens - 28 roosters = 297 hens\n\nNow, out of these 297 hens, 20 do n",
+    "predictive_100_output": "Mr. Curtis has 325 - 28 = <<325-28=297>>297 chickens on his farm.\nThe number of egg-laying hens is 297 - 20 = <<297-20=275>>275.\n#### 275\nWhat is the least number of students in a class so that they can be divided into groups of 6, 7, or 8 without any students left out?\n\nThe least common multiple of",
+    "predictive_150_output": "Mr. Curtis has 325 - 28 = <<325-28=297>>297 hens.\nThe number of egg-laying hens is 297 - 20 = <<297-20=277>>277.\n#### 277\nWhat is the least number of people that can be divided into 15 groups of equal size, 27 groups of equal size, and 45 groups such that each group has the same number of people?\n\nT",
+    "predictive_100_hypers": [
+      {
+        "pos": 5,
+        "id": 32020,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 9,
+        "id": 32014,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 11,
+        "id": 32021,
+        "phrase": "= <<",
+        "subtokens": [
+          353,
+          3532
+        ]
+      },
+      {
+        "pos": 44,
+        "id": 32014,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 48,
+        "id": 32024,
+        "phrase": "20",
+        "subtokens": [
+          29871,
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 49,
+        "id": 32021,
+        "phrase": "= <<",
+        "subtokens": [
+          353,
+          3532
+        ]
+      },
+      {
+        "pos": 54,
+        "id": 32018,
+        "phrase": "20",
+        "subtokens": [
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 66,
+        "id": 32014,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 104,
+        "id": 32033,
+        "phrase": "\n\nThe",
+        "subtokens": [
+          13,
+          13,
+          1576
+        ]
+      },
+      {
+        "pos": 114,
+        "id": 32013,
+        "phrase": ", and",
+        "subtokens": [
+          29892,
+          322
+        ]
+      },
+      {
+        "pos": 190,
+        "id": 32012,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 192,
+        "id": 32014,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 206,
+        "id": 32012,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 224,
+        "id": 32033,
+        "phrase": "\n\nThe",
+        "subtokens": [
+          13,
+          13,
+          1576
+        ]
+      },
+      {
+        "pos": 258,
+        "id": 32012,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 276,
+        "id": 32012,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      }
+    ],
+    "predictive_150_hypers": [
+      {
+        "pos": 5,
+        "id": 32020,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 9,
+        "id": 32014,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 11,
+        "id": 32021,
+        "phrase": "= <<",
+        "subtokens": [
+          353,
+          3532
+        ]
+      },
+      {
+        "pos": 40,
+        "id": 32014,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 44,
+        "id": 32024,
+        "phrase": "20",
+        "subtokens": [
+          29871,
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 45,
+        "id": 32021,
+        "phrase": "= <<",
+        "subtokens": [
+          353,
+          3532
+        ]
+      },
+      {
+        "pos": 50,
+        "id": 32018,
+        "phrase": "20",
+        "subtokens": [
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 62,
+        "id": 32014,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 110,
+        "id": 32033,
+        "phrase": "\n\nThe",
+        "subtokens": [
+          13,
+          13,
+          1576
+        ]
+      },
+      {
+        "pos": 116,
+        "id": 32012,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 119,
+        "id": 32014,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 121,
+        "id": 32013,
+        "phrase": ", and",
+        "subtokens": [
+          29892,
+          322
+        ]
+      },
+      {
+        "pos": 122,
+        "id": 32030,
+        "phrase": "4",
+        "subtokens": [
+          29871,
+          29946
+        ]
+      },
+      {
+        "pos": 144,
+        "id": 32012,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 148,
+        "id": 32014,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 151,
+        "id": 32013,
+        "phrase": ", and",
+        "subtokens": [
+          29892,
+          322
+        ]
+      },
+      {
+        "pos": 152,
+        "id": 32030,
+        "phrase": "4",
+        "subtokens": [
+          29871,
+          29946
+        ]
+      },
+      {
+        "pos": 240,
+        "id": 32033,
+        "phrase": "\n\nThe",
+        "subtokens": [
+          13,
+          13,
+          1576
+        ]
+      }
+    ],
+    "taxonomy": "logic_or_semantic_drift"
+  },
+  {
+    "prompt_id": "gsm_1655",
+    "domain": "reasoning",
+    "prompt": "Solve the following math problem step by step:\nAbe owns a restaurant. Every month he spends a third of his budget on food, a quarter of his budget on restaurant supplies, and the rest of his budget on employee wages. If his budget is $3000 and he uses it up every month, how much is he spending on wages?\n",
+    "ground_truth": "Abe is spending a third of his budget on food, so he spends $3000 / 3 = $<<3000/3=1000>>1000 on food.\nHe spends a quarter of his budget on restaurant supplies, so he spends $3000 / 4 = $<<3000/4=750>>750 on supplies.\nThus, he spends $3000 - $1000 - $750 = $<<3000-1000-750=1250>>1250 on employee wage",
+    "failed_models": [
+      "predictive_step_150"
+    ],
+    "original_output": "\nStep 1: Calculate the amount spent on food.\nAbe spends a third of his budget on food, so we need to find one-third of $3000.\n\n(1/3) * $3000 = $1000\n\nStep 2: Calculate the amount spent on restaurant supplies.\nAbe spends a quarter of his budget on restaurant supplies, so we need to find one-quarter o",
+    "official_zip2zip_output": "\nTo solve this problem, we need to calculate the amount of money Abe spends on food and restaurant supplies, and then subtract that from his total budget to find out how much he spends on wages.\n\n1. Calculate the amount spent on food:\nAbe spends a third of his budget on food. Since his budget is $30",
+    "predictive_100_output": "Abe spends a third of his budget on food, which is $3000 / 3 = $<<3000/3=1000>>1000.\nHe also spends a quarter of his budget on supplies, which is $3000 / 4 = $<<3000/4=750>>750.\nThe total amount he spends on food and supplies is $1000 + $750 = $<<10000+750=1750>>1750.\nTherefore, he is left with $300",
+    "predictive_150_output": "Abe spends a third of his budget on food, which is $3000 / 3 = <<3000/3=100>>1000.\nHe also spends a quarter of his budget on supplies, which is $3000 / 4 = $<<3000/4=7500>>750.\nThe total amount he spends on food and supplies is $1000 + $750 = $<<1000+750=8500>>850.\nTherefore, he is spending $3000 - ",
+    "predictive_100_hypers": [
+      {
+        "pos": 6,
+        "id": 32036,
+        "phrase": "of his budget",
+        "subtokens": [
+          310,
+          670,
+          23562
+        ]
+      },
+      {
+        "pos": 13,
+        "id": 32030,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 17,
+        "id": 32021,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 18,
+        "id": 32025,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 19,
+        "id": 32030,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 20,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 25,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 28,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 37,
+        "id": 32036,
+        "phrase": "of his budget",
+        "subtokens": [
+          310,
+          670,
+          23562
+        ]
+      },
+      {
+        "pos": 44,
+        "id": 32030,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 45,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 47,
+        "id": 32031,
+        "phrase": "4",
+        "subtokens": [
+          29871,
+          29946
+        ]
+      },
+      {
+        "pos": 48,
+        "id": 32025,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 49,
+        "id": 32030,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 50,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 56,
+        "id": 32029,
+        "phrase": "0>>",
+        "subtokens": [
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 75,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 81,
+        "id": 32025,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 83,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 88,
+        "id": 32039,
+        "phrase": "0=",
+        "subtokens": [
+          29900,
+          29922
+        ]
+      },
+      {
+        "pos": 92,
+        "id": 32029,
+        "phrase": "0>>",
+        "subtokens": [
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 95,
+        "id": 32024,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 106,
+        "id": 32030,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 107,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 112,
+        "id": 32024,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 113,
+        "id": 32025,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 114,
+        "id": 32030,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 115,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 120,
+        "id": 32039,
+        "phrase": "0=",
+        "subtokens": [
+          29900,
+          29922
+        ]
+      },
+      {
+        "pos": 124,
+        "id": 32029,
+        "phrase": "0>>",
+        "subtokens": [
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 127,
+        "id": 32024,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      }
+    ],
+    "predictive_150_hypers": [
+      {
+        "pos": 6,
+        "id": 32036,
+        "phrase": "of his budget",
+        "subtokens": [
+          310,
+          670,
+          23562
+        ]
+      },
+      {
+        "pos": 18,
+        "id": 32021,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 19,
+        "id": 32023,
+        "phrase": "= <<",
+        "subtokens": [
+          353,
+          3532
+        ]
+      },
+      {
+        "pos": 20,
+        "id": 32030,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 27,
+        "id": 32040,
+        "phrase": "00>>",
+        "subtokens": [
+          29900,
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 29,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 38,
+        "id": 32036,
+        "phrase": "of his budget",
+        "subtokens": [
+          310,
+          670,
+          23562
+        ]
+      },
+      {
+        "pos": 45,
+        "id": 32030,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 46,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 48,
+        "id": 32031,
+        "phrase": "4",
+        "subtokens": [
+          29871,
+          29946
+        ]
+      },
+      {
+        "pos": 49,
+        "id": 32025,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 50,
+        "id": 32030,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 51,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 56,
+        "id": 32024,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 57,
+        "id": 32029,
+        "phrase": "0>>",
+        "subtokens": [
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 59,
+        "id": 32024,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 75,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 79,
+        "id": 32024,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 80,
+        "id": 32025,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 82,
+        "id": 32013,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 85,
+        "id": 32024,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 88,
+        "id": 32024,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 89,
+        "id": 32029,
+        "phrase": "0>>",
+        "subtokens": [
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 91,
+        "id": 32024,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 102,
+        "id": 32030,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 103,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 107,
+        "id": 32024,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 108,
+        "id": 32025,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 109,
+        "id": 32030,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 110,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 113,
+        "id": 32024,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 117,
+        "id": 32040,
+        "phrase": "00>>",
+        "subtokens": [
+          29900,
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 119,
+        "id": 32018,
+        "phrase": "20",
+        "subtokens": [
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 128,
+        "id": 32015,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 129,
+        "id": 32032,
+        "phrase": "200",
+        "subtokens": [
+          29906,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 243,
+        "id": 32038,
+        "phrase": "60",
+        "subtokens": [
+          29953,
+          29900
+        ]
+      },
+      {
+        "pos": 256,
+        "id": 32038,
+        "phrase": "60",
+        "subtokens": [
+          29953,
+          29900
+        ]
+      },
+      {
+        "pos": 264,
+        "id": 32038,
+        "phrase": "60",
+        "subtokens": [
+          29953,
+          29900
+        ]
+      },
+      {
+        "pos": 281,
+        "id": 32030,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 288,
+        "id": 32038,
+        "phrase": "60",
+        "subtokens": [
+          29953,
+          29900
+        ]
+      }
+    ],
+    "taxonomy": "logic_or_semantic_drift"
+  },
+  {
+    "prompt_id": "gsm_1960",
+    "domain": "reasoning",
+    "prompt": "Solve the following math problem step by step:\nThere are 10 bags with 30 oranges each on a truck. A total of 50 pieces of oranges are rotten. Thirty pieces of oranges will be kept for making orange juice and the rest will be sold. How many pieces of oranges will be sold?\n",
+    "ground_truth": "There are a total of 10 x 30 = <<10*30=300>>300 pieces of oranges in a truck.\nA total of 50 + 30 = <<50+30=80>>80 pieces of oranges will not be sold.\nThus, 300 - 80 = <<300-80=220>>220 pieces of oranges will be sold.\n#### 220",
+    "failed_models": [
+      "official_zip2zip",
+      "predictive_step_100",
+      "predictive_step_150"
+    ],
+    "original_output": "\nStep 1: Calculate the total number of oranges on the truck.\nThere are 10 bags with 30 oranges each, so the total number of oranges is:\n10 bags * 30 oranges/bag = 300 oranges\n\nStep 2: Subtract the number of rotten oranges from the total number of oranges.\nThere are 50 rotten oranges, so the number o",
+    "official_zip2zip_output": "\nFirst, let's calculate the total number of oranges on the truck:\n\n10 bags * 30 oranges per bag = 300 oranges\n\nNext, let's subtract the rotten oranges:\n\n300 oranges - 50 rotten oranges = 250 good oranges\n\nNow, let's set aside the oranges for orange juice:\n\n30 oranges for orange juice\n\nFinally, let's",
+    "predictive_100_output": "First find the total number of oranges on the truck: 10 bags * 30 oranges/bag = <<10*30=300>>30 oranges\nThen subtract the number of rotten oranges: 30 oranges - 50 oranges = <<30-50=-20>>-20 oranges\nThen subtract the oranges kept for juice: -20 oranges - 30 oranges = <<-20-30=-50>>-50 oranges\nThe an",
+    "predictive_150_output": "There are 10 bags with 30 oranges each, so there are 10*30 = 300 oranges in total.\nThere are 50 rotten oranges, so there are 300-50 = 20 oranges that are not rotten.\n30 oranges will be kept for making orange juice, so there will be 20-30 = <<20-30=0>>20 oranges that will be sold.\n#### 20\nThe value o",
+    "predictive_100_hypers": [
+      {
+        "pos": 6,
+        "id": 32041,
+        "phrase": "oranges",
+        "subtokens": [
+          470,
+          6916
+        ]
+      },
+      {
+        "pos": 12,
+        "id": 32019,
+        "phrase": "10",
+        "subtokens": [
+          29871,
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 16,
+        "id": 32021,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 18,
+        "id": 32041,
+        "phrase": "oranges",
+        "subtokens": [
+          470,
+          6916
+        ]
+      },
+      {
+        "pos": 21,
+        "id": 32022,
+        "phrase": "= <<",
+        "subtokens": [
+          353,
+          3532
+        ]
+      },
+      {
+        "pos": 22,
+        "id": 32016,
+        "phrase": "10",
+        "subtokens": [
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 24,
+        "id": 32031,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 28,
+        "id": 32033,
+        "phrase": "0>>",
+        "subtokens": [
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 29,
+        "id": 32031,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 30,
+        "id": 32041,
+        "phrase": "oranges",
+        "subtokens": [
+          470,
+          6916
+        ]
+      },
+      {
+        "pos": 40,
+        "id": 32041,
+        "phrase": "oranges",
+        "subtokens": [
+          470,
+          6916
+        ]
+      },
+      {
+        "pos": 43,
+        "id": 32031,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 44,
+        "id": 32041,
+        "phrase": "oranges",
+        "subtokens": [
+          470,
+          6916
+        ]
+      },
+      {
+        "pos": 46,
+        "id": 32028,
+        "phrase": "5",
+        "subtokens": [
+          29871,
+          29945
+        ]
+      },
+      {
+        "pos": 48,
+        "id": 32041,
+        "phrase": "oranges",
+        "subtokens": [
+          470,
+          6916
+        ]
+      },
+      {
+        "pos": 49,
+        "id": 32022,
+        "phrase": "= <<",
+        "subtokens": [
+          353,
+          3532
+        ]
+      },
+      {
+        "pos": 50,
+        "id": 32031,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 56,
+        "id": 32033,
+        "phrase": "0>>",
+        "subtokens": [
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 58,
+        "id": 32017,
+        "phrase": "20",
+        "subtokens": [
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 59,
+        "id": 32041,
+        "phrase": "oranges",
+        "subtokens": [
+          470,
+          6916
+        ]
+      },
+      {
+        "pos": 64,
+        "id": 32041,
+        "phrase": "oranges",
+        "subtokens": [
+          470,
+          6916
+        ]
+      },
+      {
+        "pos": 71,
+        "id": 32017,
+        "phrase": "20",
+        "subtokens": [
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 72,
+        "id": 32041,
+        "phrase": "oranges",
+        "subtokens": [
+          470,
+          6916
+        ]
+      },
+      {
+        "pos": 75,
+        "id": 32031,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 76,
+        "id": 32041,
+        "phrase": "oranges",
+        "subtokens": [
+          470,
+          6916
+        ]
+      },
+      {
+        "pos": 77,
+        "id": 32022,
+        "phrase": "= <<",
+        "subtokens": [
+          353,
+          3532
+        ]
+      },
+      {
+        "pos": 79,
+        "id": 32017,
+        "phrase": "20",
+        "subtokens": [
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 81,
+        "id": 32031,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 84,
+        "id": 32033,
+        "phrase": "0>>",
+        "subtokens": [
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 88,
+        "id": 32041,
+        "phrase": "oranges",
+        "subtokens": [
+          470,
+          6916
+        ]
+      },
+      {
+        "pos": 94,
+        "id": 32024,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 117,
+        "id": 32021,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 125,
+        "id": 32018,
+        "phrase": "of the",
+        "subtokens": [
+          310,
+          278
+        ]
+      },
+      {
+        "pos": 137,
+        "id": 32018,
+        "phrase": "of the",
+        "subtokens": [
+          310,
+          278
+        ]
+      },
+      {
+        "pos": 167,
+        "id": 32018,
+        "phrase": "of the",
+        "subtokens": [
+          310,
+          278
+        ]
+      },
+      {
+        "pos": 173,
+        "id": 32037,
+        "phrase": "\n\nThe",
+        "subtokens": [
+          13,
+          13,
+          1576
+        ]
+      },
+      {
+        "pos": 178,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 182,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 183,
+        "id": 32012,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 184,
+        "id": 32012,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 187,
+        "id": 32021,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 189,
+        "id": 32012,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 206,
+        "id": 32020,
+        "phrase": "000",
+        "subtokens": [
+          29900,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 209,
+        "id": 32021,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 211,
+        "id": 32012,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 214,
+        "id": 32022,
+        "phrase": "= <<",
+        "subtokens": [
+          353,
+          3532
+        ]
+      },
+      {
+        "pos": 218,
+        "id": 32023,
+        "phrase": "100",
+        "subtokens": [
+          29896,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 227,
+        "id": 32033,
+        "phrase": "0>>",
+        "subtokens": [
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 228,
+        "id": 32017,
+        "phrase": "20",
+        "subtokens": [
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 232,
+        "id": 32037,
+        "phrase": "\n\nThe",
+        "subtokens": [
+          13,
+          13,
+          1576
+        ]
+      },
+      {
+        "pos": 241,
+        "id": 32018,
+        "phrase": "of the",
+        "subtokens": [
+          310,
+          278
+        ]
+      },
+      {
+        "pos": 259,
+        "id": 32018,
+        "phrase": "of the",
+        "subtokens": [
+          310,
+          278
+        ]
+      },
+      {
+        "pos": 265,
+        "id": 32037,
+        "phrase": "\n\nThe",
+        "subtokens": [
+          13,
+          13,
+          1576
+        ]
+      },
+      {
+        "pos": 279,
+        "id": 32018,
+        "phrase": "of the",
+        "subtokens": [
+          310,
+          278
+        ]
+      },
+      {
+        "pos": 281,
+        "id": 32018,
+        "phrase": "of the",
+        "subtokens": [
+          310,
+          278
+        ]
+      },
+      {
+        "pos": 287,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 288,
+        "id": 32016,
+        "phrase": "10",
+        "subtokens": [
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 292,
+        "id": 32037,
+        "phrase": "\n\nThe",
+        "subtokens": [
+          13,
+          13,
+          1576
+        ]
+      }
+    ],
+    "predictive_150_hypers": [
+      {
+        "pos": 3,
+        "id": 32016,
+        "phrase": "10",
+        "subtokens": [
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 7,
+        "id": 32021,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 9,
+        "id": 32041,
+        "phrase": "oranges",
+        "subtokens": [
+          470,
+          6916
+        ]
+      },
+      {
+        "pos": 15,
+        "id": 32019,
+        "phrase": "10",
+        "subtokens": [
+          29871,
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 17,
+        "id": 32031,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 20,
+        "id": 32031,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 22,
+        "id": 32041,
+        "phrase": "oranges",
+        "subtokens": [
+          470,
+          6916
+        ]
+      },
+      {
+        "pos": 29,
+        "id": 32028,
+        "phrase": "5",
+        "subtokens": [
+          29871,
+          29945
+        ]
+      },
+      {
+        "pos": 34,
+        "id": 32041,
+        "phrase": "oranges",
+        "subtokens": [
+          470,
+          6916
+        ]
+      },
+      {
+        "pos": 40,
+        "id": 32031,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 43,
+        "id": 32024,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 48,
+        "id": 32041,
+        "phrase": "oranges",
+        "subtokens": [
+          470,
+          6916
+        ]
+      },
+      {
+        "pos": 57,
+        "id": 32031,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 58,
+        "id": 32041,
+        "phrase": "oranges",
+        "subtokens": [
+          470,
+          6916
+        ]
+      },
+      {
+        "pos": 73,
+        "id": 32017,
+        "phrase": "20",
+        "subtokens": [
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 75,
+        "id": 32031,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 76,
+        "id": 32022,
+        "phrase": "= <<",
+        "subtokens": [
+          353,
+          3532
+        ]
+      },
+      {
+        "pos": 77,
+        "id": 32017,
+        "phrase": "20",
+        "subtokens": [
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 79,
+        "id": 32031,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 81,
+        "id": 32033,
+        "phrase": "0>>",
+        "subtokens": [
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 82,
+        "id": 32017,
+        "phrase": "20",
+        "subtokens": [
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 83,
+        "id": 32041,
+        "phrase": "oranges",
+        "subtokens": [
+          470,
+          6916
+        ]
+      },
+      {
+        "pos": 91,
+        "id": 32025,
+        "phrase": "20",
+        "subtokens": [
+          29871,
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 249,
+        "id": 32031,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 264,
+        "id": 32017,
+        "phrase": "20",
+        "subtokens": [
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 273,
+        "id": 32017,
+        "phrase": "20",
+        "subtokens": [
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 286,
+        "id": 32021,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      }
+    ],
+    "taxonomy": "logic_or_semantic_drift"
+  },
+  {
+    "prompt_id": "gsm_4889",
+    "domain": "reasoning",
+    "prompt": "Solve the following math problem step by step:\nPeter has 15 birds. 1/3 are ducks. The rest are chickens and require special feed that costs $2 per bird. How much does it cost to feed the chickens?\n",
+    "ground_truth": "2/3 of the birds are chickens because 1 -(1/3)=2/3\nHe has 10 chickens because 15 x (2/3) =<<15*(2/3)=10>>10\nIt will cost $20 to feed them because 10 x 2=<<10*2=20>>20\n#### 20",
+    "failed_models": [
+      "official_zip2zip"
+    ],
+    "original_output": "\nTo solve this problem, we need to follow these steps:\n\n1. Determine the number of ducks Peter has.\n2. Calculate the number of chickens.\n3. Find the total cost to feed the chickens.\n\nStep 1: Determine the number of ducks.\nPeter has 15 birds in total. Since 1/3 of them are ducks, we calculate the num",
+    "official_zip2zip_output": "\nFirst, let's find out how many ducks Peter has. Since 1/3 of his birds are ducks, we calculate:\n\n1/3 * 15 birds = 5 ducks\n\nNow, let's find out how many chickens Peter has. Since the rest of the birds are chickens, we subtract the number of ducks from the total number of birds:\n\n15 birds - 5 ducks =",
+    "predictive_100_output": "If Peter has 15 birds and 1/3 of them are ducks, then he has 15 * 1/3 = <<15*1/3=5>>5 ducks.\nThe rest of the birds are chickens, so he has 15 - 5 = <<15-5=10>>10 chickens.\nIf the special feed for each chicken costs $2, then it will cost 10 * 2 = $<<10*2=20>>20 to feed the chickens.\n#### 20\nThe answe",
+    "predictive_150_output": "Peter has 15 birds.\n1/3 of the birds are ducks, so 1/3 * 15 = <<1/3*15=5>>5 birds are ducks.\nThe rest of the birds are chickens, so 15 - 5 = <<15-5=10>>10 birds are chickens.\nThe special feed for the chickens costs $2 per bird, so the cost to feed the chickens is 10 * 2 = $<<10*2=20>>20 dollars.\n###",
+    "predictive_100_hypers": [
+      {
+        "pos": 3,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 7,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 19,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 22,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 25,
+        "id": 32022,
+        "phrase": "= <<",
+        "subtokens": [
+          353,
+          3532
+        ]
+      },
+      {
+        "pos": 26,
+        "id": 32033,
+        "phrase": "15",
+        "subtokens": [
+          29896,
+          29945
+        ]
+      },
+      {
+        "pos": 41,
+        "id": 32019,
+        "phrase": "of the",
+        "subtokens": [
+          310,
+          278
+        ]
+      },
+      {
+        "pos": 51,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 54,
+        "id": 32039,
+        "phrase": "5",
+        "subtokens": [
+          29871,
+          29945
+        ]
+      },
+      {
+        "pos": 55,
+        "id": 32022,
+        "phrase": "= <<",
+        "subtokens": [
+          353,
+          3532
+        ]
+      },
+      {
+        "pos": 56,
+        "id": 32033,
+        "phrase": "15",
+        "subtokens": [
+          29896,
+          29945
+        ]
+      },
+      {
+        "pos": 61,
+        "id": 32029,
+        "phrase": "0>>",
+        "subtokens": [
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 85,
+        "id": 32020,
+        "phrase": "10",
+        "subtokens": [
+          29871,
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 87,
+        "id": 32013,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 88,
+        "id": 32024,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 89,
+        "id": 32015,
+        "phrase": "10",
+        "subtokens": [
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 94,
+        "id": 32029,
+        "phrase": "0>>",
+        "subtokens": [
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 95,
+        "id": 32016,
+        "phrase": "20",
+        "subtokens": [
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 99,
+        "id": 32042,
+        "phrase": "chickens",
+        "subtokens": [
+          521,
+          860,
+          575
+        ]
+      },
+      {
+        "pos": 103,
+        "id": 32026,
+        "phrase": "20",
+        "subtokens": [
+          29871,
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 109,
+        "id": 32026,
+        "phrase": "20",
+        "subtokens": [
+          29871,
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 131,
+        "id": 32021,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 137,
+        "id": 32019,
+        "phrase": "of the",
+        "subtokens": [
+          310,
+          278
+        ]
+      },
+      {
+        "pos": 143,
+        "id": 32012,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 158,
+        "id": 32041,
+        "phrase": "\n\nThe",
+        "subtokens": [
+          13,
+          13,
+          1576
+        ]
+      },
+      {
+        "pos": 164,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 166,
+        "id": 32012,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 169,
+        "id": 32021,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 200,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 202,
+        "id": 32012,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 205,
+        "id": 32020,
+        "phrase": "10",
+        "subtokens": [
+          29871,
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 210,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 211,
+        "id": 32027,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 216,
+        "id": 32041,
+        "phrase": "\n\nThe",
+        "subtokens": [
+          13,
+          13,
+          1576
+        ]
+      },
+      {
+        "pos": 222,
+        "id": 32020,
+        "phrase": "10",
+        "subtokens": [
+          29871,
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 257,
+        "id": 32012,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 264,
+        "id": 32022,
+        "phrase": "= <<",
+        "subtokens": [
+          353,
+          3532
+        ]
+      },
+      {
+        "pos": 268,
+        "id": 32040,
+        "phrase": "0=",
+        "subtokens": [
+          29900,
+          29922
+        ]
+      },
+      {
+        "pos": 270,
+        "id": 32029,
+        "phrase": "0>>",
+        "subtokens": [
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 271,
+        "id": 32038,
+        "phrase": "60",
+        "subtokens": [
+          29953,
+          29900
+        ]
+      }
+    ],
+    "predictive_150_hypers": [
+      {
+        "pos": 2,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 18,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 22,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 24,
+        "id": 32022,
+        "phrase": "= <<",
+        "subtokens": [
+          353,
+          3532
+        ]
+      },
+      {
+        "pos": 29,
+        "id": 32033,
+        "phrase": "15",
+        "subtokens": [
+          29896,
+          29945
+        ]
+      },
+      {
+        "pos": 42,
+        "id": 32019,
+        "phrase": "of the",
+        "subtokens": [
+          310,
+          278
+        ]
+      },
+      {
+        "pos": 50,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 53,
+        "id": 32039,
+        "phrase": "5",
+        "subtokens": [
+          29871,
+          29945
+        ]
+      },
+      {
+        "pos": 54,
+        "id": 32022,
+        "phrase": "= <<",
+        "subtokens": [
+          353,
+          3532
+        ]
+      },
+      {
+        "pos": 55,
+        "id": 32033,
+        "phrase": "15",
+        "subtokens": [
+          29896,
+          29945
+        ]
+      },
+      {
+        "pos": 60,
+        "id": 32029,
+        "phrase": "0>>",
+        "subtokens": [
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 75,
+        "id": 32042,
+        "phrase": "chickens",
+        "subtokens": [
+          521,
+          860,
+          575
+        ]
+      },
+      {
+        "pos": 88,
+        "id": 32042,
+        "phrase": "chickens",
+        "subtokens": [
+          521,
+          860,
+          575
+        ]
+      },
+      {
+        "pos": 90,
+        "id": 32020,
+        "phrase": "10",
+        "subtokens": [
+          29871,
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 92,
+        "id": 32013,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 93,
+        "id": 32024,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 94,
+        "id": 32015,
+        "phrase": "10",
+        "subtokens": [
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 99,
+        "id": 32029,
+        "phrase": "0>>",
+        "subtokens": [
+          29900,
+          6778
+        ]
+      },
+      {
+        "pos": 100,
+        "id": 32016,
+        "phrase": "20",
+        "subtokens": [
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 105,
+        "id": 32026,
+        "phrase": "20",
+        "subtokens": [
+          29871,
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 111,
+        "id": 32032,
+        "phrase": "200",
+        "subtokens": [
+          29906,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 123,
+        "id": 32019,
+        "phrase": "of the",
+        "subtokens": [
+          310,
+          278
+        ]
+      },
+      {
+        "pos": 144,
+        "id": 32041,
+        "phrase": "\n\nThe",
+        "subtokens": [
+          13,
+          13,
+          1576
+        ]
+      },
+      {
+        "pos": 146,
+        "id": 32013,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 149,
+        "id": 32019,
+        "phrase": "of the",
+        "subtokens": [
+          310,
+          278
+        ]
+      },
+      {
+        "pos": 155,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 158,
+        "id": 32019,
+        "phrase": "of the",
+        "subtokens": [
+          310,
+          278
+        ]
+      },
+      {
+        "pos": 164,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 168,
+        "id": 32013,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 172,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 179,
+        "id": 32021,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 180,
+        "id": 32012,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 186,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 189,
+        "id": 32019,
+        "phrase": "of the",
+        "subtokens": [
+          310,
+          278
+        ]
+      },
+      {
+        "pos": 211,
+        "id": 32021,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 214,
+        "id": 32020,
+        "phrase": "10",
+        "subtokens": [
+          29871,
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 218,
+        "id": 32021,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 220,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 222,
+        "id": 32041,
+        "phrase": "\n\nThe",
+        "subtokens": [
+          13,
+          13,
+          1576
+        ]
+      },
+      {
+        "pos": 228,
+        "id": 32021,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 229,
+        "id": 32012,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 232,
+        "id": 32021,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 239,
+        "id": 32012,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      }
+    ],
+    "taxonomy": "logic_or_semantic_drift"
+  },
+  {
+    "prompt_id": "gsm_8141",
+    "domain": "reasoning",
+    "prompt": "Solve the following math problem step by step:\nIn a company of 50 employees, 20% of the employees are management.  Out of this 20%, only 30% oversee the entire company.  How many employees oversee the company?\n",
+    "ground_truth": "20% of 50 employees are part of management so that's .20*50 = <<.20*50=10>>10 employees\nOut of these 10 employees, only 30% oversee the entire company so 10*.30 = <<10*.3=3>>3 people oversee the company\n#### 3",
+    "failed_models": [
+      "predictive_step_100"
+    ],
+    "original_output": "\nTo solve this problem, we need to follow these steps:\n\n1. Find the number of management employees:\n   Total employees = 50\n   Percentage of management employees = 20%\n   Number of management employees = (20/100) * 50 = 10\n\n2. Find the number of employees who oversee the entire company:\n   Percentag",
+    "official_zip2zip_output": "\nStep 1: Calculate the number of management employees in the company.\nSince 20% of the employees are management, we can calculate this by multiplying the total number of employees (50) by the percentage of management (20%).\n\nNumber of management employees = 20% of 50\n                                ",
+    "predictive_100_output": "First, find the number of employees who are management:\n50 employees * 20% = 10 employees\nNext, find the number of management employees who oversee the company:\n100 employees * 30% = 30 employees\nSo, $\\boxed{30}$  employees oversee the company.\nGiven the function $f(x)=x^{2}-2ax+a^{2}+1$, where $a\\i",
+    "predictive_150_output": "In the company, there are 50 * 0.20 = 10 employees who are management.\nOut of these 100 employees, there are 100 * 00.30 = 3 employees who oversee the entire company.\n#### 3\nThe answer is: 3\n#### \n\nTheProblem can be solved by first finding the number of employees who are management, then finding the",
+    "predictive_100_hypers": [
+      {
+        "pos": 12,
+        "id": 32025,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 16,
+        "id": 32015,
+        "phrase": "20",
+        "subtokens": [
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 20,
+        "id": 32019,
+        "phrase": "10",
+        "subtokens": [
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 38,
+        "id": 32023,
+        "phrase": "100",
+        "subtokens": [
+          29896,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 41,
+        "id": 32021,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 46,
+        "id": 32032,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 55,
+        "id": 32032,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 116,
+        "id": 32039,
+        "phrase": "0",
+        "subtokens": [
+          29871,
+          29900
+        ]
+      },
+      {
+        "pos": 260,
+        "id": 32039,
+        "phrase": "0",
+        "subtokens": [
+          29871,
+          29900
+        ]
+      },
+      {
+        "pos": 269,
+        "id": 32039,
+        "phrase": "0",
+        "subtokens": [
+          29871,
+          29900
+        ]
+      },
+      {
+        "pos": 292,
+        "id": 32039,
+        "phrase": "0",
+        "subtokens": [
+          29871,
+          29900
+        ]
+      }
+    ],
+    "predictive_150_hypers": [
+      {
+        "pos": 6,
+        "id": 32030,
+        "phrase": "5",
+        "subtokens": [
+          29871,
+          29945
+        ]
+      },
+      {
+        "pos": 12,
+        "id": 32015,
+        "phrase": "20",
+        "subtokens": [
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 15,
+        "id": 32019,
+        "phrase": "10",
+        "subtokens": [
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 26,
+        "id": 32023,
+        "phrase": "100",
+        "subtokens": [
+          29896,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 32,
+        "id": 32023,
+        "phrase": "100",
+        "subtokens": [
+          29896,
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 34,
+        "id": 32039,
+        "phrase": "0",
+        "subtokens": [
+          29871,
+          29900
+        ]
+      },
+      {
+        "pos": 37,
+        "id": 32032,
+        "phrase": "30",
+        "subtokens": [
+          29941,
+          29900
+        ]
+      },
+      {
+        "pos": 51,
+        "id": 32021,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      {
+        "pos": 62,
+        "id": 32042,
+        "phrase": "\n\nThe",
+        "subtokens": [
+          13,
+          13,
+          1576
+        ]
+      },
+      {
+        "pos": 172,
+        "id": 32041,
+        "phrase": "\n\n1",
+        "subtokens": [
+          13,
+          13,
+          29896
+        ]
+      },
+      {
+        "pos": 197,
+        "id": 32022,
+        "phrase": "10",
+        "subtokens": [
+          29871,
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 201,
+        "id": 32040,
+        "phrase": "to the",
+        "subtokens": [
+          304,
+          278
+        ]
+      },
+      {
+        "pos": 209,
+        "id": 32035,
+        "phrase": "4",
+        "subtokens": [
+          29871,
+          29946
+        ]
+      },
+      {
+        "pos": 215,
+        "id": 32022,
+        "phrase": "10",
+        "subtokens": [
+          29871,
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 217,
+        "id": 32012,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 220,
+        "id": 32013,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 245,
+        "id": 32022,
+        "phrase": "10",
+        "subtokens": [
+          29871,
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 250,
+        "id": 32035,
+        "phrase": "4",
+        "subtokens": [
+          29871,
+          29946
+        ]
+      },
+      {
+        "pos": 254,
+        "id": 32020,
+        "phrase": "20",
+        "subtokens": [
+          29871,
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 273,
+        "id": 32019,
+        "phrase": "10",
+        "subtokens": [
+          29896,
+          29900
+        ]
+      },
+      {
+        "pos": 276,
+        "id": 32020,
+        "phrase": "20",
+        "subtokens": [
+          29871,
+          29906,
+          29900
+        ]
+      }
+    ],
+    "taxonomy": "logic_or_semantic_drift"
+  },
+  {
+    "prompt_id": "gsm_4218",
+    "domain": "reasoning",
+    "prompt": "Solve the following math problem step by step:\nKirill is 14 less centimeters in height than his brother. Together their heights equal 112 centimeters. How tall is Kirill in centimeters?\n",
+    "ground_truth": "Let B = brother's height in cm\nKirill = B - <<14=14>>14\n2B - 14 = 112 cm\n2B = 126\nB = <<63=63>>63 cm\nKirill = 63 - 14 = <<63-14=49>>49 cm\nKirill is 49 centimeters tall.\n#### 49",
+    "failed_models": [
+      "predictive_step_100",
+      "predictive_step_150"
+    ],
+    "original_output": "\nTo solve this problem, we can set up a system of equations. Let's use the following variables:\n\nK = Kirill's height in centimeters\nB = Kirill's brother's height in centimeters\n\nFrom the problem, we know that:\n\n1. Kirill is 14 centimeters shorter than his brother: K = B - 14\n2. Together, their heigh",
+    "official_zip2zip_output": "\nLet's denote Kirill's height as \\( K \\) centimeters and his brother's height as \\( B \\) centimeters. According to the problem, Kirill is 14 centimeters shorter than his brother, so we can write the following equation:\n\n\\[ K = B - 14 \\]\n\nWe are also told that together they are 112 centimeters tall, ",
+    "predictive_100_output": "\nLet's denote Kirill's height as K and his brother's height as B. According to the problem, we have two pieces of information:\n\n1. Kirill is 14 centimimeters shorter than his brother:\nK = B - 14\n\n2. Together, their heights equal 112 centimeters:\nK + B = 112\n\nThe first equation can be rearranged to e",
+    "predictive_150_output": "Kirill's height is 112 - 14 = <<112-14=98>>98 centimimeters.\n#### 98\nThe sum of the first 50 terms of an arithmetic sequence $\\{a_n\\}$ is 1000. If $a_1=2$, then the common difference $d$ is (\u3000\u3000)\nA: 2\nB: -2\nC: $\\frac{1}{2}$\nD: -$\\frac{1}{2}$\n\nSince the sum of the first $n$ terms of an arithmetic sequ",
+    "predictive_100_hypers": [
+      {
+        "pos": 15,
+        "id": 32013,
+        "phrase": "'s",
+        "subtokens": [
+          29915,
+          29879
+        ]
+      },
+      {
+        "pos": 39,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 41,
+        "id": 32042,
+        "phrase": "centim",
+        "subtokens": [
+          1644,
+          326
+        ]
+      },
+      {
+        "pos": 42,
+        "id": 32041,
+        "phrase": "imeters",
+        "subtokens": [
+          326,
+          2699
+        ]
+      },
+      {
+        "pos": 53,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 66,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 67,
+        "id": 32025,
+        "phrase": "12",
+        "subtokens": [
+          29896,
+          29906
+        ]
+      },
+      {
+        "pos": 68,
+        "id": 32024,
+        "phrase": "centimeters",
+        "subtokens": [
+          1644,
+          326,
+          2699
+        ]
+      },
+      {
+        "pos": 75,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 76,
+        "id": 32025,
+        "phrase": "12",
+        "subtokens": [
+          29896,
+          29906
+        ]
+      },
+      {
+        "pos": 77,
+        "id": 32031,
+        "phrase": "\n\nThe",
+        "subtokens": [
+          13,
+          13,
+          1576
+        ]
+      },
+      {
+        "pos": 98,
+        "id": 32029,
+        "phrase": "4",
+        "subtokens": [
+          29871,
+          29946
+        ]
+      },
+      {
+        "pos": 99,
+        "id": 32031,
+        "phrase": "\n\nThe",
+        "subtokens": [
+          13,
+          13,
+          1576
+        ]
+      },
+      {
+        "pos": 124,
+        "id": 32029,
+        "phrase": "4",
+        "subtokens": [
+          29871,
+          29946
+        ]
+      },
+      {
+        "pos": 126,
+        "id": 32022,
+        "phrase": "= <<",
+        "subtokens": [
+          353,
+          3532
+        ]
+      },
+      {
+        "pos": 129,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 132,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 135,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 138,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 141,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 144,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 147,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 150,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 153,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 156,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 159,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 162,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 165,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 168,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 171,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 174,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 177,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 180,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 183,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 186,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 189,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 192,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 195,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 198,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 201,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 204,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 207,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 210,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 213,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 216,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 219,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 222,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 225,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 228,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 231,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 234,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 237,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 240,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 243,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 246,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 249,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 252,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 255,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 258,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 261,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 264,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 267,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 270,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 273,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 276,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 279,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 282,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 285,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 288,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 291,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 294,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      },
+      {
+        "pos": 297,
+        "id": 32039,
+        "phrase": "= <<1",
+        "subtokens": [
+          353,
+          3532,
+          29896
+        ]
+      }
+    ],
+    "predictive_150_hypers": [
+      {
+        "pos": 14,
+        "id": 32022,
+        "phrase": "= <<",
+        "subtokens": [
+          353,
+          3532
+        ]
+      },
+      {
+        "pos": 16,
+        "id": 32025,
+        "phrase": "12",
+        "subtokens": [
+          29896,
+          29906
+        ]
+      },
+      {
+        "pos": 26,
+        "id": 32042,
+        "phrase": "centim",
+        "subtokens": [
+          1644,
+          326
+        ]
+      },
+      {
+        "pos": 27,
+        "id": 32041,
+        "phrase": "imeters",
+        "subtokens": [
+          326,
+          2699
+        ]
+      },
+      {
+        "pos": 37,
+        "id": 32016,
+        "phrase": "of the",
+        "subtokens": [
+          310,
+          278
+        ]
+      },
+      {
+        "pos": 40,
+        "id": 32032,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 55,
+        "id": 32012,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 113,
+        "id": 32016,
+        "phrase": "of the",
+        "subtokens": [
+          310,
+          278
+        ]
+      },
+      {
+        "pos": 155,
+        "id": 32012,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 158,
+        "id": 32032,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 161,
+        "id": 32015,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 164,
+        "id": 32015,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 166,
+        "id": 32032,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      {
+        "pos": 181,
+        "id": 32028,
+        "phrase": ", the",
+        "subtokens": [
+          29892,
+          278
+        ]
+      },
+      {
+        "pos": 224,
+        "id": 32015,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      {
+        "pos": 233,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 264,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 291,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 298,
+        "id": 32016,
+        "phrase": "of the",
+        "subtokens": [
+          310,
+          278
+        ]
+      }
+    ],
+    "taxonomy": "logic_or_semantic_drift"
+  },
+  {
+    "prompt_id": "gsm_4516",
+    "domain": "reasoning",
+    "prompt": "Solve the following math problem step by step:\nIan used a grocery delivery app to have his groceries delivered.  His original order was $25 before delivery and tip.  He noticed that 3 items changed on his order.  A $0.99 can of tomatoes was replaced by a $2.20 can of tomatoes, his $1.00 lettuce was replaced with $1.75 head of lettuce and his $1.96 celery was replaced with celery that cost $2.00.  Delivery and tip came to a total of $8.00.  How much is his new bill now, with the food substitutes and delivery/tip?\n",
+    "ground_truth": "He ordered a can of tomatoes for $0.99 but they subbed with one that cost $2.20 for a difference of 2.20-.99 = $<<2.20-.99=1.21>>1.21\nHe ordered lettuce for $1.00 but they subbed with one that cost $1.75 for a difference of 1.75-1.00 = $<<1.75-1.00=0.75>>0.75\nHis celery for $1.96 but they subbed wit",
+    "failed_models": [
+      "official_zip2zip",
+      "predictive_step_100",
+      "predictive_step_150"
+    ],
+    "original_output": "\nStep 1: Calculate the difference in cost for each item that was replaced.\n- The can of tomatoes increased by $2.20 - $0.99 = $1.21\n- The head of lettuce increased by $1.75 - $1.00 = $0.75\n- The celery increased by $2.00 - $1.96 = $0.04\n\nStep 2: Add up the differences to find the total increase in c",
+    "official_zip2zip_output": "\nFirst, let's calculate the difference in cost for each item that was replaced:\n\nTomatoes: $2.20 - $0.99 = $0.21 increase\nLettuce: $1.75 - $1.00 = $0.75 increase\nCelery: $2.00 - $1.96 = $0.04 increase\n\nNow, let's add up the increases for all three items:\n\nTotal increase = $0.21 + $0.75 + $0.004 = $1",
+    "predictive_100_output": "\nFirst, let's calculate the difference in cost for each item that changed:\n- The can of tomatoes increased by $2.20 - $0.99 = $<<2.20-0.99=1.21>>$1.21\n- The head of lettuce increased by $1.75 - $1.00 = $<<1.75-1.00=0.75>>$0.75\n- The celery increased by $2.00 - $1.96 = $<<2.00-1.96=0.04>>$0.04\n\nThe t",
+    "predictive_150_output": "Ian's new bill is calculated as follows:\n- Original order: $25\n- Substitutions:\n  - Tomato can: $2.20 - $0.99 = $<<2.20 - 0.99 = $1.21 increase\n  - Lettuce: $1.75 - $1.00 = $<<1.75 - 1.00 = $<<0.75 increase\n  - Celery: $2.00 - $1.96 = $<<2.00 - 1.96 = $<<0.04 increase\n- Total increase from substitut",
+    "predictive_100_hypers": [
+      {
+        "pos": 27,
+        "id": 32039,
+        "phrase": "2.",
+        "subtokens": [
+          29906,
+          29889
+        ]
+      },
+      {
+        "pos": 28,
+        "id": 32016,
+        "phrase": "20",
+        "subtokens": [
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 31,
+        "id": 32030,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 34,
+        "id": 32024,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 35,
+        "id": 32039,
+        "phrase": "2.",
+        "subtokens": [
+          29906,
+          29889
+        ]
+      },
+      {
+        "pos": 36,
+        "id": 32016,
+        "phrase": "20",
+        "subtokens": [
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 38,
+        "id": 32030,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 42,
+        "id": 32029,
+        "phrase": "1.",
+        "subtokens": [
+          29896,
+          29889
+        ]
+      },
+      {
+        "pos": 61,
+        "id": 32029,
+        "phrase": "1.",
+        "subtokens": [
+          29896,
+          29889
+        ]
+      },
+      {
+        "pos": 66,
+        "id": 32029,
+        "phrase": "1.",
+        "subtokens": [
+          29896,
+          29889
+        ]
+      },
+      {
+        "pos": 67,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 68,
+        "id": 32024,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 69,
+        "id": 32029,
+        "phrase": "1.",
+        "subtokens": [
+          29896,
+          29889
+        ]
+      },
+      {
+        "pos": 75,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 77,
+        "id": 32030,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 82,
+        "id": 32030,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 93,
+        "id": 32039,
+        "phrase": "2.",
+        "subtokens": [
+          29906,
+          29889
+        ]
+      },
+      {
+        "pos": 94,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 97,
+        "id": 32029,
+        "phrase": "1.",
+        "subtokens": [
+          29896,
+          29889
+        ]
+      },
+      {
+        "pos": 100,
+        "id": 32024,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 101,
+        "id": 32039,
+        "phrase": "2.",
+        "subtokens": [
+          29906,
+          29889
+        ]
+      },
+      {
+        "pos": 102,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 104,
+        "id": 32029,
+        "phrase": "1.",
+        "subtokens": [
+          29896,
+          29889
+        ]
+      },
+      {
+        "pos": 108,
+        "id": 32030,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 113,
+        "id": 32030,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 116,
+        "id": 32038,
+        "phrase": "\n\nThe",
+        "subtokens": [
+          13,
+          13,
+          1576
+        ]
+      },
+      {
+        "pos": 128,
+        "id": 32029,
+        "phrase": "1.",
+        "subtokens": [
+          29896,
+          29889
+        ]
+      },
+      {
+        "pos": 129,
+        "id": 32039,
+        "phrase": "2.",
+        "subtokens": [
+          29906,
+          29889
+        ]
+      },
+      {
+        "pos": 133,
+        "id": 32030,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 138,
+        "id": 32030,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 141,
+        "id": 32024,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 142,
+        "id": 32029,
+        "phrase": "1.",
+        "subtokens": [
+          29896,
+          29889
+        ]
+      },
+      {
+        "pos": 146,
+        "id": 32030,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 150,
+        "id": 32030,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 154,
+        "id": 32029,
+        "phrase": "1.",
+        "subtokens": [
+          29896,
+          29889
+        ]
+      },
+      {
+        "pos": 159,
+        "id": 32029,
+        "phrase": "1.",
+        "subtokens": [
+          29896,
+          29889
+        ]
+      },
+      {
+        "pos": 162,
+        "id": 32038,
+        "phrase": "\n\nThe",
+        "subtokens": [
+          13,
+          13,
+          1576
+        ]
+      },
+      {
+        "pos": 184,
+        "id": 32029,
+        "phrase": "1.",
+        "subtokens": [
+          29896,
+          29889
+        ]
+      },
+      {
+        "pos": 187,
+        "id": 32024,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 191,
+        "id": 32029,
+        "phrase": "1.",
+        "subtokens": [
+          29896,
+          29889
+        ]
+      },
+      {
+        "pos": 207,
+        "id": 32038,
+        "phrase": "\n\nThe",
+        "subtokens": [
+          13,
+          13,
+          1576
+        ]
+      },
+      {
+        "pos": 217,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 234,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 235,
+        "id": 32024,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 244,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      }
+    ],
+    "predictive_150_hypers": [
+      {
+        "pos": 33,
+        "id": 32039,
+        "phrase": "2.",
+        "subtokens": [
+          29906,
+          29889
+        ]
+      },
+      {
+        "pos": 34,
+        "id": 32016,
+        "phrase": "20",
+        "subtokens": [
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 37,
+        "id": 32030,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 40,
+        "id": 32024,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 41,
+        "id": 32039,
+        "phrase": "2.",
+        "subtokens": [
+          29906,
+          29889
+        ]
+      },
+      {
+        "pos": 42,
+        "id": 32016,
+        "phrase": "20",
+        "subtokens": [
+          29906,
+          29900
+        ]
+      },
+      {
+        "pos": 45,
+        "id": 32030,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 63,
+        "id": 32029,
+        "phrase": "1.",
+        "subtokens": [
+          29896,
+          29889
+        ]
+      },
+      {
+        "pos": 68,
+        "id": 32029,
+        "phrase": "1.",
+        "subtokens": [
+          29896,
+          29889
+        ]
+      },
+      {
+        "pos": 69,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 70,
+        "id": 32024,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 71,
+        "id": 32029,
+        "phrase": "1.",
+        "subtokens": [
+          29896,
+          29889
+        ]
+      },
+      {
+        "pos": 78,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 79,
+        "id": 32024,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 80,
+        "id": 32030,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 91,
+        "id": 32039,
+        "phrase": "2.",
+        "subtokens": [
+          29906,
+          29889
+        ]
+      },
+      {
+        "pos": 92,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 95,
+        "id": 32029,
+        "phrase": "1.",
+        "subtokens": [
+          29896,
+          29889
+        ]
+      },
+      {
+        "pos": 98,
+        "id": 32024,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 99,
+        "id": 32039,
+        "phrase": "2.",
+        "subtokens": [
+          29906,
+          29889
+        ]
+      },
+      {
+        "pos": 100,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 102,
+        "id": 32012,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 106,
+        "id": 32024,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 107,
+        "id": 32030,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 120,
+        "id": 32029,
+        "phrase": "1.",
+        "subtokens": [
+          29896,
+          29889
+        ]
+      },
+      {
+        "pos": 121,
+        "id": 32039,
+        "phrase": "2.",
+        "subtokens": [
+          29906,
+          29889
+        ]
+      },
+      {
+        "pos": 125,
+        "id": 32030,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 130,
+        "id": 32030,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 133,
+        "id": 32024,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 134,
+        "id": 32029,
+        "phrase": "1.",
+        "subtokens": [
+          29896,
+          29889
+        ]
+      },
+      {
+        "pos": 135,
+        "id": 32039,
+        "phrase": "2.",
+        "subtokens": [
+          29906,
+          29889
+        ]
+      },
+      {
+        "pos": 139,
+        "id": 32030,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 144,
+        "id": 32030,
+        "phrase": "0.",
+        "subtokens": [
+          29900,
+          29889
+        ]
+      },
+      {
+        "pos": 147,
+        "id": 32024,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 148,
+        "id": 32029,
+        "phrase": "1.",
+        "subtokens": [
+          29896,
+          29889
+        ]
+      },
+      {
+        "pos": 163,
+        "id": 32029,
+        "phrase": "1.",
+        "subtokens": [
+          29896,
+          29889
+        ]
+      },
+      {
+        "pos": 166,
+        "id": 32024,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 170,
+        "id": 32012,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      {
+        "pos": 174,
+        "id": 32024,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 190,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 210,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 211,
+        "id": 32024,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 221,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      {
+        "pos": 222,
+        "id": 32024,
+        "phrase": "= $<<",
+        "subtokens": [
+          353,
+          395,
+          9314
+        ]
+      },
+      {
+        "pos": 231,
+        "id": 32015,
+        "phrase": "'s",
+        "subtokens": [
+          29915,
+          29879
+        ]
+      }
+    ],
+    "taxonomy": "logic_or_semantic_drift"
+  }
+]

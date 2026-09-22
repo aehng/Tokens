@@ -1,0 +1,44 @@
+{
+  "official_zip2zip": {
+    "code": {
+      "preserved_decode_reduction_pct": 0.0,
+      "regressed_decode_reduction_pct": 23.08,
+      "quality_preserved_realized_savings_tokens": 0,
+      "quality_preserved_expanded_tokens": 0
+    },
+    "reasoning": {
+      "preserved_decode_reduction_pct": 26.45,
+      "regressed_decode_reduction_pct": 25.56,
+      "quality_preserved_realized_savings_tokens": 1079,
+      "quality_preserved_expanded_tokens": 4079
+    }
+  },
+  "predictive_step_100": {
+    "code": {
+      "preserved_decode_reduction_pct": 0.0,
+      "regressed_decode_reduction_pct": 31.27,
+      "quality_preserved_realized_savings_tokens": 0,
+      "quality_preserved_expanded_tokens": 0
+    },
+    "reasoning": {
+      "preserved_decode_reduction_pct": 12.0,
+      "regressed_decode_reduction_pct": 15.53,
+      "quality_preserved_realized_savings_tokens": 491,
+      "quality_preserved_expanded_tokens": 4091
+    }
+  },
+  "predictive_step_150": {
+    "code": {
+      "preserved_decode_reduction_pct": 0.0,
+      "regressed_decode_reduction_pct": 24.34,
+      "quality_preserved_realized_savings_tokens": 0,
+      "quality_preserved_expanded_tokens": 0
+    },
+    "reasoning": {
+      "preserved_decode_reduction_pct": 8.98,
+      "regressed_decode_reduction_pct": 11.81,
+      "quality_preserved_realized_savings_tokens": 296,
+      "quality_preserved_expanded_tokens": 3296
+    }
+  }
+}

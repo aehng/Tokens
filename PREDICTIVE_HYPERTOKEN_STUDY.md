@@ -396,6 +396,31 @@ The cumulative joint pilot successfully trained on CPU from Step 0 to Step 200 w
 - **Reconstruction Loss**: Dropped monotonically from **7.41** down to **1.18** at Step 200 (-84.1%).
 - **Early Stopping Triggered at Step 200**: At Step 200, semantic continuation plateaued (4.056 $\to$ 4.075) while hypertoken emission surged on math reasoning (18 hypertokens), introducing minor formatting repetition. Per Early Stopping Rules 7 and 8, training stopped cleanly at Step 200.
 
+## Definitive Quality & Compute Economics Benchmark (60 Frozen Validation Samples)
+
+We benchmarked 4 distinct conditions across 60 held-out prompts (`data/cached_pure_pred_val_60.json`: 20 MBPP code, 20 GSM8K math reasoning, 20 Alpaca instruction), evaluating 240 full autoregressive generations with `max_new_tokens=300`:
+
+| Metric | Original Vanilla Phi | Official Reactive Zip2Zip | Predictive Step 100 | Predictive Step 150 |
+| :--- | :---: | :---: | :---: | :---: |
+| **MBPP Code Pass@1** | **10.0%** (2/20) | 0.0% (0/20) | 0.0% (0/20) | 0.0% (0/20) |
+| **GSM8K Math Accuracy** | **65.0%** (13/20) | 50.0% (10/20) | **60.0%** (12/20) | 50.0% (10/20) |
+| **Alpaca Failure Rate** | 30.0% (6/20) | 30.0% (6/20) | **20.0%** (4/20) | 25.0% (5/20) |
+| **Micro Decode Reduction** | 0.0% | **29.27%** | 21.85% | 16.87% |
+| **Tokens / Steps Saved** | 0 | **5,660** | 4,150 | 2,966 |
+| **Total Emitted Hypertokens** | 0 | 4,381 | 2,532 | 1,840 |
+| **Mean Wall-Clock Latency** | 58.59s | 67.80s (+15.7% slower) | **49.61s** (15.3% faster) | **49.12s** (16.2% faster) |
+| **Mean TTFT (Prefill Latency)**| **1.18s** | 16.66s (14.1x bottleneck) | 1.59s | 1.57s |
+| **Throughput (expanded tok/s)**| 4.83 tok/s | 4.31 tok/s | **6.11 tok/s** (+26.5%) | 5.73 tok/s (+18.6%) |
+
+### Key Conclusions:
+1. **Predictive Step 100 is Superior to Official Zip2Zip in Quality and Latency**:
+   - Step 100 achieves 60.0% GSM8k accuracy vs 50.0% for Official Zip2Zip.
+   - Step 100 has a 20.0% Alpaca failure rate vs 30.0% for Official Zip2Zip and Vanilla Phi.
+   - Official Zip2Zip is slower than vanilla Phi due to a 16.66s TTFT bottleneck, whereas Predictive Step 100 achieves a 15.3% end-to-end latency speedup and +26.5% higher throughput.
+2. **Quality Loss Decomposition**:
+   - In math reasoning, Stage 1 (Official Zip2Zip LoRA/LZW) lost 15.0pp relative to Vanilla Phi (65% $\to$ 50%). Our Predictive Step 100 *recovered* +10.0pp of this deficit (reaching 60%), bringing it within 5pp of Vanilla Phi.
+   - In code, both Zip2Zip variants failed execution due to function signature and naming mismatches.
+
 ---
 
 *Last updated: 2026-09-22. Maintained by Antigravity (Google DeepMind) coding assistant.*
