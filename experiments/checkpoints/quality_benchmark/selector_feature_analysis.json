@@ -1,0 +1,204 @@
+{
+  "summary": {
+    "total_emissions": 2532,
+    "total_candidates": 1920,
+    "overall_candidate_utilization_pct": 23.07,
+    "grounded_emissions": {
+      "count": 453,
+      "error_rate": 0.4746,
+      "regress_vanilla_rate": 0.3245,
+      "tokens_saved": 582
+    },
+    "novel_emissions": {
+      "count": 2079,
+      "error_rate": 0.9033,
+      "regress_vanilla_rate": 0.127,
+      "tokens_saved": 3568
+    }
+  },
+  "hypothesis_numeric_provenance": {
+    "hypothesis": "Prompt-supported numbers/identifiers are safe; novel/inferred numbers/identifiers are catastrophic.",
+    "prompt_level": {
+      "only_prompt_present_numeric_prompts": {
+        "count": 2,
+        "accuracy": 0.5,
+        "error_rate": 0.5,
+        "regress_vanilla_rate": 0.5
+      },
+      "any_prompt_absent_numeric_prompts": {
+        "count": 38,
+        "accuracy": 0.4474,
+        "error_rate": 0.5526,
+        "regress_vanilla_rate": 0.1842
+      },
+      "no_numeric_prompts": {
+        "count": 20,
+        "accuracy": 0.5,
+        "error_rate": 0.5,
+        "regress_vanilla_rate": 0.1
+      }
+    },
+    "emission_level_overall": {
+      "prompt_present_numeric": {
+        "count": 273,
+        "error_rate": 0.4945,
+        "regress_vanilla_rate": 0.3626,
+        "tokens_saved": 309
+      },
+      "prompt_absent_numeric": {
+        "count": 1254,
+        "error_rate": 0.8892,
+        "regress_vanilla_rate": 0.1898,
+        "tokens_saved": 2147
+      }
+    },
+    "emission_level_by_domain": {
+      "code": {
+        "prompt_present": {
+          "count": 13,
+          "error_rate": 1.0,
+          "regress_vanilla_rate": 0.0,
+          "tokens_saved": 13
+        },
+        "prompt_absent": {
+          "count": 1001,
+          "error_rate": 1.0,
+          "regress_vanilla_rate": 0.1489,
+          "tokens_saved": 1794
+        }
+      },
+      "reasoning": {
+        "prompt_present": {
+          "count": 249,
+          "error_rate": 0.49,
+          "regress_vanilla_rate": 0.3976,
+          "tokens_saved": 284
+        },
+        "prompt_absent": {
+          "count": 234,
+          "error_rate": 0.4872,
+          "regress_vanilla_rate": 0.3803,
+          "tokens_saved": 334
+        }
+      },
+      "instruction": {
+        "prompt_present": {
+          "count": 11,
+          "error_rate": 0.0,
+          "regress_vanilla_rate": 0.0,
+          "tokens_saved": 12
+        },
+        "prompt_absent": {
+          "count": 19,
+          "error_rate": 0.0,
+          "regress_vanilla_rate": 0.0,
+          "tokens_saved": 19
+        }
+      }
+    }
+  },
+  "structural_features": {
+    "by_token_length": {
+      "len_2": {
+        "count": 914,
+        "error_rate": 0.6532,
+        "regress_vanilla_rate": 0.2057,
+        "tokens_saved": 914
+      },
+      "len_3": {
+        "count": 1618,
+        "error_rate": 0.9246,
+        "regress_vanilla_rate": 0.1378,
+        "tokens_saved": 3236
+      },
+      "len_4": {
+        "count": 0,
+        "error_rate": 0.0,
+        "regress_vanilla_rate": 0.0,
+        "tokens_saved": 0
+      }
+    },
+    "by_boundary": {
+      "space_start": {
+        "count": 583,
+        "error_rate": 0.5111,
+        "regress_vanilla_rate": 0.247,
+        "tokens_saved": 746
+      },
+      "newline_start": {
+        "count": 230,
+        "error_rate": 0.9043,
+        "regress_vanilla_rate": 0.1261,
+        "tokens_saved": 299
+      },
+      "punct_start": {
+        "count": 257,
+        "error_rate": 0.9533,
+        "regress_vanilla_rate": 0.3152,
+        "tokens_saved": 498
+      },
+      "mid_word_or_unspaced": {
+        "count": 1462,
+        "error_rate": 0.9179,
+        "regress_vanilla_rate": 0.1074,
+        "tokens_saved": 2607
+      }
+    },
+    "by_code_punct": {
+      "has_code_punct": {
+        "count": 947,
+        "error_rate": 0.9102,
+        "regress_vanilla_rate": 0.113,
+        "tokens_saved": 1658
+      },
+      "no_code_punct": {
+        "count": 1585,
+        "error_rate": 0.7767,
+        "regress_vanilla_rate": 0.1918,
+        "tokens_saved": 2492
+      }
+    }
+  },
+  "ranking_features": {
+    "by_codebook_rank": {
+      "rank_0_7": {
+        "count": 540,
+        "error_rate": 0.7222,
+        "regress_vanilla_rate": 0.287,
+        "tokens_saved": 737
+      },
+      "rank_8_15": {
+        "count": 843,
+        "error_rate": 0.8493,
+        "regress_vanilla_rate": 0.0937,
+        "tokens_saved": 1375
+      },
+      "rank_16_23": {
+        "count": 307,
+        "error_rate": 0.7524,
+        "regress_vanilla_rate": 0.228,
+        "tokens_saved": 464
+      },
+      "rank_24_31": {
+        "count": 842,
+        "error_rate": 0.8979,
+        "regress_vanilla_rate": 0.1271,
+        "tokens_saved": 1574
+      }
+    }
+  },
+  "candidate_inventory": {
+    "categories": {
+      "numeric": 736,
+      "content": 1184
+    },
+    "grounded_vs_novel": {
+      "novel": 1495,
+      "grounded": 425
+    },
+    "utilization": {
+      "emitted": 443,
+      "dead": 1477
+    }
+  }
+}
