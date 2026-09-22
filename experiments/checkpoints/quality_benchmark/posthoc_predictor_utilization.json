@@ -1,0 +1,209 @@
+{
+  "mean_phrases_predicted_per_prompt": 32.0,
+  "mean_unique_phrases_emitted_per_prompt_step100": 7.15,
+  "mean_utilization_rate_pct_step100": 22.34,
+  "top_emitted_phrases_step100": [
+    {
+      "phrase": "s\nassert",
+      "count": 559,
+      "category": "code"
+    },
+    {
+      "phrase": "1, ",
+      "count": 429,
+      "category": "numeric"
+    },
+    {
+      "phrase": "\nassert",
+      "count": 160,
+      "category": "code"
+    },
+    {
+      "phrase": "2",
+      "count": 89,
+      "category": "numeric"
+    },
+    {
+      "phrase": ", 1",
+      "count": 88,
+      "category": "numeric"
+    },
+    {
+      "phrase": ", 2",
+      "count": 87,
+      "category": "numeric"
+    },
+    {
+      "phrase": "1",
+      "count": 84,
+      "category": "numeric"
+    },
+    {
+      "phrase": "1,",
+      "count": 64,
+      "category": "numeric"
+    },
+    {
+      "phrase": "= <<1",
+      "count": 57,
+      "category": "numeric"
+    },
+    {
+      "phrase": "3",
+      "count": 50,
+      "category": "numeric"
+    },
+    {
+      "phrase": "20",
+      "count": 50,
+      "category": "numeric"
+    },
+    {
+      "phrase": "\n\nThe",
+      "count": 44,
+      "category": "semantic/content"
+    },
+    {
+      "phrase": "2, ",
+      "count": 43,
+      "category": "numeric"
+    },
+    {
+      "phrase": "10",
+      "count": 43,
+      "category": "numeric"
+    },
+    {
+      "phrase": "= <<",
+      "count": 38,
+      "category": "code"
+    },
+    {
+      "phrase": "30",
+      "count": 37,
+      "category": "numeric"
+    },
+    {
+      "phrase": ", 4",
+      "count": 36,
+      "category": "numeric"
+    },
+    {
+      "phrase": "of the",
+      "count": 36,
+      "category": "function/common phrase"
+    },
+    {
+      "phrase": "4, ",
+      "count": 34,
+      "category": "numeric"
+    },
+    {
+      "phrase": "00",
+      "count": 30,
+      "category": "numeric"
+    }
+  ],
+  "top_predicted_never_emitted": [
+    {
+      "phrase": ". The",
+      "times_predicted": 45,
+      "times_emitted": 0
+    },
+    {
+      "phrase": "\n    return",
+      "times_predicted": 18,
+      "times_emitted": 0
+    },
+    {
+      "phrase": "Tests\n",
+      "times_predicted": 14,
+      "times_emitted": 0
+    },
+    {
+      "phrase": "# Tests",
+      "times_predicted": 13,
+      "times_emitted": 0
+    },
+    {
+      "phrase": "\n2.",
+      "times_predicted": 13,
+      "times_emitted": 0
+    },
+    {
+      "phrase": "Instruction:",
+      "times_predicted": 13,
+      "times_emitted": 0
+    },
+    {
+      "phrase": "\n3.",
+      "times_predicted": 10,
+      "times_emitted": 0
+    },
+    {
+      "phrase": "\n\n1",
+      "times_predicted": 9,
+      "times_emitted": 0
+    },
+    {
+      "phrase": "\n1",
+      "times_predicted": 9,
+      "times_emitted": 0
+    },
+    {
+      "phrase": "\n1.",
+      "times_predicted": 8,
+      "times_emitted": 0
+    },
+    {
+      "phrase": "\ufffd\ufffd",
+      "times_predicted": 6,
+      "times_emitted": 0
+    },
+    {
+      "phrase": "and the",
+      "times_predicted": 5,
+      "times_emitted": 0
+    },
+    {
+      "phrase": "\n4.",
+      "times_predicted": 4,
+      "times_emitted": 0
+    },
+    {
+      "phrase": "=1",
+      "times_predicted": 4,
+      "times_emitted": 0
+    },
+    {
+      "phrase": "\": \"",
+      "times_predicted": 3,
+      "times_emitted": 0
+    },
+    {
+      "phrase": ", 6",
+      "times_predicted": 3,
+      "times_emitted": 0
+    },
+    {
+      "phrase": ".\nAnswer",
+      "times_predicted": 3,
+      "times_emitted": 0
+    },
+    {
+      "phrase": "3.",
+      "times_predicted": 3,
+      "times_emitted": 0
+    },
+    {
+      "phrase": ".\nInput",
+      "times_predicted": 2,
+      "times_emitted": 0
+    },
+    {
+      "phrase": "on the",
+      "times_predicted": 2,
+      "times_emitted": 0
+    }
+  ]
+}

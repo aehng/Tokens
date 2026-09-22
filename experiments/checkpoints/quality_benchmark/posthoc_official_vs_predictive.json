@@ -1,0 +1,96 @@
+{
+  "predictive_step_100": {
+    "predictive_recoveries_count": 7,
+    "predictive_recoveries": [
+      {
+        "id": "alpaca_592",
+        "domain": "instruction"
+      },
+      {
+        "id": "alpaca_1227",
+        "domain": "instruction"
+      },
+      {
+        "id": "gsm_8674",
+        "domain": "reasoning"
+      },
+      {
+        "id": "gsm_5043",
+        "domain": "reasoning"
+      },
+      {
+        "id": "gsm_4889",
+        "domain": "reasoning"
+      },
+      {
+        "id": "gsm_7928",
+        "domain": "reasoning"
+      },
+      {
+        "id": "gsm_1240",
+        "domain": "reasoning"
+      }
+    ],
+    "predictive_regressions_count": 3,
+    "predictive_regressions": [
+      {
+        "id": "gsm_6613",
+        "domain": "reasoning"
+      },
+      {
+        "id": "gsm_8141",
+        "domain": "reasoning"
+      },
+      {
+        "id": "gsm_4218",
+        "domain": "reasoning"
+      }
+    ],
+    "net_delta_correct": 4
+  },
+  "predictive_step_150": {
+    "predictive_recoveries_count": 5,
+    "predictive_recoveries": [
+      {
+        "id": "alpaca_592",
+        "domain": "instruction"
+      },
+      {
+        "id": "alpaca_1227",
+        "domain": "instruction"
+      },
+      {
+        "id": "gsm_8674",
+        "domain": "reasoning"
+      },
+      {
+        "id": "gsm_4889",
+        "domain": "reasoning"
+      },
+      {
+        "id": "gsm_7928",
+        "domain": "reasoning"
+      }
+    ],
+    "predictive_regressions_count": 4,
+    "predictive_regressions": [
+      {
+        "id": "alpaca_974",
+        "domain": "instruction"
+      },
+      {
+        "id": "gsm_6442",
+        "domain": "reasoning"
+      },
+      {
+        "id": "gsm_1655",
+        "domain": "reasoning"
+      },
+      {
+        "id": "gsm_4218",
+        "domain": "reasoning"
+      }
+    ],
+    "net_delta_correct": 1
+  }
+}

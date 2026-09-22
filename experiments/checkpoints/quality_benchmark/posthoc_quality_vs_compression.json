@@ -1,0 +1,416 @@
+{
+  "official_zip2zip": {
+    "overall_correct": {
+      "count": 24,
+      "decode_steps": 4325,
+      "expanded_tokens": 5633,
+      "tokens_saved": 1308,
+      "reduction_pct": 23.22,
+      "mean_hypers": 47.46
+    },
+    "overall_regressed": {
+      "count": 9,
+      "decode_steps": 2560,
+      "expanded_tokens": 3938,
+      "tokens_saved": 1378,
+      "reduction_pct": 34.99,
+      "mean_hypers": 111.0
+    },
+    "overall_failed": {
+      "count": 36,
+      "decode_steps": 9352,
+      "expanded_tokens": 13704,
+      "tokens_saved": 4352,
+      "reduction_pct": 31.76,
+      "mean_hypers": 90.06
+    },
+    "by_domain": {
+      "code": {
+        "correct": {
+          "decode_steps": 0,
+          "expanded_tokens": 0,
+          "tokens_saved": 0,
+          "reduction_pct": 0.0,
+          "mean_hypers": 0.0
+        },
+        "regressed": {
+          "count": 2,
+          "decode_steps": 460,
+          "expanded_tokens": 598,
+          "tokens_saved": 138,
+          "reduction_pct": 23.08,
+          "mean_hypers": 58.5
+        },
+        "failed": {
+          "count": 20,
+          "decode_steps": 4552,
+          "expanded_tokens": 6226,
+          "tokens_saved": 1674,
+          "reduction_pct": 26.89,
+          "mean_hypers": 65.85
+        }
+      },
+      "reasoning": {
+        "correct": {
+          "count": 10,
+          "decode_steps": 3000,
+          "expanded_tokens": 4079,
+          "tokens_saved": 1079,
+          "reduction_pct": 26.45,
+          "mean_hypers": 92.1
+        },
+        "regressed": {
+          "count": 4,
+          "decode_steps": 1200,
+          "expanded_tokens": 1612,
+          "tokens_saved": 412,
+          "reduction_pct": 25.56,
+          "mean_hypers": 86.25
+        },
+        "failed": {
+          "count": 10,
+          "decode_steps": 3000,
+          "expanded_tokens": 4168,
+          "tokens_saved": 1168,
+          "reduction_pct": 28.02,
+          "mean_hypers": 95.9
+        }
+      },
+      "instruction": {
+        "correct": {
+          "count": 14,
+          "decode_steps": 1325,
+          "expanded_tokens": 1554,
+          "tokens_saved": 229,
+          "reduction_pct": 14.74,
+          "mean_hypers": 15.57
+        },
+        "regressed": {
+          "count": 3,
+          "decode_steps": 900,
+          "expanded_tokens": 1728,
+          "tokens_saved": 828,
+          "reduction_pct": 47.92,
+          "mean_hypers": 179.0
+        },
+        "failed": {
+          "count": 6,
+          "decode_steps": 1800,
+          "expanded_tokens": 3310,
+          "tokens_saved": 1510,
+          "reduction_pct": 45.62,
+          "mean_hypers": 161.0
+        }
+      }
+    },
+    "correlation_hypers_vs_error": 0.3804,
+    "bucketed_error_by_hypers": [
+      {
+        "bucket": "0-0",
+        "total": 2,
+        "failed": 0,
+        "error_rate": 0.0
+      },
+      {
+        "bucket": "1-10",
+        "total": 9,
+        "failed": 2,
+        "error_rate": 0.2222
+      },
+      {
+        "bucket": "11-30",
+        "total": 6,
+        "failed": 4,
+        "error_rate": 0.6667
+      },
+      {
+        "bucket": "31-50",
+        "total": 7,
+        "failed": 5,
+        "error_rate": 0.7143
+      },
+      {
+        "bucket": "51+",
+        "total": 36,
+        "failed": 25,
+        "error_rate": 0.6944
+      }
+    ]
+  },
+  "predictive_step_100": {
+    "overall_correct": {
+      "count": 28,
+      "decode_steps": 5651,
+      "expanded_tokens": 6212,
+      "tokens_saved": 561,
+      "reduction_pct": 9.03,
+      "mean_hypers": 15.68
+    },
+    "overall_regressed": {
+      "count": 10,
+      "decode_steps": 3000,
+      "expanded_tokens": 3634,
+      "tokens_saved": 634,
+      "reduction_pct": 17.45,
+      "mean_hypers": 41.1
+    },
+    "overall_failed": {
+      "count": 32,
+      "decode_steps": 9190,
+      "expanded_tokens": 12779,
+      "tokens_saved": 3589,
+      "reduction_pct": 28.09,
+      "mean_hypers": 65.41
+    },
+    "by_domain": {
+      "code": {
+        "correct": {
+          "decode_steps": 0,
+          "expanded_tokens": 0,
+          "tokens_saved": 0,
+          "reduction_pct": 0.0,
+          "mean_hypers": 0.0
+        },
+        "regressed": {
+          "count": 2,
+          "decode_steps": 600,
+          "expanded_tokens": 873,
+          "tokens_saved": 273,
+          "reduction_pct": 31.27,
+          "mean_hypers": 77.5
+        },
+        "failed": {
+          "count": 20,
+          "decode_steps": 5590,
+          "expanded_tokens": 8722,
+          "tokens_saved": 3132,
+          "reduction_pct": 35.91,
+          "mean_hypers": 88.15
+        }
+      },
+      "reasoning": {
+        "correct": {
+          "count": 12,
+          "decode_steps": 3600,
+          "expanded_tokens": 4091,
+          "tokens_saved": 491,
+          "reduction_pct": 12.0,
+          "mean_hypers": 31.58
+        },
+        "regressed": {
+          "count": 6,
+          "decode_steps": 1800,
+          "expanded_tokens": 2131,
+          "tokens_saved": 331,
+          "reduction_pct": 15.53,
+          "mean_hypers": 39.67
+        },
+        "failed": {
+          "count": 8,
+          "decode_steps": 2400,
+          "expanded_tokens": 2802,
+          "tokens_saved": 402,
+          "reduction_pct": 14.35,
+          "mean_hypers": 37.25
+        }
+      },
+      "instruction": {
+        "correct": {
+          "count": 16,
+          "decode_steps": 2051,
+          "expanded_tokens": 2121,
+          "tokens_saved": 70,
+          "reduction_pct": 3.3,
+          "mean_hypers": 3.75
+        },
+        "regressed": {
+          "count": 2,
+          "decode_steps": 600,
+          "expanded_tokens": 630,
+          "tokens_saved": 30,
+          "reduction_pct": 4.76,
+          "mean_hypers": 9.0
+        },
+        "failed": {
+          "count": 4,
+          "decode_steps": 1200,
+          "expanded_tokens": 1255,
+          "tokens_saved": 55,
+          "reduction_pct": 4.38,
+          "mean_hypers": 8.0
+        }
+      }
+    },
+    "correlation_hypers_vs_error": 0.3906,
+    "bucketed_error_by_hypers": [
+      {
+        "bucket": "0-0",
+        "total": 5,
+        "failed": 0,
+        "error_rate": 0.0
+      },
+      {
+        "bucket": "1-10",
+        "total": 16,
+        "failed": 7,
+        "error_rate": 0.4375
+      },
+      {
+        "bucket": "11-30",
+        "total": 16,
+        "failed": 9,
+        "error_rate": 0.5625
+      },
+      {
+        "bucket": "31-50",
+        "total": 8,
+        "failed": 3,
+        "error_rate": 0.375
+      },
+      {
+        "bucket": "51+",
+        "total": 15,
+        "failed": 13,
+        "error_rate": 0.8667
+      }
+    ]
+  },
+  "predictive_step_150": {
+    "overall_correct": {
+      "count": 25,
+      "decode_steps": 4673,
+      "expanded_tokens": 5004,
+      "tokens_saved": 331,
+      "reduction_pct": 6.61,
+      "mean_hypers": 11.04
+    },
+    "overall_regressed": {
+      "count": 10,
+      "decode_steps": 3000,
+      "expanded_tokens": 3437,
+      "tokens_saved": 437,
+      "reduction_pct": 12.71,
+      "mean_hypers": 31.3
+    },
+    "overall_failed": {
+      "count": 35,
+      "decode_steps": 9943,
+      "expanded_tokens": 12578,
+      "tokens_saved": 2635,
+      "reduction_pct": 20.95,
+      "mean_hypers": 44.69
+    },
+    "by_domain": {
+      "code": {
+        "correct": {
+          "decode_steps": 0,
+          "expanded_tokens": 0,
+          "tokens_saved": 0,
+          "reduction_pct": 0.0,
+          "mean_hypers": 0.0
+        },
+        "regressed": {
+          "count": 2,
+          "decode_steps": 600,
+          "expanded_tokens": 793,
+          "tokens_saved": 193,
+          "reduction_pct": 24.34,
+          "mean_hypers": 61.5
+        },
+        "failed": {
+          "count": 20,
+          "decode_steps": 5443,
+          "expanded_tokens": 7663,
+          "tokens_saved": 2220,
+          "reduction_pct": 28.97,
+          "mean_hypers": 61.6
+        }
+      },
+      "reasoning": {
+        "correct": {
+          "count": 10,
+          "decode_steps": 3000,
+          "expanded_tokens": 3296,
+          "tokens_saved": 296,
+          "reduction_pct": 8.98,
+          "mean_hypers": 24.2
+        },
+        "regressed": {
+          "count": 6,
+          "decode_steps": 1800,
+          "expanded_tokens": 2041,
+          "tokens_saved": 241,
+          "reduction_pct": 11.81,
+          "mean_hypers": 31.17
+        },
+        "failed": {
+          "count": 10,
+          "decode_steps": 3000,
+          "expanded_tokens": 3394,
+          "tokens_saved": 394,
+          "reduction_pct": 11.61,
+          "mean_hypers": 31.6
+        }
+      },
+      "instruction": {
+        "correct": {
+          "count": 15,
+          "decode_steps": 1673,
+          "expanded_tokens": 1708,
+          "tokens_saved": 35,
+          "reduction_pct": 2.05,
+          "mean_hypers": 2.27
+        },
+        "regressed": {
+          "count": 2,
+          "decode_steps": 600,
+          "expanded_tokens": 603,
+          "tokens_saved": 3,
+          "reduction_pct": 0.5,
+          "mean_hypers": 1.5
+        },
+        "failed": {
+          "count": 5,
+          "decode_steps": 1500,
+          "expanded_tokens": 1521,
+          "tokens_saved": 21,
+          "reduction_pct": 1.38,
+          "mean_hypers": 3.2
+        }
+      }
+    },
+    "correlation_hypers_vs_error": 0.2835,
+    "bucketed_error_by_hypers": [
+      {
+        "bucket": "0-0",
+        "total": 7,
+        "failed": 3,
+        "error_rate": 0.4286
+      },
+      {
+        "bucket": "1-10",
+        "total": 22,
+        "failed": 9,
+        "error_rate": 0.4091
+      },
+      {
+        "bucket": "11-30",
+        "total": 14,
+        "failed": 10,
+        "error_rate": 0.7143
+      },
+      {
+        "bucket": "31-50",
+        "total": 11,
+        "failed": 7,
+        "error_rate": 0.6364
+      },
+      {
+        "bucket": "51+",
+        "total": 6,
+        "failed": 6,
+        "error_rate": 1.0
+      }
+    ]
+  }
+}

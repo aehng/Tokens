@@ -1,0 +1,408 @@
+{
+  "predictive_step_100": {
+    "length_correlation": {
+      "len_2": {
+        "total_emissions": 914,
+        "in_correct_outputs": 317,
+        "in_failed_outputs": 597,
+        "emission_failure_rate": 0.6532
+      },
+      "len_3": {
+        "total_emissions": 1618,
+        "in_correct_outputs": 122,
+        "in_failed_outputs": 1496,
+        "emission_failure_rate": 0.9246
+      },
+      "len_4": {
+        "total_emissions": 0,
+        "in_correct_outputs": 0,
+        "in_failed_outputs": 0,
+        "emission_failure_rate": 0.0
+      }
+    },
+    "category_correlation": {
+      "numeric": {
+        "total_emissions": 1527,
+        "in_correct_outputs": 277,
+        "in_failed_outputs": 1250,
+        "emission_failure_rate": 0.8186
+      },
+      "other": {
+        "total_emissions": 23,
+        "in_correct_outputs": 12,
+        "in_failed_outputs": 11,
+        "emission_failure_rate": 0.4783
+      },
+      "code": {
+        "total_emissions": 783,
+        "in_correct_outputs": 38,
+        "in_failed_outputs": 745,
+        "emission_failure_rate": 0.9515
+      },
+      "semantic/content": {
+        "total_emissions": 124,
+        "in_correct_outputs": 82,
+        "in_failed_outputs": 42,
+        "emission_failure_rate": 0.3387
+      },
+      "function/common phrase": {
+        "total_emissions": 75,
+        "in_correct_outputs": 30,
+        "in_failed_outputs": 45,
+        "emission_failure_rate": 0.6
+      }
+    },
+    "first_hypertoken_in_regressions": [
+      {
+        "prompt_id": "mbpp_740",
+        "domain": "code",
+        "first_hypertoken": {
+          "pos": 4,
+          "id": 32021,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        "total_hypers": 58,
+        "first_hyper_pos": 4
+      },
+      {
+        "prompt_id": "mbpp_969",
+        "domain": "code",
+        "first_hypertoken": {
+          "pos": 11,
+          "id": 32023,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        "total_hypers": 97,
+        "first_hyper_pos": 11
+      },
+      {
+        "prompt_id": "alpaca_1337",
+        "domain": "instruction",
+        "first_hypertoken": {
+          "pos": 199,
+          "id": 32029,
+          "phrase": "\nAnswer:",
+          "subtokens": [
+            13,
+            22550,
+            29901
+          ]
+        },
+        "total_hypers": 8,
+        "first_hyper_pos": 199
+      },
+      {
+        "prompt_id": "alpaca_1659",
+        "domain": "instruction",
+        "first_hypertoken": {
+          "pos": 136,
+          "id": 32015,
+          "phrase": "of the",
+          "subtokens": [
+            310,
+            278
+          ]
+        },
+        "total_hypers": 10,
+        "first_hyper_pos": 136
+      },
+      {
+        "prompt_id": "gsm_3022",
+        "domain": "reasoning",
+        "first_hypertoken": {
+          "pos": 12,
+          "id": 32011,
+          "phrase": "00",
+          "subtokens": [
+            29900,
+            29900
+          ]
+        },
+        "total_hypers": 36,
+        "first_hyper_pos": 12
+      },
+      {
+        "prompt_id": "gsm_6613",
+        "domain": "reasoning",
+        "first_hypertoken": {
+          "pos": 5,
+          "id": 32020,
+          "phrase": "3",
+          "subtokens": [
+            29871,
+            29941
+          ]
+        },
+        "total_hypers": 16,
+        "first_hyper_pos": 5
+      },
+      {
+        "prompt_id": "gsm_1960",
+        "domain": "reasoning",
+        "first_hypertoken": {
+          "pos": 6,
+          "id": 32041,
+          "phrase": "oranges",
+          "subtokens": [
+            470,
+            6916
+          ]
+        },
+        "total_hypers": 58,
+        "first_hyper_pos": 6
+      },
+      {
+        "prompt_id": "gsm_8141",
+        "domain": "reasoning",
+        "first_hypertoken": {
+          "pos": 12,
+          "id": 32025,
+          "phrase": "50",
+          "subtokens": [
+            29945,
+            29900
+          ]
+        },
+        "total_hypers": 11,
+        "first_hyper_pos": 12
+      },
+      {
+        "prompt_id": "gsm_4218",
+        "domain": "reasoning",
+        "first_hypertoken": {
+          "pos": 15,
+          "id": 32013,
+          "phrase": "'s",
+          "subtokens": [
+            29915,
+            29879
+          ]
+        },
+        "total_hypers": 72,
+        "first_hyper_pos": 15
+      },
+      {
+        "prompt_id": "gsm_4516",
+        "domain": "reasoning",
+        "first_hypertoken": {
+          "pos": 27,
+          "id": 32039,
+          "phrase": "2.",
+          "subtokens": [
+            29906,
+            29889
+          ]
+        },
+        "total_hypers": 45,
+        "first_hyper_pos": 27
+      }
+    ]
+  },
+  "predictive_step_150": {
+    "length_correlation": {
+      "len_2": {
+        "total_emissions": 714,
+        "in_correct_outputs": 221,
+        "in_failed_outputs": 493,
+        "emission_failure_rate": 0.6905
+      },
+      "len_3": {
+        "total_emissions": 1126,
+        "in_correct_outputs": 55,
+        "in_failed_outputs": 1071,
+        "emission_failure_rate": 0.9512
+      },
+      "len_4": {
+        "total_emissions": 0,
+        "in_correct_outputs": 0,
+        "in_failed_outputs": 0,
+        "emission_failure_rate": 0.0
+      }
+    },
+    "category_correlation": {
+      "code": {
+        "total_emissions": 778,
+        "in_correct_outputs": 17,
+        "in_failed_outputs": 761,
+        "emission_failure_rate": 0.9781
+      },
+      "other": {
+        "total_emissions": 31,
+        "in_correct_outputs": 20,
+        "in_failed_outputs": 11,
+        "emission_failure_rate": 0.3548
+      },
+      "numeric": {
+        "total_emissions": 924,
+        "in_correct_outputs": 188,
+        "in_failed_outputs": 736,
+        "emission_failure_rate": 0.7965
+      },
+      "function/common phrase": {
+        "total_emissions": 42,
+        "in_correct_outputs": 14,
+        "in_failed_outputs": 28,
+        "emission_failure_rate": 0.6667
+      },
+      "semantic/content": {
+        "total_emissions": 65,
+        "in_correct_outputs": 37,
+        "in_failed_outputs": 28,
+        "emission_failure_rate": 0.4308
+      }
+    },
+    "first_hypertoken_in_regressions": [
+      {
+        "prompt_id": "mbpp_740",
+        "domain": "code",
+        "first_hypertoken": {
+          "pos": 4,
+          "id": 32021,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        "total_hypers": 40,
+        "first_hyper_pos": 4
+      },
+      {
+        "prompt_id": "mbpp_969",
+        "domain": "code",
+        "first_hypertoken": {
+          "pos": 5,
+          "id": 32023,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        "total_hypers": 83,
+        "first_hyper_pos": 5
+      },
+      {
+        "prompt_id": "alpaca_1337",
+        "domain": "instruction",
+        "first_hypertoken": null,
+        "total_hypers": 0,
+        "first_hyper_pos": -1
+      },
+      {
+        "prompt_id": "alpaca_1659",
+        "domain": "instruction",
+        "first_hypertoken": {
+          "pos": 135,
+          "id": 32015,
+          "phrase": "of the",
+          "subtokens": [
+            310,
+            278
+          ]
+        },
+        "total_hypers": 3,
+        "first_hyper_pos": 135
+      },
+      {
+        "prompt_id": "gsm_3022",
+        "domain": "reasoning",
+        "first_hypertoken": {
+          "pos": 8,
+          "id": 32022,
+          "phrase": "50",
+          "subtokens": [
+            29945,
+            29900
+          ]
+        },
+        "total_hypers": 28,
+        "first_hyper_pos": 8
+      },
+      {
+        "prompt_id": "gsm_6442",
+        "domain": "reasoning",
+        "first_hypertoken": {
+          "pos": 5,
+          "id": 32020,
+          "phrase": "3",
+          "subtokens": [
+            29871,
+            29941
+          ]
+        },
+        "total_hypers": 28,
+        "first_hyper_pos": 5
+      },
+      {
+        "prompt_id": "gsm_1655",
+        "domain": "reasoning",
+        "first_hypertoken": {
+          "pos": 6,
+          "id": 32036,
+          "phrase": "of his budget",
+          "subtokens": [
+            310,
+            670,
+            23562
+          ]
+        },
+        "total_hypers": 40,
+        "first_hyper_pos": 6
+      },
+      {
+        "prompt_id": "gsm_1960",
+        "domain": "reasoning",
+        "first_hypertoken": {
+          "pos": 3,
+          "id": 32016,
+          "phrase": "10",
+          "subtokens": [
+            29896,
+            29900
+          ]
+        },
+        "total_hypers": 27,
+        "first_hyper_pos": 3
+      },
+      {
+        "prompt_id": "gsm_4218",
+        "domain": "reasoning",
+        "first_hypertoken": {
+          "pos": 14,
+          "id": 32022,
+          "phrase": "= <<",
+          "subtokens": [
+            353,
+            3532
+          ]
+        },
+        "total_hypers": 19,
+        "first_hyper_pos": 14
+      },
+      {
+        "prompt_id": "gsm_4516",
+        "domain": "reasoning",
+        "first_hypertoken": {
+          "pos": 33,
+          "id": 32039,
+          "phrase": "2.",
+          "subtokens": [
+            29906,
+            29889
+          ]
+        },
+        "total_hypers": 45,
+        "first_hyper_pos": 33
+      }
+    ]
+  }
+}

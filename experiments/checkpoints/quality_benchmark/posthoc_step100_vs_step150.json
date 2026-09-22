@@ -1,0 +1,37 @@
+{
+  "code": {
+    "both_correct": 0,
+    "step100_correct_step150_wrong": 0,
+    "step150_correct_step100_wrong": 0,
+    "both_wrong": 20
+  },
+  "reasoning": {
+    "both_correct": 8,
+    "step100_correct_step150_wrong": 4,
+    "step150_correct_step100_wrong": 2,
+    "both_wrong": 6
+  },
+  "instruction": {
+    "both_correct": 15,
+    "step100_correct_step150_wrong": 1,
+    "step150_correct_step100_wrong": 0,
+    "both_wrong": 4
+  },
+  "overall": {
+    "both_correct": 23,
+    "step100_correct_step150_wrong": 5,
+    "step150_correct_step100_wrong": 2,
+    "both_wrong": 30,
+    "step100_wins": [
+      "alpaca_974",
+      "gsm_5043",
+      "gsm_6442",
+      "gsm_1655",
+      "gsm_1240"
+    ],
+    "step150_wins": [
+      "gsm_6613",
+      "gsm_8141"
+    ]
+  }
+}

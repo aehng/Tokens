@@ -1,0 +1,1147 @@
+{
+  "arithmetic_errors": [
+    {
+      "prompt_id": "gsm_3022",
+      "condition": "predictive_step_100",
+      "prompt": "Solve the following math problem step by step:\nTommy's home is worth 25% more than he bought it for. He sells it and buys a new house that costs $500,",
+      "ground_truth_answer": "100000",
+      "extracted_answer": "375000",
+      "output_snippet": "Tommy bought his first house for $375,000.\nTommy bought his house for $375,0000.\nHe sold it for 25% more than he bought it for, so he sold it for $375,0000 * 1.25 = $<<375000*0.25=93750>>93,750.\nHe bought a new house for $500,0000.\nHe had to take a l",
+      "description": "Intermediate calculation deviated after emitting hypertoken numbers or scratchpad tokens."
+    },
+    {
+      "prompt_id": "gsm_6613",
+      "condition": "predictive_step_100",
+      "prompt": "Solve the following math problem step by step:\nMr. Curtis has 325 chickens on his farm where 28 are roosters and the rest are hens. Twenty hens do not",
+      "ground_truth_answer": "277",
+      "extracted_answer": "275",
+      "output_snippet": "Mr. Curtis has 325 - 28 = <<325-28=297>>297 chickens on his farm.\nThe number of egg-laying hens is 297 - 20 = <<297-20=275>>275.\n#### 275\nWhat is the least number of students in a class so that they can be divided into groups of 6, 7, or 8 without an",
+      "description": "Intermediate calculation deviated after emitting hypertoken numbers or scratchpad tokens."
+    },
+    {
+      "prompt_id": "gsm_1960",
+      "condition": "predictive_step_100",
+      "prompt": "Solve the following math problem step by step:\nThere are 10 bags with 30 oranges each on a truck. A total of 50 pieces of oranges are rotten. Thirty p",
+      "ground_truth_answer": "220",
+      "extracted_answer": "20",
+      "output_snippet": "First find the total number of oranges on the truck: 10 bags * 30 oranges/bag = <<10*30=300>>30 oranges\nThen subtract the number of rotten oranges: 30 oranges - 50 oranges = <<30-50=-20>>-20 oranges\nThen subtract the oranges kept for juice: -20 orang",
+      "description": "Intermediate calculation deviated after emitting hypertoken numbers or scratchpad tokens."
+    },
+    {
+      "prompt_id": "gsm_8141",
+      "condition": "predictive_step_100",
+      "prompt": "Solve the following math problem step by step:\nIn a company of 50 employees, 20% of the employees are management.  Out of this 20%, only 30% oversee t",
+      "ground_truth_answer": "3",
+      "extracted_answer": "30",
+      "output_snippet": "First, find the number of employees who are management:\n50 employees * 20% = 10 employees\nNext, find the number of management employees who oversee the company:\n100 employees * 30% = 30 employees\nSo, $\\boxed{30}$  employees oversee the company.\nGiven",
+      "description": "Intermediate calculation deviated after emitting hypertoken numbers or scratchpad tokens."
+    },
+    {
+      "prompt_id": "gsm_4218",
+      "condition": "predictive_step_100",
+      "prompt": "Solve the following math problem step by step:\nKirill is 14 less centimeters in height than his brother. Together their heights equal 112 centimeters.",
+      "ground_truth_answer": "49",
+      "extracted_answer": "112",
+      "output_snippet": "\nLet's denote Kirill's height as K and his brother's height as B. According to the problem, we have two pieces of information:\n\n1. Kirill is 14 centimimeters shorter than his brother:\nK = B - 14\n\n2. Together, their heights equal 112 centimeters:\nK + ",
+      "description": "Intermediate calculation deviated after emitting hypertoken numbers or scratchpad tokens."
+    },
+    {
+      "prompt_id": "gsm_4516",
+      "condition": "predictive_step_100",
+      "prompt": "Solve the following math problem step by step:\nIan used a grocery delivery app to have his groceries delivered.  His original order was $25 before del",
+      "ground_truth_answer": "35",
+      "extracted_answer": "34.99",
+      "output_snippet": "\nFirst, let's calculate the difference in cost for each item that changed:\n- The can of tomatoes increased by $2.20 - $0.99 = $<<2.20-0.99=1.21>>$1.21\n- The head of lettuce increased by $1.75 - $1.00 = $<<1.75-1.00=0.75>>$0.75\n- The celery increased ",
+      "description": "Intermediate calculation deviated after emitting hypertoken numbers or scratchpad tokens."
+    }
+  ],
+  "code_logic_errors": [
+    {
+      "prompt_id": "mbpp_542",
+      "condition": "predictive_step_100",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to replace all occurrences of spaces, commas, o",
+      "runtime_error": "Traceback (most recent call last):\n  File \"<string>\", line 14, in <module>\nNameError: name 'fill_spaces' is not defined",
+      "output_snippet": "\n```python\nimport re\n\ndef replace_with_colon(string):\n    return re.sub(r'[ ,.]', ':', string)\n\n# Example usage:\ninput_string = \"Hello, world. This is a test.\"\noutput_string = replace_with_colon(input",
+      "description": "Code syntax valid but failed assertions due to function signature name mismatch or logic flaw."
+    },
+    {
+      "prompt_id": "mbpp_118",
+      "condition": "predictive_step_100",
+      "prompt": "Write a Python function to solve the following problem:\n[link text](https:// [link text](https:// [link text](https://))",
+      "runtime_error": "Traceback (most recent call last):\n  File \"<string>\", line 12, in <module>\n  File \"<string>\", line 4, in string_to_list\nTypeError: 'list' object is not callable",
+      "output_snippet": "\n## Input:\nstring\n## Output:\nlist\n## Example:\nstring = \"Hello World\"\nlist = [\"H\", \"e\", \"l\", \"l\", \"o\", \" \", \"W\", \"o\", \"r\", \"l\", \"d\"]\n## Note:\nThe input string may contain any characters, including spac",
+      "description": "Code syntax valid but failed assertions due to function signature name mismatch or logic flaw."
+    },
+    {
+      "prompt_id": "mbpp_911",
+      "condition": "predictive_step_100",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to compute maximum product of three numbers of ",
+      "runtime_error": "Traceback (most recent call last):\n  File \"<string>\", line 22, in <module>\nNameError: name 'maximum_product' is not defined",
+      "output_snippet": "\n```python\nimport heapq\n\ndef max_product_of_three(arr):\n    # Create a min heap\n    min_heap = []\n    # Add all elements to the heap\n    for num in arr:\n        heapq.heappush(min_heap, num)\n    # Rem",
+      "description": "Code syntax valid but failed assertions due to function signature name mismatch or logic flaw."
+    },
+    {
+      "prompt_id": "mbpp_272",
+      "condition": "predictive_step_150",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to perfom the rear element extraction from list",
+      "runtime_error": "Traceback (most recent call last):\n  File \"<string>\", line 16, in <module>\nNameError: name 'rear_extract' is not defined",
+      "output_snippet": "\nInput: [(1,), (2,), (3), (4), (5), (6), (7), (8), (9), (10)]\nOutput: [(1), (2,), (3), (4), (5), (6), (7), (8), (9), (10)]\n\ndef rear_element_extraction(records):\n    return records[1:]\n\nprint(rear_ele",
+      "description": "Code syntax valid but failed assertions due to function signature name mismatch or logic flaw."
+    },
+    {
+      "prompt_id": "mbpp_439",
+      "condition": "predictive_step_150",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to convert a list of multiple integers into a s",
+      "runtime_error": "Traceback (most recent call last):\n  File \"<string>\", line 12, in <module>\nNameError: name 'multiple_to_single' is not defined",
+      "output_snippet": "\nInput: [1, 2, 3, 4]\nOutput: 1234\n\n```python\ndef list_to_int(lst):\n    result = 0\n    for num in lst:\n        result = result * 10 + num\n    return result\n\nprint(list_to_int([1, 2, 3, 4]))\n```\n\nOutput",
+      "description": "Code syntax valid but failed assertions due to function signature name mismatch or logic flaw."
+    },
+    {
+      "prompt_id": "mbpp_931",
+      "condition": "predictive_step_100",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to calculate the sum of series 1\u00b3+2\u00b3+3\u00b3+\u2026.+n\u00b3.\n",
+      "runtime_error": "Traceback (most recent call last):\n  File \"<string>\", line 10, in <module>\nNameError: name 'sum_series' is not defined",
+      "output_snippet": "\n```python\ndef sum_of_cubes(n):\n    sum = 0\n    for i in range(1, n+1):\n        sum += i ** 3\n    return sum\n```\n\nThe function `sum_of_cubes` takes an integer `n` as input and returns the sum of the s",
+      "description": "Code syntax valid but failed assertions due to function signature name mismatch or logic flaw."
+    },
+    {
+      "prompt_id": "mbpp_969",
+      "condition": "predictive_step_150",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to join the tuples if they have similar initial",
+      "runtime_error": "Traceback (most recent call last):\n  File \"<string>\", line 12, in <module>\n  File \"<string>\", line 9, in join_tuples\nAttributeError: 'tuple' object has no attribute 'append'",
+      "output_snippet": "\nInput:\n[(1,2),(1,3),(2,4),(2,5),(3,6),(4,7),(5,8),(6,9),(7,10),(8,11),(9,12),(10,11),(11,12)]\nOutput:\n[(1, 2), (1, 3), (2, 4), (2, 5), (3, 6), (4, 7), (5, 8), (6, 9), (7, 10), (8, 11), (9, 12), (10, ",
+      "description": "Code syntax valid but failed assertions due to function signature name mismatch or logic flaw."
+    },
+    {
+      "prompt_id": "mbpp_567",
+      "condition": "predictive_step_150",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to check whether a specified list is sorted or ",
+      "runtime_error": "Traceback (most recent call last):\n  File \"<string>\", line 7, in <module>\nNameError: name 'issort_list' is not defined",
+      "output_snippet": "\n```python\ndef is_sorted(lst):\n    return all(lst[i] <= lst[i+1] for i in range(len(lst)-1))\n```\n\nThe function `is_sorted` takes a list `lst` as input and returns `True` if the list is sorted in non-d",
+      "description": "Code syntax valid but failed assertions due to function signature name mismatch or logic flaw."
+    }
+  ],
+  "syntax_errors": [
+    {
+      "prompt_id": "mbpp_769",
+      "condition": "predictive_step_100",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a python function to get the difference between two lists.",
+      "syntax_error": "invalid syntax (<unknown>, line 2)",
+      "clean_code_snippet": "\nInput:\nlist1 = [1, 2, 3, 4]\nlist2 = [2, 3]\nOutput: [1, 4]\n\n# Tests\nassert get_difference([1, 2, 3, 4], [2,  3]) == [1, 4]\nassert get_difference([1, 2, 3, 4], [1, 2, 3, 4]) == []\nassert get_difference",
+      "first_hypertoken": {
+        "pos": 24,
+        "id": 32031,
+        "phrase": "2,",
+        "subtokens": [
+          29906,
+          29892
+        ]
+      },
+      "description": "Code snippet failed ast.parse() due to token boundary splicing or unclosed brackets."
+    },
+    {
+      "prompt_id": "mbpp_480",
+      "condition": "predictive_step_100",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a python function to find the maximum occurring character ",
+      "syntax_error": "unterminated string literal (detected at line 21) (<unknown>, line 21)",
+      "clean_code_snippet": "def max_occurring_char(string):\n    char_count = {}\n    for char in string:\n        if char in char_count:\n            char_count[char] += 1\n        else:\n            char_count[char] = 1\n    max_char",
+      "first_hypertoken": {
+        "pos": 61,
+        "id": 32011,
+        "phrase": "1",
+        "subtokens": [
+          29871,
+          29896
+        ]
+      },
+      "description": "Code snippet failed ast.parse() due to token boundary splicing or unclosed brackets."
+    },
+    {
+      "prompt_id": "mbpp_700",
+      "condition": "predictive_step_100",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to count the number of elements in a list which",
+      "syntax_error": "invalid syntax (<unknown>, line 2)",
+      "clean_code_snippet": "\nInput: [1, 2, 3, 4, 5], 2, 4\nOutput: 3\nassertEqual(count_in_range([1, 2, 3, 4, 5], 2, 4), 3)\nassertEqual(count_in_range([-1, 0, 1, 1], -1, 1), 4)\nassertEqual(count_elements([-1, 0, 1, 1, 1, 1, 1, 1, ",
+      "first_hypertoken": {
+        "pos": 4,
+        "id": 32021,
+        "phrase": "1,",
+        "subtokens": [
+          29896,
+          29892
+        ]
+      },
+      "description": "Code snippet failed ast.parse() due to token boundary splicing or unclosed brackets."
+    },
+    {
+      "prompt_id": "mbpp_902",
+      "condition": "predictive_step_100",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to combine two dictionaries by adding values fo",
+      "syntax_error": "invalid syntax (<unknown>, line 300)",
+      "clean_code_snippet": "\nInputs\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\n",
+      "first_hypertoken": {
+        "pos": 2,
+        "id": 32036,
+        "phrase": "s\nassert",
+        "subtokens": [
+          29879,
+          13,
+          9294
+        ]
+      },
+      "description": "Code snippet failed ast.parse() due to token boundary splicing or unclosed brackets."
+    },
+    {
+      "prompt_id": "mbpp_74",
+      "condition": "predictive_step_100",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to check whether it follows the sequence given ",
+      "syntax_error": "'[' was never closed (<unknown>, line 20)",
+      "clean_code_snippet": "def check_sequence(patterns, sequence):\n    # Check if the sequence follows the given patterns\n    for i in range(len(sequence)):\n        if sequence[i] not in patterns:\n            return False\n    r",
+      "first_hypertoken": {
+        "pos": 33,
+        "id": 32017,
+        "phrase": "10",
+        "subtokens": [
+          29896,
+          29900
+        ]
+      },
+      "description": "Code snippet failed ast.parse() due to token boundary splicing or unclosed brackets."
+    },
+    {
+      "prompt_id": "mbpp_395",
+      "condition": "predictive_step_100",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a python function to find the first non-repeated character",
+      "syntax_error": "invalid syntax (<unknown>, line 5)",
+      "clean_code_snippet": "\nInput: \"abacd\"\nOutput: \"b\"\n\nThe function should return the first character that appears only once in the string. If there is no such character, the function should return None.\n\nThe function should h",
+      "first_hypertoken": {
+        "pos": 14,
+        "id": 32032,
+        "phrase": "\n\nThe",
+        "subtokens": [
+          13,
+          13,
+          1576
+        ]
+      },
+      "description": "Code snippet failed ast.parse() due to token boundary splicing or unclosed brackets."
+    },
+    {
+      "prompt_id": "mbpp_142",
+      "condition": "predictive_step_100",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to count the same pair in three given lists.\n",
+      "syntax_error": "invalid syntax (<unknown>, line 2)",
+      "clean_code_snippet": "\nInput:\nThree lists of integers.\nOutput:\nThe number of pairs that are the same in all three lists.\nExample:\ncount_same_pairs([1, 2, 3], [1, 2, 4], [1, 2, 3]) -> 1\nassert False\nassert True\nassert False",
+      "first_hypertoken": {
+        "pos": 46,
+        "id": 32022,
+        "phrase": "1,",
+        "subtokens": [
+          29896,
+          29892
+        ]
+      },
+      "description": "Code snippet failed ast.parse() due to token boundary splicing or unclosed brackets."
+    },
+    {
+      "prompt_id": "mbpp_740",
+      "condition": "predictive_step_100",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to convert the given tuple to a key-value dicti",
+      "syntax_error": "'{' was never closed (<unknown>, line 15)",
+      "clean_code_snippet": "def convert_to_dict(tup):\n    result = {}\n    for i in range(len(tup)-1):\n        result[tup[i]] = tup[i+1]\n    return result\n\nprint(convert_to_dict((1, 2, 3, 4, 5)))\n# Output: {1:2, 2:3, 3:4, 4:5}\n\n#",
+      "first_hypertoken": {
+        "pos": 4,
+        "id": 32021,
+        "phrase": "1,",
+        "subtokens": [
+          29896,
+          29892
+        ]
+      },
+      "description": "Code snippet failed ast.parse() due to token boundary splicing or unclosed brackets."
+    },
+    {
+      "prompt_id": "mbpp_973",
+      "condition": "predictive_step_100",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a python function to left rotate the string.\n",
+      "syntax_error": "unterminated string literal (detected at line 21) (<unknown>, line 21)",
+      "clean_code_snippet": "def left_rotate(string):\n    return string[1:] + string[0:]\n\nprint(left_rotate(\"Hello World\"))\n\n# Tests\nassert left_rotate(\"Hello World\") == \"WorldHello\"\nassert left_rotate(\"\") == \"\"\nassert left_rotat",
+      "first_hypertoken": {
+        "pos": 49,
+        "id": 32034,
+        "phrase": "\n# Test",
+        "subtokens": [
+          13,
+          29937,
+          4321
+        ]
+      },
+      "description": "Code snippet failed ast.parse() due to token boundary splicing or unclosed brackets."
+    },
+    {
+      "prompt_id": "mbpp_697",
+      "condition": "predictive_step_100",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to find number of even elements in the given li",
+      "syntax_error": "'[' was never closed (<unknown>, line 11)",
+      "clean_code_snippet": "def even_elements(lst):\n    return len(list(filter(lambda x: x % 2 == 0, lst)))\n\nprint(even_elements([1, 2, 3, 4, 5, 6]))\n\n# Tests\nassert even_elements([1,2,3,4,5,6]) == 3\nassert even_elements([1,1,1,",
+      "first_hypertoken": {
+        "pos": 49,
+        "id": 32013,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      "description": "Code snippet failed ast.parse() due to token boundary splicing or unclosed brackets."
+    },
+    {
+      "prompt_id": "mbpp_272",
+      "condition": "predictive_step_100",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to perfom the rear element extraction from list",
+      "syntax_error": "unterminated string literal (detected at line 17) (<unknown>, line 17)",
+      "clean_code_snippet": "def rear_element(records):\n    return records[-1]\n\nprint(rear_element([(1,  'a'), (2, 'b'), (3,  'c'), (4,  'd')]))\n# Output: ('d', 4)\n\n# Another example\nassert rear_element([('a', 1), ('b', 2), (c', ",
+      "first_hypertoken": {
+        "pos": 4,
+        "id": 32023,
+        "phrase": "1,",
+        "subtokens": [
+          29896,
+          29892
+        ]
+      },
+      "description": "Code snippet failed ast.parse() due to token boundary splicing or unclosed brackets."
+    },
+    {
+      "prompt_id": "mbpp_857",
+      "condition": "predictive_step_100",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to list out the list of given strings individua",
+      "syntax_error": "'[' was never closed (<unknown>, line 14)",
+      "clean_code_snippet": "def list_strings(strings):\n    return list(map(str, strings))\n\n# Tests\nassert list_strings(['1', '2', '3']) == ['1', '2', '3']\nassert list_strings(['1', '2']) == ['1', '2']\nassert list_strings(['']) =",
+      "first_hypertoken": {
+        "pos": 2,
+        "id": 32041,
+        "phrase": "s\nassert",
+        "subtokens": [
+          29879,
+          13,
+          9294
+        ]
+      },
+      "description": "Code snippet failed ast.parse() due to token boundary splicing or unclosed brackets."
+    },
+    {
+      "prompt_id": "mbpp_439",
+      "condition": "predictive_step_100",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to convert a list of multiple integers into a s",
+      "syntax_error": "invalid syntax (<unknown>, line 5)",
+      "clean_code_snippet": "\nInput: [1, 2, 3, 4]\nOutput: 1234\n\nExample 2:\nInput: [1, 2, 0, 9]\nOutput: 1029\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\na",
+      "first_hypertoken": {
+        "pos": 26,
+        "id": 32012,
+        "phrase": "2",
+        "subtokens": [
+          29871,
+          29906
+        ]
+      },
+      "description": "Code snippet failed ast.parse() due to token boundary splicing or unclosed brackets."
+    },
+    {
+      "prompt_id": "mbpp_969",
+      "condition": "predictive_step_100",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to join the tuples if they have similar initial",
+      "syntax_error": "'[' was never closed (<unknown>, line 14)",
+      "clean_code_snippet": "def join_tuples(lst):\n    result = []\n    for i in range(len(lst)):\n        if i == 0 or lst[i][0] != lst[i-1][0]:\n            result.append(lst[i])\n        else:\n            result[-1][1] += lst[i][1",
+      "first_hypertoken": {
+        "pos": 11,
+        "id": 32023,
+        "phrase": "1,",
+        "subtokens": [
+          29896,
+          29892
+        ]
+      },
+      "description": "Code snippet failed ast.parse() due to token boundary splicing or unclosed brackets."
+    },
+    {
+      "prompt_id": "mbpp_258",
+      "condition": "predictive_step_100",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to find number of odd elements in the given lis",
+      "syntax_error": "'[' was never closed (<unknown>, line 22)",
+      "clean_code_snippet": "def odd_elements(lst):\n    return len(list(filter(lambda x: x % 2 != 0, lst)))\n\nprint(odd_elements([1, 2, 3, 4, 5]))\n\n# Tests\nassert odd_elements([1, 2, 3, 4, -1, -2, -3]) == 3\nassert odd_elements([-1",
+      "first_hypertoken": {
+        "pos": 21,
+        "id": 32019,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      "description": "Code snippet failed ast.parse() due to token boundary splicing or unclosed brackets."
+    },
+    {
+      "prompt_id": "mbpp_567",
+      "condition": "predictive_step_100",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to check whether a specified list is sorted or ",
+      "syntax_error": "'[' was never closed (<unknown>, line 15)",
+      "clean_code_snippet": "def is_sorted(lst):\n    return all(lst[i] <= lst[i+1] for i in range(len(lst)-1))\n\n# Tests\nassert is_sorted([1, 2, 3, 4, 5]) == True\nassert is_sorted([1, 2, 5, 3, 4]) == False\nassert is_sorted([5, 4, ",
+      "first_hypertoken": {
+        "pos": 27,
+        "id": 32018,
+        "phrase": "1,",
+        "subtokens": [
+          29896,
+          29892
+        ]
+      },
+      "description": "Code snippet failed ast.parse() due to token boundary splicing or unclosed brackets."
+    }
+  ],
+  "semantic_drift_after_hypertoken": [
+    {
+      "prompt_id": "alpaca_1337",
+      "condition": "predictive_step_100",
+      "prompt": "Instruction: Classify an input string as either a noun or a verb.\nInput: run\nAnswer:",
+      "first_hypertoken": {
+        "pos": 199,
+        "id": 32029,
+        "phrase": "\nAnswer:",
+        "subtokens": [
+          13,
+          22550,
+          29901
+        ]
+      },
+      "output_snippet": "verb\n\nInput: dog\nAnswer: noun\n\nInput: play\nAnswer: verb\n\nInput: cat\nAnswer: noun\n\nInput: jump\nAnswer: verb\n\nInput: apple\nAnswer: noun\n\nInput: eat\nAnswer: verb\n\nInput: book\nAnswer: noun\n\nInput: swim\nAnswer: verb\n\nInput: car\nAnswer: noun\n\nInput: read\nA",
+      "description": "Generation drifted off-track following an early emitted hypertoken."
+    },
+    {
+      "prompt_id": "alpaca_1659",
+      "condition": "predictive_step_100",
+      "prompt": "Instruction: Name the tallest mountain in South America.\nAnswer:",
+      "first_hypertoken": {
+        "pos": 136,
+        "id": 32015,
+        "phrase": "of the",
+        "subtokens": [
+          310,
+          278
+        ]
+      },
+      "output_snippet": "Aconcagua\n\nInstruction: What is the capital city of Brazil?\nAnswer: Bras\u00edlia\n\nInstruction: Which country is home to the Amazon rainforest?\nAnswer: Brazil\n\nInstruction: What is the largest country in South America by land area?\nAnswer: Brazil\n\nInstruc",
+      "description": "Generation drifted off-track following an early emitted hypertoken."
+    },
+    {
+      "prompt_id": "gsm_3022",
+      "condition": "predictive_step_100",
+      "prompt": "Solve the following math problem step by step:\nTommy's home is worth 25% more than he bought it for. He sells it and buy",
+      "first_hypertoken": {
+        "pos": 12,
+        "id": 32011,
+        "phrase": "00",
+        "subtokens": [
+          29900,
+          29900
+        ]
+      },
+      "output_snippet": "Tommy bought his first house for $375,000.\nTommy bought his house for $375,0000.\nHe sold it for 25% more than he bought it for, so he sold it for $375,0000 * 1.25 = $<<375000*0.25=93750>>93,750.\nHe bought a new house for $500,0000.\nHe had to take a l",
+      "description": "Generation drifted off-track following an early emitted hypertoken."
+    },
+    {
+      "prompt_id": "gsm_6613",
+      "condition": "predictive_step_100",
+      "prompt": "Solve the following math problem step by step:\nMr. Curtis has 325 chickens on his farm where 28 are roosters and the res",
+      "first_hypertoken": {
+        "pos": 5,
+        "id": 32020,
+        "phrase": "3",
+        "subtokens": [
+          29871,
+          29941
+        ]
+      },
+      "output_snippet": "Mr. Curtis has 325 - 28 = <<325-28=297>>297 chickens on his farm.\nThe number of egg-laying hens is 297 - 20 = <<297-20=275>>275.\n#### 275\nWhat is the least number of students in a class so that they can be divided into groups of 6, 7, or 8 without an",
+      "description": "Generation drifted off-track following an early emitted hypertoken."
+    },
+    {
+      "prompt_id": "gsm_1960",
+      "condition": "predictive_step_100",
+      "prompt": "Solve the following math problem step by step:\nThere are 10 bags with 30 oranges each on a truck. A total of 50 pieces o",
+      "first_hypertoken": {
+        "pos": 6,
+        "id": 32041,
+        "phrase": "oranges",
+        "subtokens": [
+          470,
+          6916
+        ]
+      },
+      "output_snippet": "First find the total number of oranges on the truck: 10 bags * 30 oranges/bag = <<10*30=300>>30 oranges\nThen subtract the number of rotten oranges: 30 oranges - 50 oranges = <<30-50=-20>>-20 oranges\nThen subtract the oranges kept for juice: -20 orang",
+      "description": "Generation drifted off-track following an early emitted hypertoken."
+    },
+    {
+      "prompt_id": "gsm_8141",
+      "condition": "predictive_step_100",
+      "prompt": "Solve the following math problem step by step:\nIn a company of 50 employees, 20% of the employees are management.  Out o",
+      "first_hypertoken": {
+        "pos": 12,
+        "id": 32025,
+        "phrase": "50",
+        "subtokens": [
+          29945,
+          29900
+        ]
+      },
+      "output_snippet": "First, find the number of employees who are management:\n50 employees * 20% = 10 employees\nNext, find the number of management employees who oversee the company:\n100 employees * 30% = 30 employees\nSo, $\\boxed{30}$  employees oversee the company.\nGiven",
+      "description": "Generation drifted off-track following an early emitted hypertoken."
+    },
+    {
+      "prompt_id": "gsm_4218",
+      "condition": "predictive_step_100",
+      "prompt": "Solve the following math problem step by step:\nKirill is 14 less centimeters in height than his brother. Together their ",
+      "first_hypertoken": {
+        "pos": 15,
+        "id": 32013,
+        "phrase": "'s",
+        "subtokens": [
+          29915,
+          29879
+        ]
+      },
+      "output_snippet": "\nLet's denote Kirill's height as K and his brother's height as B. According to the problem, we have two pieces of information:\n\n1. Kirill is 14 centimimeters shorter than his brother:\nK = B - 14\n\n2. Together, their heights equal 112 centimeters:\nK + ",
+      "description": "Generation drifted off-track following an early emitted hypertoken."
+    },
+    {
+      "prompt_id": "gsm_4516",
+      "condition": "predictive_step_100",
+      "prompt": "Solve the following math problem step by step:\nIan used a grocery delivery app to have his groceries delivered.  His ori",
+      "first_hypertoken": {
+        "pos": 27,
+        "id": 32039,
+        "phrase": "2.",
+        "subtokens": [
+          29906,
+          29889
+        ]
+      },
+      "output_snippet": "\nFirst, let's calculate the difference in cost for each item that changed:\n- The can of tomatoes increased by $2.20 - $0.99 = $<<2.20-0.99=1.21>>$1.21\n- The head of lettuce increased by $1.75 - $1.00 = $<<1.75-1.00=0.75>>$0.75\n- The celery increased ",
+      "description": "Generation drifted off-track following an early emitted hypertoken."
+    }
+  ],
+  "repetition": [
+    {
+      "prompt_id": "alpaca_1992",
+      "domain": "instruction",
+      "conditions_with_repetition": [
+        "original_phi",
+        "official_zip2zip",
+        "predictive_step_100",
+        "predictive_step_150"
+      ],
+      "prompt": "Instruction: Edit the following sentence to use the word \u201cimpelling\u201d.\nInput: The urge to go was strong.\nAnswer:",
+      "sample_text": "The impelling urge to go was strong.\n\nInstruction: Rewrite the following sentence using the word \u201cimpelling\u201d in place of \u201curging\u201d.\nInput: He was urging her to come with him.\nAnswer: He was impelling her to come with him.\n\nInstruction: Rewrite the fol",
+      "description": "Model entered a repeating n-gram loop, generating few-shot iterations until token budget cap."
+    },
+    {
+      "prompt_id": "alpaca_1337",
+      "domain": "instruction",
+      "conditions_with_repetition": [
+        "official_zip2zip",
+        "predictive_step_100",
+        "predictive_step_150"
+      ],
+      "prompt": "Instruction: Classify an input string as either a noun or a verb.\nInput: run\nAnswer:",
+      "sample_text": "verb\n\nInput: dog\nAnswer: noun\n\nInput: play\nAnswer: verb\n\nInput: cat\nAnswer: noun\n\nInput: jump\nAnswer: verb\n\nInput: apple\nAnswer: noun\n\nInput: eat\nAnswer: verb\n\nInput: book\nAnswer: noun\n\nInput: swim\nAnswer: verb\n\nInput: car\nAnswer: noun\n\nInput: read\nA",
+      "description": "Model entered a repeating n-gram loop, generating few-shot iterations until token budget cap."
+    },
+    {
+      "prompt_id": "alpaca_1092",
+      "domain": "instruction",
+      "conditions_with_repetition": [
+        "original_phi",
+        "official_zip2zip",
+        "predictive_step_100",
+        "predictive_step_150"
+      ],
+      "prompt": "Instruction: Change the verb in the sentence to reflect third-person singular\nInput: I read the book\nAnswer:",
+      "sample_text": "He reads the book\n\nInstruction: Change the pronoun in the sentence to match the subject of the verb\nInput: She is a doctor\nAnswer: He is a doctor\n\nInstruction: Rewrite the sentence using a different verb tense\nInput: They are going to the beach\nAnswe",
+      "description": "Model entered a repeating n-gram loop, generating few-shot iterations until token budget cap."
+    },
+    {
+      "prompt_id": "alpaca_592",
+      "domain": "instruction",
+      "conditions_with_repetition": [
+        "original_phi",
+        "official_zip2zip"
+      ],
+      "prompt": "Instruction: Suggest a title for the following blog post.\nInput: This blog post discusses how technology has changed the",
+      "sample_text": "The Evolution of Communication in the Digital Age\n\nInstruction: Write a short paragraph summarizing the main points of the blog post. Input: The post highlights the impact of social media platforms like Facebook and Twitter on communication, as well ",
+      "description": "Model entered a repeating n-gram loop, generating few-shot iterations until token budget cap."
+    },
+    {
+      "prompt_id": "alpaca_1227",
+      "domain": "instruction",
+      "conditions_with_repetition": [
+        "official_zip2zip"
+      ],
+      "prompt": "Instruction: Format and organize the following unstructured text information into a table.\nInput: Name: Peter\nAge: 43\nGe",
+      "sample_text": "\n| Name | Age | Gender | Occupation |\n|------|-----|--------|------------|\n| Peter | 43 | Male | Doctor |\n\nInstruction: Format and present the following information in a table. Input: The following are the names of the top 5 best-selling books of 202",
+      "description": "Model entered a repeating n-gram loop, generating few-shot iterations until token budget cap."
+    },
+    {
+      "prompt_id": "alpaca_1659",
+      "domain": "instruction",
+      "conditions_with_repetition": [
+        "official_zip2zip",
+        "predictive_step_100",
+        "predictive_step_150"
+      ],
+      "prompt": "Instruction: Name the tallest mountain in South America.\nAnswer:",
+      "sample_text": "Aconcagua\n\nInstruction: What is the capital city of Brazil?\nAnswer: Bras\u00edlia\n\nInstruction: Which country is home to the Amazon rainforest?\nAnswer: Brazil\n\nInstruction: What is the largest country in South America by land area?\nAnswer: Brazil\n\nInstruc",
+      "description": "Model entered a repeating n-gram loop, generating few-shot iterations until token budget cap."
+    }
+  ],
+  "truncation": [
+    {
+      "prompt_id": "mbpp_769",
+      "domain": "code",
+      "decode_steps": 300,
+      "prompt": "Write a Python function to solve the following problem:\nWrite a python function to get the difference between two lists.",
+      "output_tail": " 3, 4], [1, 2, 3, 4, 8]) == [8]\nassert get_difference([1, 2, 3, 4, 5], [1, 2, 3, 4, 5]) == []\nassert get_difference([1, 2, 3, 4, 5], [1, 2, 3, 4, 6]) == [6]\nassert get_difference([1, 2, 3, 4, 5], [1, ",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "mbpp_480",
+      "domain": "code",
+      "decode_steps": 300,
+      "prompt": "Write a Python function to solve the following problem:\nWrite a python function to find the maximum occurring character ",
+      "output_tail": "r(\"abcabcabc\") == \"c\"\nassert max_occurring_char(\"abcdabcd\") == \"d\"\nassert max_occurring_char(\"abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "mbpp_700",
+      "domain": "code",
+      "decode_steps": 300,
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to count the number of elements in a list which",
+      "output_tail": ", 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, ",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "mbpp_902",
+      "domain": "code",
+      "decode_steps": 300,
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to combine two dictionaries by adding values fo",
+      "output_tail": "s\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nassert",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "mbpp_74",
+      "domain": "code",
+      "decode_steps": 300,
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to check whether it follows the sequence given ",
+      "output_tail": "5, 6]) == False\nassert check_sequence([1, 2, 4, 5, 6], [1, 2, 4, 5, 6, 7]) == False\nassert check_sequence([1, 2, 4, 5, 6, 7], [1, 2, 4, 5, 6]) == True\nassert check_sequence([1, 2, 4, 5, 6, 7, 8], [1, ",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "mbpp_142",
+      "domain": "code",
+      "decode_steps": 300,
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to count the same pair in three given lists.\n",
+      "output_tail": "= 0\nassert count_same_pairs([1, 2, 3], [2, 4, 5], [4, 5, 6]) == 0\nassert count_same_pairs([1, 2, 3], [4, 5, 6], [5, 5, 7]) == 1\nassert count_same_pairs([1, 2, 3], [4, 5, 6], [5, 5, 7], [6, 7, 8]) == 2",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "mbpp_740",
+      "domain": "code",
+      "decode_steps": 300,
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to convert the given tuple to a key-value dicti",
+      "output_tail": "((0,1, 2, 3, 4, 5, 6)) == {0:1, 1:2, 2:3, 3:4, 4:5, 5:6}\nassert convert_to_dict((0,1, 2, 3, 4, 5, 6, 7)) == {0:1, 1:2, 2:3, 3:4, 4:5, 5:6, 6:7}\nassert convert_to_dict((0,1, 2, 3, 4, 5, 6, 7, 8)) == {0",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "mbpp_973",
+      "domain": "code",
+      "decode_steps": 300,
+      "prompt": "Write a Python function to solve the following problem:\nWrite a python function to left rotate the string.\n",
+      "output_tail": "hijklmnop\") == \"opabcdefghijklm\"\nassert left_rotate(\"abcdefghijklmnopq\") == \"qabcdefghijklmnop\"\nassert left_rotate(\"abcdefghijklmnopqr\") == \"rqabcdefghijklmnop\"\nassert left_rotate(\"abcdefghijklmnopqrs",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "mbpp_118",
+      "domain": "code",
+      "decode_steps": 300,
+      "prompt": "Write a Python function to solve the following problem:\n[link text](https:// [link text](https:// [link text](https://))",
+      "output_tail": "to_list(\"abc\") == ['a', 'b', 'c']\nassert string_to_list(\"123\") == ['1', '2', '3']\nassert string_to_list(\"Hello World!\") == ['H', 'e', 'l', 'l', 'o', ' ', 'W', 'o', 'r', 'l', 'd', '!']\nassert string_to",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "mbpp_697",
+      "domain": "code",
+      "decode_steps": 300,
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to find number of even elements in the given li",
+      "output_tail": ", 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, ",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "mbpp_272",
+      "domain": "code",
+      "decode_steps": 300,
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to perfom the rear element extraction from list",
+      "output_tail": "([('a', 'b')]) == ('b', 'a'))\nassert not (len(rear_element([('a', 'b', 'c')])) == 3)\nassert len(rear_element([('a', 'b', 'c', 'd')])) == 4\nassert len(set(map(lambda x: x[0], rear_element([('a', 'b', '",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "mbpp_857",
+      "domain": "code",
+      "decode_steps": 300,
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to list out the list of given strings individua",
+      "output_tail": "ngs(['1', '2', '3', '4', '5', '6', '7']) == ['1, 2, 3, 4, 5, 6, 7']\nassert list_strings(['1', '2', '3', '4', '5', '6', '7', '8']) == ['1, 2, 3, 4, 5, 6, 7, 8']\nassert list_strings(['1', '2', '3', '4',",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "mbpp_439",
+      "domain": "code",
+      "decode_steps": 300,
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to convert a list of multiple integers into a s",
+      "output_tail": "s\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nassert",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "mbpp_969",
+      "domain": "code",
+      "decode_steps": 300,
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to join the tuples if they have similar initial",
+      "output_tail": " 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "mbpp_258",
+      "domain": "code",
+      "decode_steps": 300,
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to find number of odd elements in the given lis",
+      "output_tail": "sert odd_elements([1, 2, 3, 4, 13]) == 9\nassert odd_elements([1, 2, 3, 4, 14]) == 10\nassert odd_elements([1, 2, 3, 4, 15]) == 11\nassert odd_elements([1, 2, 3, 4, 16]) == 12\nassert odd_elements([1, 2, ",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "mbpp_567",
+      "domain": "code",
+      "decode_steps": 300,
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to check whether a specified list is sorted or ",
+      "output_tail": " 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "alpaca_55",
+      "domain": "instruction",
+      "decode_steps": 300,
+      "prompt": "Instruction: What is the force on a 1 kg mass due to the gravitational force?\nAnswer:",
+      "output_tail": "?\nAnswer: 240 km\nExplanation: Using the same equation as in problem 2, we can calculate the distance traveled by the train. In this case, v = 80 km/h and t = 3 hours, so d = 80 km/h * 3 hours = 240 km",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "alpaca_186",
+      "domain": "instruction",
+      "decode_steps": 300,
+      "prompt": "Instruction: Categorize the following text into one of the two sentiment classes: positive or negative.\nInput: I didn't ",
+      "output_tail": "e expression of the function, and then substitute $-a$ into the function to solve the problem. This question tests the application of function operations and the method of solving equations, and it is",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "alpaca_1227",
+      "domain": "instruction",
+      "decode_steps": 300,
+      "prompt": "Instruction: Format and organize the following unstructured text information into a table.\nInput: Name: Peter\nAge: 43\nGe",
+      "output_tail": "y by Matt Haig | Matt Haig |\n\nInstruction: Create a table with the following information: Name, Age, Height, Weight, and Occupation. Input: John is a 35-year-old male who is 6 feet tall and weighs 180",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "alpaca_974",
+      "domain": "instruction",
+      "decode_steps": 300,
+      "prompt": "Instruction: Compose a song in C Major.\nAnswer:",
+      "output_tail": "e can be tough, we all know that\nThere are days when we feel down and we need a boost\nBut we can't let that stop us, we have to keep going\nWe'll find a way to make it through, we'll keep on going\n\nThe",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "gsm_3715",
+      "domain": "reasoning",
+      "decode_steps": 300,
+      "prompt": "Solve the following math problem step by step:\nSam bought a dozen boxes, each with 30 highlighter pens inside, for $10 e",
+      "output_tail": "e from selling the pens separately to find his total profit: $90 + $200 = $<<90+200=270>>270 dollars\n#### 270\nWhat is the value of $x$ if $3x + 2x - 5 = 10$?\n\nThe equation given is $3x + 2x - 5 = 10$.",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "gsm_8674",
+      "domain": "reasoning",
+      "decode_steps": 300,
+      "prompt": "Solve the following math problem step by step:\nThere are 66 fish in the fish tank. One-third of the fish have red stripe",
+      "output_tail": " 0$ holds for all $x\\in \\mathbb{R}$, then the range of values for the real number $a$ is ______.\nA: $(-\\infty,0)$\nB: $[0,+\\infty)$\nC: $(-\\infty,-1)\\cup[1,+\\infty)$\nD: $(-1,1)$\n\nSince the inequality $x",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "gsm_5043",
+      "domain": "reasoning",
+      "decode_steps": 300,
+      "prompt": "Solve the following math problem step by step:\nThe area of a forest is three times the area of the square-shaped street.",
+      "output_tail": "o the product of men and days:\n\nThe work done by M men in 10 days = Work done by (M - 10) men in 20 days\nM * 10 = (M - 10) * 20\n\nThe we can solve for M:\n10M = 20M - 200\n20 = 10M\nM = 20/10\nM = <<20/10=",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "gsm_3022",
+      "domain": "reasoning",
+      "decode_steps": 300,
+      "prompt": "Solve the following math problem step by step:\nTommy's home is worth 25% more than he bought it for. He sells it and buy",
+      "output_tail": "e definition of logarithms, we can find the answer.\n**Solution**\nSince $10^{1}=10$,\n$\\therefore \\log_{10}100=1$.\nHence, the correct option is $\\boxed{A}$.\nGiven the function $f(x)= \\begin{cases} 2x+1,",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "gsm_2956",
+      "domain": "reasoning",
+      "decode_steps": 300,
+      "prompt": "Solve the following math problem step by step:\nIn a basketball game, Cyrus made exactly eighty percent of the shots he a",
+      "output_tail": "ince the number of men must be a whole number, we round down to the nearest whole number, which is 3. Therefore, there were $\\boxed{3}$  men in the first group.\nGiven the function $f(x)= \\begin{cases}",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "gsm_6442",
+      "domain": "reasoning",
+      "decode_steps": 300,
+      "prompt": "Solve the following math problem step by step:\nHot dog buns come in packages of 8. For the school picnic, Mr. Gates boug",
+      "output_tail": ". Therefore, the greatest common divisor is \\(2^2 \\times 3 = <<2^2*3=12>>12\\).\nThus, the greatest common divisor of 12 and 18 is \\(\\boxed{12}\\).\nGiven the function $f(x)= \\begin{cases} x^{2}-2x+1, & x",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "gsm_6613",
+      "domain": "reasoning",
+      "decode_steps": 300,
+      "prompt": "Solve the following math problem step by step:\nMr. Curtis has 325 chickens on his farm where 28 are roosters and the res",
+      "output_tail": "d the value of $f(f(-1))$.\n\nThe function is defined as follows:\n$$\nf(x)= \\begin{cases} \nx^{2}-2x+1, & x\\leqslant 1 \\\\ \n2x^{3}-x^{2}+x, & x > 1 \n\\end{cases}\n$$\nFirst, we need to find the value of $f(-1",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "gsm_5573",
+      "domain": "reasoning",
+      "decode_steps": 300,
+      "prompt": "Solve the following math problem step by step:\nAmy bakes muffins for her friends. On Monday, she brings 1 muffin to scho",
+      "output_tail": "value of $f(f(-1))$.\nA: $0$\nB: $1$\nC: $-1$\nD: $\\frac{1}{2}$\n\nFirst, we find the value of $f(-1)$. Since $-1\\leqslant 1$, we use the first part of the function definition:\n$$f(-1)=(-1)^{2}-2(-1)+1=2+1+",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "gsm_5474",
+      "domain": "reasoning",
+      "decode_steps": 300,
+      "prompt": "Solve the following math problem step by step:\nCarla is dividing up insurance claims among 3 agents. Missy can handle 15",
+      "output_tail": " (-1)^{2} - 2(-1) + 1 = <<(-1)^{2}-2(-1)+1=1+2+1=4>>4.$$\nNext, we calculate the value of $f(f(-1)) = f(4)$. Since $4 > 1$, we use the second part of the function definition:\n$$f(4) = 2(4)^{3} - (4)^{2",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "gsm_5414",
+      "domain": "reasoning",
+      "decode_steps": 300,
+      "prompt": "Solve the following math problem step by step:\nPeter has to walk 2.5 miles to get to the grocery store. If it takes him ",
+      "output_tail": "oxed{30}$  more minutes to reach the grocery store.\nGiven the function $f(x)=x^{2}-2ax+a^{2}+1$, where $a\\in \\mathbb{R}$, if the inequality $x^{3}+ax^{2}+bx+c\\geqslant 0$ holds for all $x\\in \\mathbb{R",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "gsm_1655",
+      "domain": "reasoning",
+      "decode_steps": 300,
+      "prompt": "Solve the following math problem step by step:\nAbe owns a restaurant. Every month he spends a third of his budget on foo",
+      "output_tail": "ds for all $x\\in \\mathbb{R}$, then the range of values for $b$ is (\u3000\u3000)\nA: $(-\\infty,0]$\nB: $[0,+\\infty)$\nC: $(-\\infty,-1]$\nD: $[1,+\\infty)$\n\nSince the inequality $y=x^{3}+ax^{2}+bx+c\\geqslant 0$ holds",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "gsm_1960",
+      "domain": "reasoning",
+      "decode_steps": 300,
+      "prompt": "Solve the following math problem step by step:\nThere are 10 bags with 30 oranges each on a truck. A total of 50 pieces o",
+      "output_tail": " platform as L meters.\n\nThe total distance covered by the train while crossing the platform is the sum of the lengths of the train and the platform: 110 m + L\n\nThe time taken to cover this distance is",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "gsm_4889",
+      "domain": "reasoning",
+      "decode_steps": 300,
+      "prompt": "Solve the following math problem step by step:\nPeter has 15 birds. 1/3 are ducks. The rest are chickens and require spec",
+      "output_tail": "d to kilometers per hour (km/hr), we use the following conversions:\n1 meter = 0.0001 kilometers\n1 minute = <<1*60=60>>60 minutes\n\nSo, the speed in km/hr is:\nSpeed in km/hr = Speed in meters/minute * (",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "gsm_8141",
+      "domain": "reasoning",
+      "decode_steps": 300,
+      "prompt": "Solve the following math problem step by step:\nIn a company of 50 employees, 20% of the employees are management.  Out o",
+      "output_tail": "{3}+ax^{2}+bx+c$ has no zeros in the interval $[-1,1]$. Therefore, $g(-1)\\leqslant 0$ and $g(1)\\leqslant 0$. Solving these inequalities gives $a\\leqslant -1$ and $b+c\\leqslant 0$. Thus, the answer is:",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "gsm_7928",
+      "domain": "reasoning",
+      "decode_steps": 300,
+      "prompt": "Solve the following math problem step by step:\nBob needs to buy potting soil to fill the raised beds in his vegetable ga",
+      "output_tail": "cost = Number of bags \u00d7 Cost per bag\n            = <<160*12=1920>>1920 dollars\n\nBob will spend $\\boxed{1920}$  dollars on potting soil.\nGiven the function $f(x)= \\begin{cases} x^{2}-2x+1, & x\\leqslant",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "gsm_4218",
+      "domain": "reasoning",
+      "decode_steps": 300,
+      "prompt": "Solve the following math problem step by step:\nKirill is 14 less centimeters in height than his brother. Together their ",
+      "output_tail": ">> = <<1K>> = <<1K>> = <<1K>> = <<1K>> = <<1K>> = <<1K>> = <<1K>> = <<1K>> = <<1K>> = <<1K>> = <<1K>> = <<1K>> = <<1K>> = <<1K>> = <<1K>> = <<1K>> = <<1K>> = <<1K>> = <<1K>> = <<1K>> = <<1K>> = <<1K>>",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "gsm_4516",
+      "domain": "reasoning",
+      "decode_steps": 300,
+      "prompt": "Solve the following math problem step by step:\nIan used a grocery delivery app to have his groceries delivered.  His ori",
+      "output_tail": "ip is an additional $8.00, so the total bill is $26.99 + $8.00 = $<<26.99+8.00=34.99>>$34.99\n\nIan's new bill, with the food substitutes and delivery/tip, is $\\boxed{\\$34.99}$ .\nGiven the function $f(x",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "gsm_4652",
+      "domain": "reasoning",
+      "decode_steps": 300,
+      "prompt": "Solve the following math problem step by step:\nJamie knows that once she has any more than 32 ounces of liquid she has t",
+      "output_tail": "f the inequality $x^{3}+ax^{2}+bx+c\\geqslant 0$ holds for all $x\\in \\mathbb{R}$, then the range of values for $b$ is ( ).\nA: $(-\\infty,0]$\nB: $[0,\\infty)$\nC: $(-\\infty,-1]$\nD: $[1,\\infty)$\n\n**Analysis",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "gsm_2367",
+      "domain": "reasoning",
+      "decode_steps": 300,
+      "prompt": "Solve the following math problem step by step:\nIn a restaurant, the chef prepared 17 meals to sell for lunch. During lun",
+      "output_tail": "hbb{R}$, then the range of values for $b$ is (\u3000\u3000)\nA: $(-\\infty,0]$\nB: $[0,+\\infty)$\nC: $(-\\infty,-1]$\nD: $[1,+\\infty)$\n\nThe function $g(x)=x^{3}+ax^{2}+bx+c$ can be transformed into the form $g(x)=(x-",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    },
+    {
+      "prompt_id": "gsm_1240",
+      "domain": "reasoning",
+      "decode_steps": 300,
+      "prompt": "Solve the following math problem step by step:\nHarry wants to build a homemade helium balloon with his son, Kevin, so he",
+      "output_tail": "y. To find out how high they can fly, we multiply the number of ounces by the height per ounce:\nHeight = Ounces of helium * Height per ounce\nHeight = $<<84*113=9492>>9,492 feet\n\nThe final answer is $\\",
+      "description": "Generation cut off cleanly at max_new_tokens=300 before reaching EOS or final answer."
+    }
+  ],
+  "bad_phrase_selection": [
+    {
+      "prompt_id": "mbpp_740",
+      "domain": "code",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to convert the given tuple to a key-value dicti",
+      "emitted_phrases": [
+        "1,",
+        "1, ",
+        "2,",
+        "3",
+        "2,"
+      ],
+      "description": "Predictor selected structural or punctuation tokens that encouraged formatting loops."
+    },
+    {
+      "prompt_id": "mbpp_969",
+      "domain": "code",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to join the tuples if they have similar initial",
+      "emitted_phrases": [
+        "1,",
+        "2,",
+        "1,",
+        "2,",
+        "0"
+      ],
+      "description": "Predictor selected structural or punctuation tokens that encouraged formatting loops."
+    },
+    {
+      "prompt_id": "alpaca_1337",
+      "domain": "instruction",
+      "prompt": "Instruction: Classify an input string as either a noun or a verb.\nInput: run\nAnswer:",
+      "emitted_phrases": [
+        "\nAnswer:",
+        "\nAnswer:",
+        "\nAnswer:",
+        "\nAnswer:",
+        "\nAnswer:"
+      ],
+      "description": "Predictor selected structural or punctuation tokens that encouraged formatting loops."
+    }
+  ],
+  "unexplained_normal_model_variance": [
+    {
+      "prompt_id": "mbpp_769",
+      "domain": "code",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a python function to get the difference between two lists.",
+      "vanilla_answer": "\nInput:\nlist1 = [1, 2, 3, 4, 5]\nlist2 = [3, 4, 5, 6, 7]\n\nOutput:\n[1, 2, 6, 7]\n\nNote:\nThe function should return a list containing the elements that ar",
+      "predictive_answer": "\nInput:\nlist1 = [1, 2, 3, 4]\nlist2 = [2, 3]\nOutput: [1, 4]\n\n# Tests\nassert get_difference([1, 2, 3, 4], [2,  3]) == [1, 4]\nassert get_difference([1, 2",
+      "description": "Base model difficulty inherent to the task; not introduced by hypertokens or LoRA."
+    },
+    {
+      "prompt_id": "mbpp_542",
+      "domain": "code",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to replace all occurrences of spaces, commas, o",
+      "vanilla_answer": "\nInput:\nThe function should take a string as input and return a new string with all spaces, commas, and dots replaced by colons.\n\nExample:\nInput: \"Hel",
+      "predictive_answer": "\n```python\nimport re\n\ndef replace_with_colon(string):\n    return re.sub(r'[ ,.]', ':', string)\n\n# Example usage:\ninput_string = \"Hello, world. This is",
+      "description": "Base model difficulty inherent to the task; not introduced by hypertokens or LoRA."
+    },
+    {
+      "prompt_id": "mbpp_480",
+      "domain": "code",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a python function to find the maximum occurring character ",
+      "vanilla_answer": "\nInput:\nThe function should take a string as input and return the character that occurs the most frequently in the string. If there are multiple chara",
+      "predictive_answer": "\nInput: \"abracadabra\"\nOutput: \"a\"\n\ndef max_occurring_char(string):\n    char_count = {}\n    for char in string:\n        if char in char_count:\n        ",
+      "description": "Base model difficulty inherent to the task; not introduced by hypertokens or LoRA."
+    },
+    {
+      "prompt_id": "mbpp_700",
+      "domain": "code",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to count the number of elements in a list which",
+      "vanilla_answer": "\nInput:\nThe function should take three parameters: a list of integers, a lower bound, and an upper bound.\n\nOutput:\nThe function should return the coun",
+      "predictive_answer": "\nInput: [1, 2, 3, 4, 5], 2, 4\nOutput: 3\nassertEqual(count_in_range([1, 2, 3, 4, 5], 2, 4), 3)\nassertEqual(count_in_range([-1, 0, 1, 1], -1, 1), 4)\nass",
+      "description": "Base model difficulty inherent to the task; not introduced by hypertokens or LoRA."
+    },
+    {
+      "prompt_id": "mbpp_902",
+      "domain": "code",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to combine two dictionaries by adding values fo",
+      "vanilla_answer": "\nInput:\ndict1 = {'a': 100, 'b': 200, 'c':300}\ndict2 = {'a': 300, 'b': 200, 'd':400}\n\nOutput:\n{'a': 400, 'b': 400, 'c': 300, 'd': 400}\n\nNote:\nIf a key ",
+      "predictive_answer": "\nInputs\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nassert",
+      "description": "Base model difficulty inherent to the task; not introduced by hypertokens or LoRA."
+    },
+    {
+      "prompt_id": "mbpp_74",
+      "domain": "code",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to check whether it follows the sequence given ",
+      "vanilla_answer": "\nInput:\npatterns: List[List[int]]\nsequence: List[int]\n\nOutput:\nTrue if the sequence follows the patterns, False otherwise.\n\nExample:\npatterns = [[1, 2",
+      "predictive_answer": "\nInput: patterns = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], sequence = [1, 2, 4, 7, 10]\nOutput: True\n\ndef check_sequence(patterns, sequence):\n    # Check if t",
+      "description": "Base model difficulty inherent to the task; not introduced by hypertokens or LoRA."
+    },
+    {
+      "prompt_id": "mbpp_395",
+      "domain": "code",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a python function to find the first non-repeated character",
+      "vanilla_answer": "\nInput:\nThe function should take a single string argument and return the first non-repeated character. If there is no such character, the function sho",
+      "predictive_answer": "\nInput: \"abacd\"\nOutput: \"b\"\n\nThe function should return the first character that appears only once in the string. If there is no such character, the f",
+      "description": "Base model difficulty inherent to the task; not introduced by hypertokens or LoRA."
+    },
+    {
+      "prompt_id": "mbpp_142",
+      "domain": "code",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to count the same pair in three given lists.\n",
+      "vanilla_answer": "\nInput:\nThree lists of integers, each list can have different lengths.\n\nOutput:\nThe number of pairs of integers that appear in all three lists.\n\nExamp",
+      "predictive_answer": "\nInput:\nThree lists of integers.\nOutput:\nThe number of pairs that are the same in all three lists.\nExample:\ncount_same_pairs([1, 2, 3], [1, 2, 4], [1,",
+      "description": "Base model difficulty inherent to the task; not introduced by hypertokens or LoRA."
+    },
+    {
+      "prompt_id": "mbpp_973",
+      "domain": "code",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a python function to left rotate the string.\n",
+      "vanilla_answer": "\nInput:\nThe function should take two parameters:\n1. A string (str)\n2. An integer (n) representing the number of left rotations\n\nOutput:\nThe function s",
+      "predictive_answer": "\nInput: string = \"Hello World\"\nOutput: \"WorldHello\"\n\ndef left_rotate(string):\n    return string[1:] + string[0:]\n\nprint(left_rotate(\"Hello World\"))\n\n#",
+      "description": "Base model difficulty inherent to the task; not introduced by hypertokens or LoRA."
+    },
+    {
+      "prompt_id": "mbpp_118",
+      "domain": "code",
+      "prompt": "Write a Python function to solve the following problem:\n[link text](https:// [link text](https:// [link text](https://))",
+      "vanilla_answer": "\nHere's a Python function that converts a string to a list of characters:\n\n```python\ndef string_to_list(input_string):\n    \"\"\"\n    Convert a string to",
+      "predictive_answer": "\n## Input:\nstring\n## Output:\nlist\n## Example:\nstring = \"Hello World\"\nlist = [\"H\", \"e\", \"l\", \"l\", \"o\", \" \", \"W\", \"o\", \"r\", \"l\", \"d\"]\n## Note:\nThe input",
+      "description": "Base model difficulty inherent to the task; not introduced by hypertokens or LoRA."
+    },
+    {
+      "prompt_id": "mbpp_697",
+      "domain": "code",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to find number of even elements in the given li",
+      "vanilla_answer": "\nInput:\nlist_of_numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]\n\nOutput:\n5\n\nExplanation:\nThere are 5 even numbers in the given list (2, 4, 6, 8, 10).\n\nHere'",
+      "predictive_answer": "\nInput: [1, 2, 3, 4, 5, 6]\nOutput: 3\n\ndef even_elements(lst):\n    return len(list(filter(lambda x: x % 2 == 0, lst)))\n\nprint(even_elements([1, 2, 3, 4",
+      "description": "Base model difficulty inherent to the task; not introduced by hypertokens or LoRA."
+    },
+    {
+      "prompt_id": "mbpp_911",
+      "domain": "code",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to compute maximum product of three numbers of ",
+      "vanilla_answer": "\nHere's the function signature:\n\n```python\ndef max_product_of_three(nums: List[int]) -> int:\n    pass\n```\n\nThe function should take a list of integers",
+      "predictive_answer": "\n```python\nimport heapq\n\ndef max_product_of_three(arr):\n    # Create a min heap\n    min_heap = []\n    # Add all elements to the heap\n    for num in ar",
+      "description": "Base model difficulty inherent to the task; not introduced by hypertokens or LoRA."
+    },
+    {
+      "prompt_id": "mbpp_272",
+      "domain": "code",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to perfom the rear element extraction from list",
+      "vanilla_answer": "\nInput:\nA list of tuples records where each tuple contains two elements: a string and an integer.\n\nOutput:\nA list of integers representing the second ",
+      "predictive_answer": "\nInput: [(1, 'a'), (2, 'b'), (3, 'c'), (4, 'd')]\nOutput: ('d', 4)\n\ndef rear_element(records):\n    return records[-1]\n\nprint(rear_element([(1,  'a'), (",
+      "description": "Base model difficulty inherent to the task; not introduced by hypertokens or LoRA."
+    },
+    {
+      "prompt_id": "mbpp_857",
+      "domain": "code",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to list out the list of given strings individua",
+      "vanilla_answer": "\nInput:\n['apple', 'banana', 'cherry']\n\nOutput:\n['apple', 'banana', 'cherry']\n\nNote:\nThe output should be a list of strings, not a string.\n\nHere's a Py",
+      "predictive_answer": "\nInputs\nassert List of strings\nOutput: List of strings\n\ndef list_strings(strings):\n    return list(map(str, strings))\n\n# Tests\nassert list_strings(['1",
+      "description": "Base model difficulty inherent to the task; not introduced by hypertokens or LoRA."
+    },
+    {
+      "prompt_id": "mbpp_439",
+      "domain": "code",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to convert a list of multiple integers into a s",
+      "vanilla_answer": "\nInput:\nThe function should take a list of integers as input and return a single integer that represents the concatenation of all the integers in the ",
+      "predictive_answer": "\nInput: [1, 2, 3, 4]\nOutput: 1234\n\nExample 2:\nInput: [1, 2, 0, 9]\nOutput: 1029\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts\nasserts",
+      "description": "Base model difficulty inherent to the task; not introduced by hypertokens or LoRA."
+    },
+    {
+      "prompt_id": "mbpp_931",
+      "domain": "code",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to calculate the sum of series 1\u00b3+2\u00b3+3\u00b3+\u2026.+n\u00b3.\n",
+      "vanilla_answer": "\nInput:\nThe function should take a single integer argument n, which represents the number of terms in the series.\n\nOutput:\nThe function should return ",
+      "predictive_answer": "\n```python\ndef sum_of_cubes(n):\n    sum = 0\n    for i in range(1, n+1):\n        sum += i ** 3\n    return sum\n```\n\nThe function `sum_of_cubes` takes an",
+      "description": "Base model difficulty inherent to the task; not introduced by hypertokens or LoRA."
+    },
+    {
+      "prompt_id": "mbpp_258",
+      "domain": "code",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to find number of odd elements in the given lis",
+      "vanilla_answer": "\nInput:\nThe function should take a list of integers as input and return the count of odd numbers in the list.\n\nExample:\nInput: [1, 2, 3, 4, 5, 6, 7, 8",
+      "predictive_answer": "\nInput: [1, 2, 3, 4, 5]\nOutput: 3\n\ndef odd_elements(lst):\n    return len(list(filter(lambda x: x % 2 != 0, lst)))\n\nprint(odd_elements([1, 2, 3, 4, 5])",
+      "description": "Base model difficulty inherent to the task; not introduced by hypertokens or LoRA."
+    },
+    {
+      "prompt_id": "mbpp_567",
+      "domain": "code",
+      "prompt": "Write a Python function to solve the following problem:\nWrite a function to check whether a specified list is sorted or ",
+      "vanilla_answer": "\nInput:\nThe function should take a list of integers as input and return a boolean value indicating whether the list is sorted in ascending order.\n\nExa",
+      "predictive_answer": "\nInput: [1, 2, 3, 4, 5]\nOutput: True\n\nInput: [1, 2, 5, 3, 4]\nOutput: False\n\n## Solution 1:\n\ndef is_sorted(lst):\n    return all(lst[i] <= lst[i+1] for ",
+      "description": "Base model difficulty inherent to the task; not introduced by hypertokens or LoRA."
+    },
+    {
+      "prompt_id": "alpaca_1992",
+      "domain": "instruction",
+      "prompt": "Instruction: Edit the following sentence to use the word \u201cimpelling\u201d.\nInput: The urge to go was strong.\nAnswer:",
+      "vanilla_answer": "The impelling urge to go was strong.\n\n\nInstruction: Edit the following sentence to use the word \u201cimpelling\u201d and to include a simile that compares the ",
+      "predictive_answer": "The impelling urge to go was strong.\n\nInstruction: Rewrite the following sentence using the word \u201cimpelling\u201d in place of \u201curging\u201d.\nInput: He was urgin",
+      "description": "Base model difficulty inherent to the task; not introduced by hypertokens or LoRA."
+    },
+    {
+      "prompt_id": "alpaca_1092",
+      "domain": "instruction",
+      "prompt": "Instruction: Change the verb in the sentence to reflect third-person singular\nInput: I read the book\nAnswer:",
+      "vanilla_answer": "He reads the book\n\nInstruction: Transform the given sentence into a question form\nInput: She is going to the market\nAnswer: Is she going to the market",
+      "predictive_answer": "He reads the book\n\nInstruction: Change the pronoun in the sentence to match the subject of the verb\nInput: She is a doctor\nAnswer: He is a doctor\n\nIns",
+      "description": "Base model difficulty inherent to the task; not introduced by hypertokens or LoRA."
+    },
+    {
+      "prompt_id": "gsm_3715",
+      "domain": "reasoning",
+      "prompt": "Solve the following math problem step by step:\nSam bought a dozen boxes, each with 30 highlighter pens inside, for $10 e",
+      "vanilla_answer": "\nTo solve this problem, we need to calculate the total cost, the revenue from selling the packages, and the revenue from selling the remaining highlig",
+      "predictive_answer": "First find the total cost of the boxes: $10/box * 12 boxes = $<<10*12=120>>120 dollars\nThen find the total number of highlighters: 30 pens/box * 12 bo",
+      "description": "Base model difficulty inherent to the task; not introduced by hypertokens or LoRA."
+    },
+    {
+      "prompt_id": "gsm_5573",
+      "domain": "reasoning",
+      "prompt": "Solve the following math problem step by step:\nAmy bakes muffins for her friends. On Monday, she brings 1 muffin to scho",
+      "vanilla_answer": "\n\n\nTo solve this problem, we need to determine the total number of muffins Amy baked. We know that she brings one more muffin each day than the previo",
+      "predictive_answer": "(A) 30\n(B) 301\n(C) 302\n(D) 63\n(E) 64\n\nOn Monday, Amy brings 1 muffin. On Tuesday, she brings 2. On Wednesday, she brings 3. On Thursday, she brings 4.",
+      "description": "Base model difficulty inherent to the task; not introduced by hypertokens or LoRA."
+    }
+  ]
+}
