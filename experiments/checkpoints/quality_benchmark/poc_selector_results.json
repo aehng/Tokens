@@ -1,0 +1,4982 @@
+{
+  "condition_a_baseline_k32": {
+    "total_correct": "4/12",
+    "accuracy_pct": 33.3,
+    "micro_reduction_pct": 16.05,
+    "macro_reduction_pct": 13.17,
+    "tokens_saved": 627,
+    "mean_hypertokens": 33.67,
+    "total_cb_slots": 384,
+    "used_slots": 92,
+    "dead_slots": 292,
+    "utilization_pct": 24.0,
+    "mean_wall_time_s": 55.43,
+    "mean_ttft_s": 2.47,
+    "domain_breakdown": {
+      "code": {
+        "correct": "0/4",
+        "accuracy_pct": 0.0,
+        "tokens_saved": 446,
+        "micro_reduction_pct": 29.13,
+        "mean_hypers": 67.0
+      },
+      "reasoning": {
+        "correct": "2/4",
+        "accuracy_pct": 50.0,
+        "tokens_saved": 124,
+        "micro_reduction_pct": 9.37,
+        "mean_hypers": 25.0
+      },
+      "instruction": {
+        "correct": "2/4",
+        "accuracy_pct": 50.0,
+        "tokens_saved": 57,
+        "micro_reduction_pct": 5.42,
+        "mean_hypers": 9.0
+      }
+    }
+  },
+  "condition_b_evidence_k32": {
+    "total_correct": "4/12",
+    "accuracy_pct": 33.3,
+    "micro_reduction_pct": 6.82,
+    "macro_reduction_pct": 5.9,
+    "tokens_saved": 231,
+    "mean_hypertokens": 14.67,
+    "total_cb_slots": 384,
+    "used_slots": 71,
+    "dead_slots": 313,
+    "utilization_pct": 18.5,
+    "mean_wall_time_s": 145.12,
+    "mean_ttft_s": 4.522,
+    "domain_breakdown": {
+      "code": {
+        "correct": "0/4",
+        "accuracy_pct": 0.0,
+        "tokens_saved": 7,
+        "micro_reduction_pct": 0.74,
+        "mean_hypers": 1.5
+      },
+      "reasoning": {
+        "correct": "1/4",
+        "accuracy_pct": 25.0,
+        "tokens_saved": 152,
+        "micro_reduction_pct": 11.24,
+        "mean_hypers": 29.0
+      },
+      "instruction": {
+        "correct": "3/4",
+        "accuracy_pct": 75.0,
+        "tokens_saved": 72,
+        "micro_reduction_pct": 6.65,
+        "mean_hypers": 13.5
+      }
+    }
+  },
+  "condition_c_adaptive_tau20": {
+    "total_correct": "5/12",
+    "accuracy_pct": 41.7,
+    "micro_reduction_pct": 5.49,
+    "macro_reduction_pct": 4.59,
+    "tokens_saved": 183,
+    "mean_hypertokens": 11.92,
+    "total_cb_slots": 188,
+    "used_slots": 57,
+    "dead_slots": 131,
+    "utilization_pct": 30.3,
+    "mean_wall_time_s": 116.39,
+    "mean_ttft_s": 3.456,
+    "domain_breakdown": {
+      "code": {
+        "correct": "0/4",
+        "accuracy_pct": 0.0,
+        "tokens_saved": 7,
+        "micro_reduction_pct": 0.74,
+        "mean_hypers": 1.5
+      },
+      "reasoning": {
+        "correct": "1/4",
+        "accuracy_pct": 25.0,
+        "tokens_saved": 153,
+        "micro_reduction_pct": 11.31,
+        "mean_hypers": 29.5
+      },
+      "instruction": {
+        "correct": "4/4",
+        "accuracy_pct": 100.0,
+        "tokens_saved": 23,
+        "micro_reduction_pct": 2.24,
+        "mean_hypers": 4.8
+      }
+    }
+  },
+  "raw_records": [
+    {
+      "prompt_id": "mbpp_740",
+      "domain": "code",
+      "condition": "cond_a_baseline_k32",
+      "base_prompt_tokens": 30,
+      "model_prefill_tokens": 30,
+      "prompt_compression_pct": 0.0,
+      "decode_steps": 300,
+      "expanded_output_tokens": 391,
+      "tokens_saved": 91,
+      "decode_reduction_pct": 23.27,
+      "wall_time_s": 58.495,
+      "ttft_s": 0.964,
+      "prefill_time_s": 0.964,
+      "decode_time_s": 57.519,
+      "predictor_time_s": 0.011,
+      "codebook_time_s": 0.0115,
+      "hyper_setup_time_s": 0.0005,
+      "throughput_tok_per_s": 6.68,
+      "eos_reached": false,
+      "hit_max_length": true,
+      "hypertokens_count": 58,
+      "hypertokens_emitted": [
+        {
+          "pos": 4,
+          "id": 32021,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 98,
+          "id": 32022,
+          "phrase": "1, ",
+          "subtokens": [
+            29896,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 99,
+          "id": 32038,
+          "phrase": "2,",
+          "subtokens": [
+            29906,
+            29892
+          ]
+        },
+        {
+          "pos": 100,
+          "id": 32024,
+          "phrase": "3",
+          "subtokens": [
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 115,
+          "id": 32038,
+          "phrase": "2,",
+          "subtokens": [
+            29906,
+            29892
+          ]
+        },
+        {
+          "pos": 116,
+          "id": 32015,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 120,
+          "id": 32024,
+          "phrase": "3",
+          "subtokens": [
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 134,
+          "id": 32019,
+          "phrase": "\nassert",
+          "subtokens": [
+            13,
+            9294
+          ]
+        },
+        {
+          "pos": 141,
+          "id": 32021,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 142,
+          "id": 32038,
+          "phrase": "2,",
+          "subtokens": [
+            29906,
+            29892
+          ]
+        },
+        {
+          "pos": 143,
+          "id": 32034,
+          "phrase": "3, ",
+          "subtokens": [
+            29941,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 144,
+          "id": 32026,
+          "phrase": "4, ",
+          "subtokens": [
+            29946,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 151,
+          "id": 32038,
+          "phrase": "2,",
+          "subtokens": [
+            29906,
+            29892
+          ]
+        },
+        {
+          "pos": 152,
+          "id": 32015,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 154,
+          "id": 32034,
+          "phrase": "3, ",
+          "subtokens": [
+            29941,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 157,
+          "id": 32026,
+          "phrase": "4, ",
+          "subtokens": [
+            29946,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 162,
+          "id": 32019,
+          "phrase": "\nassert",
+          "subtokens": [
+            13,
+            9294
+          ]
+        },
+        {
+          "pos": 169,
+          "id": 32032,
+          "phrase": "0,",
+          "subtokens": [
+            29900,
+            29892
+          ]
+        },
+        {
+          "pos": 170,
+          "id": 32021,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 171,
+          "id": 32038,
+          "phrase": "2,",
+          "subtokens": [
+            29906,
+            29892
+          ]
+        },
+        {
+          "pos": 172,
+          "id": 32034,
+          "phrase": "3, ",
+          "subtokens": [
+            29941,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 173,
+          "id": 32026,
+          "phrase": "4, ",
+          "subtokens": [
+            29946,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 180,
+          "id": 32021,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 181,
+          "id": 32012,
+          "phrase": "1",
+          "subtokens": [
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 183,
+          "id": 32038,
+          "phrase": "2,",
+          "subtokens": [
+            29906,
+            29892
+          ]
+        },
+        {
+          "pos": 184,
+          "id": 32015,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 186,
+          "id": 32034,
+          "phrase": "3, ",
+          "subtokens": [
+            29941,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 189,
+          "id": 32026,
+          "phrase": "4, ",
+          "subtokens": [
+            29946,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 194,
+          "id": 32019,
+          "phrase": "\nassert",
+          "subtokens": [
+            13,
+            9294
+          ]
+        },
+        {
+          "pos": 201,
+          "id": 32032,
+          "phrase": "0,",
+          "subtokens": [
+            29900,
+            29892
+          ]
+        },
+        {
+          "pos": 202,
+          "id": 32022,
+          "phrase": "1, ",
+          "subtokens": [
+            29896,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 203,
+          "id": 32025,
+          "phrase": "2, ",
+          "subtokens": [
+            29906,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 204,
+          "id": 32034,
+          "phrase": "3, ",
+          "subtokens": [
+            29941,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 205,
+          "id": 32026,
+          "phrase": "4, ",
+          "subtokens": [
+            29946,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 215,
+          "id": 32022,
+          "phrase": "1, ",
+          "subtokens": [
+            29896,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 218,
+          "id": 32025,
+          "phrase": "2, ",
+          "subtokens": [
+            29906,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 221,
+          "id": 32034,
+          "phrase": "3, ",
+          "subtokens": [
+            29941,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 224,
+          "id": 32026,
+          "phrase": "4, ",
+          "subtokens": [
+            29946,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 227,
+          "id": 32031,
+          "phrase": "5, ",
+          "subtokens": [
+            29945,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 232,
+          "id": 32019,
+          "phrase": "\nassert",
+          "subtokens": [
+            13,
+            9294
+          ]
+        },
+        {
+          "pos": 239,
+          "id": 32032,
+          "phrase": "0,",
+          "subtokens": [
+            29900,
+            29892
+          ]
+        },
+        {
+          "pos": 240,
+          "id": 32022,
+          "phrase": "1, ",
+          "subtokens": [
+            29896,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 241,
+          "id": 32025,
+          "phrase": "2, ",
+          "subtokens": [
+            29906,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 242,
+          "id": 32034,
+          "phrase": "3, ",
+          "subtokens": [
+            29941,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 243,
+          "id": 32026,
+          "phrase": "4, ",
+          "subtokens": [
+            29946,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 244,
+          "id": 32031,
+          "phrase": "5, ",
+          "subtokens": [
+            29945,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 254,
+          "id": 32022,
+          "phrase": "1, ",
+          "subtokens": [
+            29896,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 257,
+          "id": 32025,
+          "phrase": "2, ",
+          "subtokens": [
+            29906,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 260,
+          "id": 32034,
+          "phrase": "3, ",
+          "subtokens": [
+            29941,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 263,
+          "id": 32026,
+          "phrase": "4, ",
+          "subtokens": [
+            29946,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 266,
+          "id": 32031,
+          "phrase": "5, ",
+          "subtokens": [
+            29945,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 276,
+          "id": 32019,
+          "phrase": "\nassert",
+          "subtokens": [
+            13,
+            9294
+          ]
+        },
+        {
+          "pos": 283,
+          "id": 32032,
+          "phrase": "0,",
+          "subtokens": [
+            29900,
+            29892
+          ]
+        },
+        {
+          "pos": 284,
+          "id": 32022,
+          "phrase": "1, ",
+          "subtokens": [
+            29896,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 285,
+          "id": 32025,
+          "phrase": "2, ",
+          "subtokens": [
+            29906,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 286,
+          "id": 32034,
+          "phrase": "3, ",
+          "subtokens": [
+            29941,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 287,
+          "id": 32026,
+          "phrase": "4, ",
+          "subtokens": [
+            29946,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 288,
+          "id": 32031,
+          "phrase": "5, ",
+          "subtokens": [
+            29945,
+            29892,
+            29871
+          ]
+        }
+      ],
+      "first_hypertoken_pos": 4,
+      "codebook_size": 32,
+      "output_text": "\nInput: (1,2,3,4,5)\nOutput: {1:2, 2:3, 3:4, 4:5}\n\ndef convert_to_dict(tup):\n    result = {}\n    for i in range(len(tup)-1):\n        result[tup[i]] = tup[i+1]\n    return result\n\nprint(convert_to_dict((1, 2, 3, 4, 5)))\n# Output: {1:2, 2:3, 3:4, 4:5}\n\n# Test case\nassert convert_to_dict((1,2,3, 4, 5)) == {1:2, 2:3, 3:4, 4:5}\nassert convert_to_dict((0,1,2,3, 4, 5)) == {0:1, 1:2, 2:3, 3:4, 4:5}\nassert convert_to_dict((0,1, 2, 3, 4, 5, 6)) == {0:1, 1:2, 2:3, 3:4, 4:5, 5:6}\nassert convert_to_dict((0,1, 2, 3, 4, 5, 6, 7)) == {0:1, 1:2, 2:3, 3:4, 4:5, 5:6, 6:7}\nassert convert_to_dict((0,1, 2, 3, 4, 5, 6, 7, 8)) == {0",
+      "process_rss_gb": 8.16,
+      "syntax_valid": false,
+      "syntax_error": "'{' was never closed (<unknown>, line 15)",
+      "tests_available": 3,
+      "tests_passed": 0,
+      "problem_pass": false,
+      "runtime_error": null,
+      "timeout": false,
+      "clean_code": "def convert_to_dict(tup):\n    result = {}\n    for i in range(len(tup)-1):\n        result[tup[i]] = tup[i+1]\n    return result\n\nprint(convert_to_dict((1, 2, 3, 4, 5)))\n# Output: {1:2, 2:3, 3:4, 4:5}\n\n# Test case\nassert convert_to_dict((1,2,3, 4, 5)) == {1:2, 2:3, 3:4, 4:5}\nassert convert_to_dict((0,1,2,3, 4, 5)) == {0:1, 1:2, 2:3, 3:4, 4:5}\nassert convert_to_dict((0,1, 2, 3, 4, 5, 6)) == {0:1, 1:2, 2:3, 3:4, 4:5, 5:6}\nassert convert_to_dict((0,1, 2, 3, 4, 5, 6, 7)) == {0:1, 1:2, 2:3, 3:4, 4:5, 5:6, 6:7}\nassert convert_to_dict((0,1, 2, 3, 4, 5, 6, 7, 8)) == {0"
+    },
+    {
+      "prompt_id": "mbpp_969",
+      "domain": "code",
+      "condition": "cond_a_baseline_k32",
+      "base_prompt_tokens": 27,
+      "model_prefill_tokens": 27,
+      "prompt_compression_pct": 0.0,
+      "decode_steps": 300,
+      "expanded_output_tokens": 482,
+      "tokens_saved": 182,
+      "decode_reduction_pct": 37.76,
+      "wall_time_s": 58.227,
+      "ttft_s": 1.019,
+      "prefill_time_s": 1.019,
+      "decode_time_s": 57.175,
+      "predictor_time_s": 0.0321,
+      "codebook_time_s": 0.0325,
+      "hyper_setup_time_s": 0.0004,
+      "throughput_tok_per_s": 8.28,
+      "eos_reached": false,
+      "hit_max_length": true,
+      "hypertokens_count": 97,
+      "hypertokens_emitted": [
+        {
+          "pos": 11,
+          "id": 32023,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 22,
+          "id": 32036,
+          "phrase": "2,",
+          "subtokens": [
+            29906,
+            29892
+          ]
+        },
+        {
+          "pos": 43,
+          "id": 32023,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 48,
+          "id": 32036,
+          "phrase": "2,",
+          "subtokens": [
+            29906,
+            29892
+          ]
+        },
+        {
+          "pos": 96,
+          "id": 32039,
+          "phrase": "0",
+          "subtokens": [
+            29871,
+            29900
+          ]
+        },
+        {
+          "pos": 156,
+          "id": 32023,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 161,
+          "id": 32027,
+          "phrase": "1, ",
+          "subtokens": [
+            29896,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 166,
+          "id": 32026,
+          "phrase": "2, ",
+          "subtokens": [
+            29906,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 171,
+          "id": 32026,
+          "phrase": "2, ",
+          "subtokens": [
+            29906,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 175,
+          "id": 32025,
+          "phrase": "3",
+          "subtokens": [
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 180,
+          "id": 32035,
+          "phrase": "4",
+          "subtokens": [
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 188,
+          "id": 32027,
+          "phrase": "1, ",
+          "subtokens": [
+            29896,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 193,
+          "id": 32026,
+          "phrase": "2, ",
+          "subtokens": [
+            29906,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 197,
+          "id": 32025,
+          "phrase": "3",
+          "subtokens": [
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 202,
+          "id": 32035,
+          "phrase": "4",
+          "subtokens": [
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 209,
+          "id": 32021,
+          "phrase": "\nassert",
+          "subtokens": [
+            13,
+            9294
+          ]
+        },
+        {
+          "pos": 216,
+          "id": 32027,
+          "phrase": "1, ",
+          "subtokens": [
+            29896,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 220,
+          "id": 32011,
+          "phrase": "1",
+          "subtokens": [
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 221,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 222,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 223,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 224,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 225,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 226,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 227,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 228,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 229,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 230,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 231,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 232,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 233,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 234,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 235,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 236,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 237,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 238,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 239,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 240,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 241,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 242,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 243,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 244,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 245,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 246,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 247,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 248,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 249,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 250,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 251,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 252,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 253,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 254,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 255,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 256,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 257,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 258,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 259,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 260,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 261,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 262,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 263,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 264,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 265,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 266,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 267,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 268,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 269,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 270,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 271,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 272,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 273,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 274,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 275,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 276,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 277,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 278,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 279,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 280,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 281,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 282,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 283,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 284,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 285,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 286,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 287,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 288,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 289,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 290,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 291,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 292,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 293,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 294,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 295,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 296,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 297,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 298,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 299,
+          "id": 32012,
+          "phrase": ", 1",
+          "subtokens": [
+            29892,
+            29871,
+            29896
+          ]
+        }
+      ],
+      "first_hypertoken_pos": 11,
+      "codebook_size": 32,
+      "output_text": "\nInput:\n[(1, 'a'), (1, 'b'), (2, 'c'), (2, 'd'), (3, 'e'), (4, 'f')]\nOutput: [(1, 'ab'), (2, 'cd'), (3, 'e'), (4, 'f')]\n\ndef join_tuples(lst):\n    result = []\n    for i in range(len(lst)):\n        if i == 0 or lst[i][0] != lst[i-1][0]:\n            result.append(lst[i])\n        else:\n            result[-1][1] += lst[i][1]\n    return result\n\nprint(join_tuples([(1, 'a'), (1,  'b'), (2,  'c'), (2,  'd'), 3, 'e', 4, 'f']))\n# [(1,  'ab'), (2,  'cd'), 3, 'e', 4, 'f']\n\n\nassert join_tuples([(1,  'a'), 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1",
+      "process_rss_gb": 8.18,
+      "syntax_valid": false,
+      "syntax_error": "'[' was never closed (<unknown>, line 14)",
+      "tests_available": 3,
+      "tests_passed": 0,
+      "problem_pass": false,
+      "runtime_error": null,
+      "timeout": false,
+      "clean_code": "def join_tuples(lst):\n    result = []\n    for i in range(len(lst)):\n        if i == 0 or lst[i][0] != lst[i-1][0]:\n            result.append(lst[i])\n        else:\n            result[-1][1] += lst[i][1]\n    return result\n\nprint(join_tuples([(1, 'a'), (1,  'b'), (2,  'c'), (2,  'd'), 3, 'e', 4, 'f']))\n# [(1,  'ab'), (2,  'cd'), 3, 'e', 4, 'f']\n\n\nassert join_tuples([(1,  'a'), 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1"
+    },
+    {
+      "prompt_id": "mbpp_542",
+      "domain": "code",
+      "condition": "cond_a_baseline_k32",
+      "base_prompt_tokens": 40,
+      "model_prefill_tokens": 40,
+      "prompt_compression_pct": 0.0,
+      "decode_steps": 185,
+      "expanded_output_tokens": 191,
+      "tokens_saved": 6,
+      "decode_reduction_pct": 3.14,
+      "wall_time_s": 37.707,
+      "ttft_s": 1.549,
+      "prefill_time_s": 1.549,
+      "decode_time_s": 36.119,
+      "predictor_time_s": 0.0314,
+      "codebook_time_s": 0.0393,
+      "hyper_setup_time_s": 0.0078,
+      "throughput_tok_per_s": 5.07,
+      "eos_reached": true,
+      "hit_max_length": false,
+      "hypertokens_count": 5,
+      "hypertokens_emitted": [
+        {
+          "pos": 96,
+          "id": 32028,
+          "phrase": "\n\nThe",
+          "subtokens": [
+            13,
+            13,
+            1576
+          ]
+        },
+        {
+          "pos": 126,
+          "id": 32019,
+          "phrase": "in the",
+          "subtokens": [
+            297,
+            278
+          ]
+        },
+        {
+          "pos": 166,
+          "id": 32015,
+          "phrase": "of the",
+          "subtokens": [
+            310,
+            278
+          ]
+        },
+        {
+          "pos": 169,
+          "id": 32019,
+          "phrase": "in the",
+          "subtokens": [
+            297,
+            278
+          ]
+        },
+        {
+          "pos": 181,
+          "id": 32015,
+          "phrase": "of the",
+          "subtokens": [
+            310,
+            278
+          ]
+        }
+      ],
+      "first_hypertoken_pos": 96,
+      "codebook_size": 32,
+      "output_text": "\n```python\nimport re\n\ndef replace_with_colon(string):\n    return re.sub(r'[ ,.]', ':', string)\n\n# Example usage:\ninput_string = \"Hello, world. This is a test.\"\noutput_string = replace_with_colon(input_string)\nprint(output_string)  # Output: Hello:world: This:is:a:test:\n```\n\nThe function `replace_with_colon` uses the `re.sub` function to replace all spaces (`,`) and dots (`\\.`) in the given string with a colon (`:`). The regular expression `[ ,.]` matches any character that is either a comma or a dot. The replacement string `:` is then used to replace all matches of the regular expression in the input string. The resulting string is returned as the output of the function.",
+      "process_rss_gb": 8.11,
+      "syntax_valid": true,
+      "syntax_error": null,
+      "tests_available": 3,
+      "tests_passed": 0,
+      "problem_pass": false,
+      "runtime_error": "Traceback (most recent call last):\n  File \"<string>\", line 14, in <module>\nNameError: name 'fill_spaces' is not defined",
+      "timeout": false,
+      "clean_code": "import re\n\ndef replace_with_colon(string):\n    return re.sub(r'[ ,.]', ':', string)\n\n# Example usage:\ninput_string = \"Hello, world. This is a test.\"\noutput_string = replace_with_colon(input_string)\nprint(output_string)  # Output: Hello:world: This:is:a:test:"
+    },
+    {
+      "prompt_id": "mbpp_769",
+      "domain": "code",
+      "condition": "cond_a_baseline_k32",
+      "base_prompt_tokens": 24,
+      "model_prefill_tokens": 24,
+      "prompt_compression_pct": 0.0,
+      "decode_steps": 300,
+      "expanded_output_tokens": 467,
+      "tokens_saved": 167,
+      "decode_reduction_pct": 35.76,
+      "wall_time_s": 77.719,
+      "ttft_s": 16.007,
+      "prefill_time_s": 16.007,
+      "decode_time_s": 61.642,
+      "predictor_time_s": 0.0269,
+      "codebook_time_s": 0.0695,
+      "hyper_setup_time_s": 0.0426,
+      "throughput_tok_per_s": 6.01,
+      "eos_reached": false,
+      "hit_max_length": true,
+      "hypertokens_count": 108,
+      "hypertokens_emitted": [
+        {
+          "pos": 24,
+          "id": 32031,
+          "phrase": "2,",
+          "subtokens": [
+            29906,
+            29892
+          ]
+        },
+        {
+          "pos": 32,
+          "id": 32017,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 33,
+          "id": 32036,
+          "phrase": "4",
+          "subtokens": [
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 36,
+          "id": 32038,
+          "phrase": "\n# Test",
+          "subtokens": [
+            13,
+            29937,
+            4321
+          ]
+        },
+        {
+          "pos": 37,
+          "id": 32041,
+          "phrase": "s\nassert",
+          "subtokens": [
+            29879,
+            13,
+            9294
+          ]
+        },
+        {
+          "pos": 43,
+          "id": 32017,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 44,
+          "id": 32013,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 45,
+          "id": 32033,
+          "phrase": ", 3",
+          "subtokens": [
+            29892,
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 46,
+          "id": 32034,
+          "phrase": ", 4",
+          "subtokens": [
+            29892,
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 49,
+          "id": 32027,
+          "phrase": "2, ",
+          "subtokens": [
+            29906,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 50,
+          "id": 32022,
+          "phrase": "3",
+          "subtokens": [
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 54,
+          "id": 32024,
+          "phrase": "1, ",
+          "subtokens": [
+            29896,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 57,
+          "id": 32020,
+          "phrase": "\nassert",
+          "subtokens": [
+            13,
+            9294
+          ]
+        },
+        {
+          "pos": 63,
+          "id": 32017,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 64,
+          "id": 32013,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 65,
+          "id": 32033,
+          "phrase": ", 3",
+          "subtokens": [
+            29892,
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 66,
+          "id": 32034,
+          "phrase": ", 4",
+          "subtokens": [
+            29892,
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 69,
+          "id": 32017,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 70,
+          "id": 32013,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 71,
+          "id": 32033,
+          "phrase": ", 3",
+          "subtokens": [
+            29892,
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 72,
+          "id": 32034,
+          "phrase": ", 4",
+          "subtokens": [
+            29892,
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 76,
+          "id": 32020,
+          "phrase": "\nassert",
+          "subtokens": [
+            13,
+            9294
+          ]
+        },
+        {
+          "pos": 82,
+          "id": 32017,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 83,
+          "id": 32013,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 84,
+          "id": 32033,
+          "phrase": ", 3",
+          "subtokens": [
+            29892,
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 85,
+          "id": 32034,
+          "phrase": ", 4",
+          "subtokens": [
+            29892,
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 88,
+          "id": 32017,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 89,
+          "id": 32013,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 90,
+          "id": 32033,
+          "phrase": ", 3",
+          "subtokens": [
+            29892,
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 91,
+          "id": 32034,
+          "phrase": ", 4",
+          "subtokens": [
+            29892,
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 100,
+          "id": 32020,
+          "phrase": "\nassert",
+          "subtokens": [
+            13,
+            9294
+          ]
+        },
+        {
+          "pos": 106,
+          "id": 32017,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 107,
+          "id": 32013,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 108,
+          "id": 32033,
+          "phrase": ", 3",
+          "subtokens": [
+            29892,
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 109,
+          "id": 32034,
+          "phrase": ", 4",
+          "subtokens": [
+            29892,
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 112,
+          "id": 32017,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 113,
+          "id": 32013,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 114,
+          "id": 32033,
+          "phrase": ", 3",
+          "subtokens": [
+            29892,
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 115,
+          "id": 32034,
+          "phrase": ", 4",
+          "subtokens": [
+            29892,
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 124,
+          "id": 32020,
+          "phrase": "\nassert",
+          "subtokens": [
+            13,
+            9294
+          ]
+        },
+        {
+          "pos": 130,
+          "id": 32017,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 131,
+          "id": 32013,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 132,
+          "id": 32033,
+          "phrase": ", 3",
+          "subtokens": [
+            29892,
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 133,
+          "id": 32034,
+          "phrase": ", 4",
+          "subtokens": [
+            29892,
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 136,
+          "id": 32017,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 137,
+          "id": 32013,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 138,
+          "id": 32033,
+          "phrase": ", 3",
+          "subtokens": [
+            29892,
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 139,
+          "id": 32034,
+          "phrase": ", 4",
+          "subtokens": [
+            29892,
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 148,
+          "id": 32020,
+          "phrase": "\nassert",
+          "subtokens": [
+            13,
+            9294
+          ]
+        },
+        {
+          "pos": 154,
+          "id": 32017,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 155,
+          "id": 32013,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 156,
+          "id": 32033,
+          "phrase": ", 3",
+          "subtokens": [
+            29892,
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 157,
+          "id": 32034,
+          "phrase": ", 4",
+          "subtokens": [
+            29892,
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 160,
+          "id": 32017,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 161,
+          "id": 32013,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 162,
+          "id": 32033,
+          "phrase": ", 3",
+          "subtokens": [
+            29892,
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 163,
+          "id": 32034,
+          "phrase": ", 4",
+          "subtokens": [
+            29892,
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 170,
+          "id": 32020,
+          "phrase": "\nassert",
+          "subtokens": [
+            13,
+            9294
+          ]
+        },
+        {
+          "pos": 176,
+          "id": 32017,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 177,
+          "id": 32013,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 178,
+          "id": 32033,
+          "phrase": ", 3",
+          "subtokens": [
+            29892,
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 179,
+          "id": 32034,
+          "phrase": ", 4",
+          "subtokens": [
+            29892,
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 182,
+          "id": 32017,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 183,
+          "id": 32013,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 184,
+          "id": 32033,
+          "phrase": ", 3",
+          "subtokens": [
+            29892,
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 185,
+          "id": 32034,
+          "phrase": ", 4",
+          "subtokens": [
+            29892,
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 194,
+          "id": 32020,
+          "phrase": "\nassert",
+          "subtokens": [
+            13,
+            9294
+          ]
+        },
+        {
+          "pos": 200,
+          "id": 32017,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 201,
+          "id": 32013,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 202,
+          "id": 32033,
+          "phrase": ", 3",
+          "subtokens": [
+            29892,
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 203,
+          "id": 32034,
+          "phrase": ", 4",
+          "subtokens": [
+            29892,
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 206,
+          "id": 32017,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 207,
+          "id": 32013,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 208,
+          "id": 32033,
+          "phrase": ", 3",
+          "subtokens": [
+            29892,
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 209,
+          "id": 32034,
+          "phrase": ", 4",
+          "subtokens": [
+            29892,
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 218,
+          "id": 32020,
+          "phrase": "\nassert",
+          "subtokens": [
+            13,
+            9294
+          ]
+        },
+        {
+          "pos": 224,
+          "id": 32017,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 225,
+          "id": 32013,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 226,
+          "id": 32033,
+          "phrase": ", 3",
+          "subtokens": [
+            29892,
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 227,
+          "id": 32034,
+          "phrase": ", 4",
+          "subtokens": [
+            29892,
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 230,
+          "id": 32017,
+          "phrase": "1,",
+          "subtokens": [
+            29896,
+            29892
+          ]
+        },
+        {
+          "pos": 231,
+          "id": 32013,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 232,
+          "id": 32033,
+          "phrase": ", 3",
+          "subtokens": [
+            29892,
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 233,
+          "id": 32034,
+          "phrase": ", 4",
+          "subtokens": [
+            29892,
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 242,
+          "id": 32020,
+          "phrase": "\nassert",
+          "subtokens": [
+            13,
+            9294
+          ]
+        },
+        {
+          "pos": 248,
+          "id": 32024,
+          "phrase": "1, ",
+          "subtokens": [
+            29896,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 249,
+          "id": 32027,
+          "phrase": "2, ",
+          "subtokens": [
+            29906,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 250,
+          "id": 32035,
+          "phrase": "3, ",
+          "subtokens": [
+            29941,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 251,
+          "id": 32032,
+          "phrase": "4, ",
+          "subtokens": [
+            29946,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 255,
+          "id": 32024,
+          "phrase": "1, ",
+          "subtokens": [
+            29896,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 256,
+          "id": 32027,
+          "phrase": "2, ",
+          "subtokens": [
+            29906,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 257,
+          "id": 32035,
+          "phrase": "3, ",
+          "subtokens": [
+            29941,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 258,
+          "id": 32032,
+          "phrase": "4, ",
+          "subtokens": [
+            29946,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 263,
+          "id": 32020,
+          "phrase": "\nassert",
+          "subtokens": [
+            13,
+            9294
+          ]
+        },
+        {
+          "pos": 269,
+          "id": 32024,
+          "phrase": "1, ",
+          "subtokens": [
+            29896,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 270,
+          "id": 32027,
+          "phrase": "2, ",
+          "subtokens": [
+            29906,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 271,
+          "id": 32035,
+          "phrase": "3, ",
+          "subtokens": [
+            29941,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 272,
+          "id": 32032,
+          "phrase": "4, ",
+          "subtokens": [
+            29946,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 276,
+          "id": 32024,
+          "phrase": "1, ",
+          "subtokens": [
+            29896,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 277,
+          "id": 32027,
+          "phrase": "2, ",
+          "subtokens": [
+            29906,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 278,
+          "id": 32035,
+          "phrase": "3, ",
+          "subtokens": [
+            29941,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 279,
+          "id": 32032,
+          "phrase": "4, ",
+          "subtokens": [
+            29946,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 286,
+          "id": 32020,
+          "phrase": "\nassert",
+          "subtokens": [
+            13,
+            9294
+          ]
+        },
+        {
+          "pos": 292,
+          "id": 32024,
+          "phrase": "1, ",
+          "subtokens": [
+            29896,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 293,
+          "id": 32027,
+          "phrase": "2, ",
+          "subtokens": [
+            29906,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 294,
+          "id": 32035,
+          "phrase": "3, ",
+          "subtokens": [
+            29941,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 295,
+          "id": 32032,
+          "phrase": "4, ",
+          "subtokens": [
+            29946,
+            29892,
+            29871
+          ]
+        },
+        {
+          "pos": 299,
+          "id": 32024,
+          "phrase": "1, ",
+          "subtokens": [
+            29896,
+            29892,
+            29871
+          ]
+        }
+      ],
+      "first_hypertoken_pos": 24,
+      "codebook_size": 32,
+      "output_text": "\nInput:\nlist1 = [1, 2, 3, 4]\nlist2 = [2, 3]\nOutput: [1, 4]\n\n# Tests\nassert get_difference([1, 2, 3, 4], [2,  3]) == [1, 4]\nassert get_difference([1, 2, 3, 4], [1, 2, 3, 4]) == []\nassert get_difference([1, 2, 3, 4], [1, 2, 3, 4, 5]) == [5]\nassert get_difference([1, 2, 3, 4], [1, 2, 3, 4, -5]) == [-5]\nassert get_difference([1, 2, 3, 4], [1, 2, 3, 4, -6]) == [-6]\nassert get_difference([1, 2, 3, 4], [1, 2, 3, 4, 6]) == []\nassert get_difference([1, 2, 3, 4], [1, 2, 3, 4, 7]) == [7]\nassert get_difference([1, 2, 3, 4], [1, 2, 3, 4, -7]) == [-7]\nassert get_difference([1, 2, 3, 4], [1, 2, 3, 4, 8]) == [8]\nassert get_difference([1, 2, 3, 4, 5], [1, 2, 3, 4, 5]) == []\nassert get_difference([1, 2, 3, 4, 5], [1, 2, 3, 4, 6]) == [6]\nassert get_difference([1, 2, 3, 4, 5], [1, ",
+      "process_rss_gb": 7.46,
+      "syntax_valid": false,
+      "syntax_error": "invalid syntax (<unknown>, line 2)",
+      "tests_available": 3,
+      "tests_passed": 0,
+      "problem_pass": false,
+      "runtime_error": null,
+      "timeout": false,
+      "clean_code": "\nInput:\nlist1 = [1, 2, 3, 4]\nlist2 = [2, 3]\nOutput: [1, 4]\n\n# Tests\nassert get_difference([1, 2, 3, 4], [2,  3]) == [1, 4]\nassert get_difference([1, 2, 3, 4], [1, 2, 3, 4]) == []\nassert get_difference([1, 2, 3, 4], [1, 2, 3, 4, 5]) == [5]\nassert get_difference([1, 2, 3, 4], [1, 2, 3, 4, -5]) == [-5]\nassert get_difference([1, 2, 3, 4], [1, 2, 3, 4, -6]) == [-6]\nassert get_difference([1, 2, 3, 4], [1, 2, 3, 4, 6]) == []\nassert get_difference([1, 2, 3, 4], [1, 2, 3, 4, 7]) == [7]\nassert get_difference([1, 2, 3, 4], [1, 2, 3, 4, -7]) == [-7]\nassert get_difference([1, 2, 3, 4], [1, 2, 3, 4, 8]) == [8]\nassert get_difference([1, 2, 3, 4, 5], [1, 2, 3, 4, 5]) == []\nassert get_difference([1, 2, 3, 4, 5], [1, 2, 3, 4, 6]) == [6]\nassert get_difference([1, 2, 3, 4, 5], [1, "
+    },
+    {
+      "prompt_id": "gsm_3022",
+      "domain": "reasoning",
+      "condition": "cond_a_baseline_k32",
+      "base_prompt_tokens": 80,
+      "model_prefill_tokens": 80,
+      "prompt_compression_pct": 0.0,
+      "decode_steps": 300,
+      "expanded_output_tokens": 349,
+      "tokens_saved": 49,
+      "decode_reduction_pct": 14.04,
+      "wall_time_s": 61.563,
+      "ttft_s": 1.861,
+      "prefill_time_s": 1.861,
+      "decode_time_s": 59.611,
+      "predictor_time_s": 0.09,
+      "codebook_time_s": 0.0905,
+      "hyper_setup_time_s": 0.0005,
+      "throughput_tok_per_s": 5.67,
+      "eos_reached": false,
+      "hit_max_length": true,
+      "hypertokens_count": 36,
+      "hypertokens_emitted": [
+        {
+          "pos": 12,
+          "id": 32011,
+          "phrase": "00",
+          "subtokens": [
+            29900,
+            29900
+          ]
+        },
+        {
+          "pos": 13,
+          "id": 32037,
+          "phrase": "0.",
+          "subtokens": [
+            29900,
+            29889
+          ]
+        },
+        {
+          "pos": 26,
+          "id": 32013,
+          "phrase": "000",
+          "subtokens": [
+            29900,
+            29900,
+            29900
+          ]
+        },
+        {
+          "pos": 27,
+          "id": 32037,
+          "phrase": "0.",
+          "subtokens": [
+            29900,
+            29889
+          ]
+        },
+        {
+          "pos": 54,
+          "id": 32013,
+          "phrase": "000",
+          "subtokens": [
+            29900,
+            29900,
+            29900
+          ]
+        },
+        {
+          "pos": 57,
+          "id": 32012,
+          "phrase": "1",
+          "subtokens": [
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 61,
+          "id": 32020,
+          "phrase": "= $<<",
+          "subtokens": [
+            353,
+            395,
+            9314
+          ]
+        },
+        {
+          "pos": 65,
+          "id": 32013,
+          "phrase": "000",
+          "subtokens": [
+            29900,
+            29900,
+            29900
+          ]
+        },
+        {
+          "pos": 67,
+          "id": 32037,
+          "phrase": "0.",
+          "subtokens": [
+            29900,
+            29889
+          ]
+        },
+        {
+          "pos": 75,
+          "id": 32027,
+          "phrase": "0>>",
+          "subtokens": [
+            29900,
+            6778
+          ]
+        },
+        {
+          "pos": 81,
+          "id": 32037,
+          "phrase": "0.",
+          "subtokens": [
+            29900,
+            29889
+          ]
+        },
+        {
+          "pos": 91,
+          "id": 32011,
+          "phrase": "00",
+          "subtokens": [
+            29900,
+            29900
+          ]
+        },
+        {
+          "pos": 93,
+          "id": 32013,
+          "phrase": "000",
+          "subtokens": [
+            29900,
+            29900,
+            29900
+          ]
+        },
+        {
+          "pos": 94,
+          "id": 32037,
+          "phrase": "0.",
+          "subtokens": [
+            29900,
+            29889
+          ]
+        },
+        {
+          "pos": 114,
+          "id": 32013,
+          "phrase": "000",
+          "subtokens": [
+            29900,
+            29900,
+            29900
+          ]
+        },
+        {
+          "pos": 116,
+          "id": 32013,
+          "phrase": "000",
+          "subtokens": [
+            29900,
+            29900,
+            29900
+          ]
+        },
+        {
+          "pos": 120,
+          "id": 32037,
+          "phrase": "0.",
+          "subtokens": [
+            29900,
+            29889
+          ]
+        },
+        {
+          "pos": 123,
+          "id": 32020,
+          "phrase": "= $<<",
+          "subtokens": [
+            353,
+            395,
+            9314
+          ]
+        },
+        {
+          "pos": 125,
+          "id": 32013,
+          "phrase": "000",
+          "subtokens": [
+            29900,
+            29900,
+            29900
+          ]
+        },
+        {
+          "pos": 127,
+          "id": 32011,
+          "phrase": "00",
+          "subtokens": [
+            29900,
+            29900
+          ]
+        },
+        {
+          "pos": 129,
+          "id": 32037,
+          "phrase": "0.",
+          "subtokens": [
+            29900,
+            29889
+          ]
+        },
+        {
+          "pos": 137,
+          "id": 32035,
+          "phrase": "00>>",
+          "subtokens": [
+            29900,
+            29900,
+            6778
+          ]
+        },
+        {
+          "pos": 142,
+          "id": 32011,
+          "phrase": "00",
+          "subtokens": [
+            29900,
+            29900
+          ]
+        },
+        {
+          "pos": 143,
+          "id": 32037,
+          "phrase": "0.",
+          "subtokens": [
+            29900,
+            29889
+          ]
+        },
+        {
+          "pos": 159,
+          "id": 32013,
+          "phrase": "000",
+          "subtokens": [
+            29900,
+            29900,
+            29900
+          ]
+        },
+        {
+          "pos": 160,
+          "id": 32037,
+          "phrase": "0.",
+          "subtokens": [
+            29900,
+            29889
+          ]
+        },
+        {
+          "pos": 163,
+          "id": 32024,
+          "phrase": "3",
+          "subtokens": [
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 166,
+          "id": 32013,
+          "phrase": "000",
+          "subtokens": [
+            29900,
+            29900,
+            29900
+          ]
+        },
+        {
+          "pos": 174,
+          "id": 32014,
+          "phrase": "10",
+          "subtokens": [
+            29896,
+            29900
+          ]
+        },
+        {
+          "pos": 176,
+          "id": 32014,
+          "phrase": "10",
+          "subtokens": [
+            29896,
+            29900
+          ]
+        },
+        {
+          "pos": 218,
+          "id": 32023,
+          "phrase": "of the",
+          "subtokens": [
+            310,
+            278
+          ]
+        },
+        {
+          "pos": 247,
+          "id": 32014,
+          "phrase": "10",
+          "subtokens": [
+            29896,
+            29900
+          ]
+        },
+        {
+          "pos": 251,
+          "id": 32014,
+          "phrase": "10",
+          "subtokens": [
+            29896,
+            29900
+          ]
+        },
+        {
+          "pos": 260,
+          "id": 32014,
+          "phrase": "10",
+          "subtokens": [
+            29896,
+            29900
+          ]
+        },
+        {
+          "pos": 262,
+          "id": 32019,
+          "phrase": "100",
+          "subtokens": [
+            29896,
+            29900,
+            29900
+          ]
+        },
+        {
+          "pos": 295,
+          "id": 32015,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        }
+      ],
+      "first_hypertoken_pos": 12,
+      "codebook_size": 32,
+      "output_text": "Tommy bought his first house for $375,000.\nTommy bought his house for $375,0000.\nHe sold it for 25% more than he bought it for, so he sold it for $375,0000 * 1.25 = $<<375000*0.25=93750>>93,750.\nHe bought a new house for $500,0000.\nHe had to take a loan for the remaining 75%, so he paid $5000,0000 * 0.75 = $<<5000000*0.75=375000>>375,000.\nTherefore, he bought his first house for $375,0000.\n#### 375000\nThe value of $\\log_{10}100$ is ( ).\nA: $1$\nB: $2$\nC: $-1$\nD: $-2$\n\n**Analysis**\nThis question tests the understanding of the logarithmic function. According to the definition of logarithms, we can find the answer.\n**Solution**\nSince $10^{1}=10$,\n$\\therefore \\log_{10}100=1$.\nHence, the correct option is $\\boxed{A}$.\nGiven the function $f(x)= \\begin{cases} 2x+1,",
+      "process_rss_gb": 8.25,
+      "ground_truth": "100000",
+      "extracted_answer": "375000",
+      "exact_correct": false,
+      "extraction_failure": false
+    },
+    {
+      "prompt_id": "gsm_6613",
+      "domain": "reasoning",
+      "condition": "cond_a_baseline_k32",
+      "base_prompt_tokens": 77,
+      "model_prefill_tokens": 77,
+      "prompt_compression_pct": 0.0,
+      "decode_steps": 300,
+      "expanded_output_tokens": 319,
+      "tokens_saved": 19,
+      "decode_reduction_pct": 5.96,
+      "wall_time_s": 59.696,
+      "ttft_s": 1.76,
+      "prefill_time_s": 1.76,
+      "decode_time_s": 57.903,
+      "predictor_time_s": 0.0319,
+      "codebook_time_s": 0.0329,
+      "hyper_setup_time_s": 0.001,
+      "throughput_tok_per_s": 5.34,
+      "eos_reached": false,
+      "hit_max_length": true,
+      "hypertokens_count": 16,
+      "hypertokens_emitted": [
+        {
+          "pos": 5,
+          "id": 32020,
+          "phrase": "3",
+          "subtokens": [
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 9,
+          "id": 32014,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 11,
+          "id": 32021,
+          "phrase": "= <<",
+          "subtokens": [
+            353,
+            3532
+          ]
+        },
+        {
+          "pos": 44,
+          "id": 32014,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 48,
+          "id": 32024,
+          "phrase": "20",
+          "subtokens": [
+            29871,
+            29906,
+            29900
+          ]
+        },
+        {
+          "pos": 49,
+          "id": 32021,
+          "phrase": "= <<",
+          "subtokens": [
+            353,
+            3532
+          ]
+        },
+        {
+          "pos": 54,
+          "id": 32018,
+          "phrase": "20",
+          "subtokens": [
+            29906,
+            29900
+          ]
+        },
+        {
+          "pos": 66,
+          "id": 32014,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 104,
+          "id": 32033,
+          "phrase": "\n\nThe",
+          "subtokens": [
+            13,
+            13,
+            1576
+          ]
+        },
+        {
+          "pos": 114,
+          "id": 32013,
+          "phrase": ", and",
+          "subtokens": [
+            29892,
+            322
+          ]
+        },
+        {
+          "pos": 190,
+          "id": 32012,
+          "phrase": "1",
+          "subtokens": [
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 192,
+          "id": 32014,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 206,
+          "id": 32012,
+          "phrase": "1",
+          "subtokens": [
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 224,
+          "id": 32033,
+          "phrase": "\n\nThe",
+          "subtokens": [
+            13,
+            13,
+            1576
+          ]
+        },
+        {
+          "pos": 258,
+          "id": 32012,
+          "phrase": "1",
+          "subtokens": [
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 276,
+          "id": 32012,
+          "phrase": "1",
+          "subtokens": [
+            29871,
+            29896
+          ]
+        }
+      ],
+      "first_hypertoken_pos": 5,
+      "codebook_size": 32,
+      "output_text": "Mr. Curtis has 325 - 28 = <<325-28=297>>297 chickens on his farm.\nThe number of egg-laying hens is 297 - 20 = <<297-20=275>>275.\n#### 275\nWhat is the least number of students in a class so that they can be divided into groups of 6, 7, or 8 without any students left out?\n\nThe least common multiple of 6, 7, and 8 is 84. Therefore, the least number of students in a class that can be divided into groups of 6, 7, or 8 without any students left out is $\\boxed{84}$ .\nGiven the function $f(x)= \\begin{cases} x^{2}-2x+1, & x\\leqslant 1 \\\\ 2x^{3}-x^{2}+x, & x > 1 \\end{cases}$, find the value of $f(f(-1))$.\n\nThe function is defined as follows:\n$$\nf(x)= \\begin{cases} \nx^{2}-2x+1, & x\\leqslant 1 \\\\ \n2x^{3}-x^{2}+x, & x > 1 \n\\end{cases}\n$$\nFirst, we need to find the value of $f(-1",
+      "process_rss_gb": 8.26,
+      "ground_truth": "277",
+      "extracted_answer": "275",
+      "exact_correct": false,
+      "extraction_failure": false
+    },
+    {
+      "prompt_id": "gsm_2956",
+      "domain": "reasoning",
+      "condition": "cond_a_baseline_k32",
+      "base_prompt_tokens": 47,
+      "model_prefill_tokens": 47,
+      "prompt_compression_pct": 0.0,
+      "decode_steps": 300,
+      "expanded_output_tokens": 342,
+      "tokens_saved": 42,
+      "decode_reduction_pct": 12.28,
+      "wall_time_s": 58.953,
+      "ttft_s": 1.216,
+      "prefill_time_s": 1.216,
+      "decode_time_s": 57.685,
+      "predictor_time_s": 0.0512,
+      "codebook_time_s": 0.0516,
+      "hyper_setup_time_s": 0.0004,
+      "throughput_tok_per_s": 5.8,
+      "eos_reached": false,
+      "hit_max_length": true,
+      "hypertokens_count": 35,
+      "hypertokens_emitted": [
+        {
+          "pos": 6,
+          "id": 32040,
+          "phrase": "shots",
+          "subtokens": [
+            528,
+            1862
+          ]
+        },
+        {
+          "pos": 15,
+          "id": 32025,
+          "phrase": "20",
+          "subtokens": [
+            29871,
+            29906,
+            29900
+          ]
+        },
+        {
+          "pos": 16,
+          "id": 32040,
+          "phrase": "shots",
+          "subtokens": [
+            528,
+            1862
+          ]
+        },
+        {
+          "pos": 23,
+          "id": 32025,
+          "phrase": "20",
+          "subtokens": [
+            29871,
+            29906,
+            29900
+          ]
+        },
+        {
+          "pos": 24,
+          "id": 32022,
+          "phrase": "= <<",
+          "subtokens": [
+            353,
+            3532
+          ]
+        },
+        {
+          "pos": 30,
+          "id": 32038,
+          "phrase": "0=",
+          "subtokens": [
+            29900,
+            29922
+          ]
+        },
+        {
+          "pos": 36,
+          "id": 32040,
+          "phrase": "shots",
+          "subtokens": [
+            528,
+            1862
+          ]
+        },
+        {
+          "pos": 43,
+          "id": 32040,
+          "phrase": "shots",
+          "subtokens": [
+            528,
+            1862
+          ]
+        },
+        {
+          "pos": 51,
+          "id": 32040,
+          "phrase": "shots",
+          "subtokens": [
+            528,
+            1862
+          ]
+        },
+        {
+          "pos": 59,
+          "id": 32040,
+          "phrase": "shots",
+          "subtokens": [
+            528,
+            1862
+          ]
+        },
+        {
+          "pos": 63,
+          "id": 32025,
+          "phrase": "20",
+          "subtokens": [
+            29871,
+            29906,
+            29900
+          ]
+        },
+        {
+          "pos": 64,
+          "id": 32040,
+          "phrase": "shots",
+          "subtokens": [
+            528,
+            1862
+          ]
+        },
+        {
+          "pos": 69,
+          "id": 32040,
+          "phrase": "shots",
+          "subtokens": [
+            528,
+            1862
+          ]
+        },
+        {
+          "pos": 70,
+          "id": 32022,
+          "phrase": "= <<",
+          "subtokens": [
+            353,
+            3532
+          ]
+        },
+        {
+          "pos": 71,
+          "id": 32018,
+          "phrase": "20",
+          "subtokens": [
+            29906,
+            29900
+          ]
+        },
+        {
+          "pos": 79,
+          "id": 32040,
+          "phrase": "shots",
+          "subtokens": [
+            528,
+            1862
+          ]
+        },
+        {
+          "pos": 82,
+          "id": 32028,
+          "phrase": "4",
+          "subtokens": [
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 122,
+          "id": 32024,
+          "phrase": "in the",
+          "subtokens": [
+            297,
+            278
+          ]
+        },
+        {
+          "pos": 145,
+          "id": 32011,
+          "phrase": "1",
+          "subtokens": [
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 150,
+          "id": 32039,
+          "phrase": "to the",
+          "subtokens": [
+            304,
+            278
+          ]
+        },
+        {
+          "pos": 157,
+          "id": 32036,
+          "phrase": "5",
+          "subtokens": [
+            29871,
+            29945
+          ]
+        },
+        {
+          "pos": 161,
+          "id": 32028,
+          "phrase": "4",
+          "subtokens": [
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 182,
+          "id": 32020,
+          "phrase": "10",
+          "subtokens": [
+            29871,
+            29896,
+            29900
+          ]
+        },
+        {
+          "pos": 188,
+          "id": 32036,
+          "phrase": "5",
+          "subtokens": [
+            29871,
+            29945
+          ]
+        },
+        {
+          "pos": 192,
+          "id": 32028,
+          "phrase": "4",
+          "subtokens": [
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 195,
+          "id": 32016,
+          "phrase": "10",
+          "subtokens": [
+            29896,
+            29900
+          ]
+        },
+        {
+          "pos": 198,
+          "id": 32028,
+          "phrase": "4",
+          "subtokens": [
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 201,
+          "id": 32025,
+          "phrase": "20",
+          "subtokens": [
+            29871,
+            29906,
+            29900
+          ]
+        },
+        {
+          "pos": 207,
+          "id": 32028,
+          "phrase": "4",
+          "subtokens": [
+            29871,
+            29946
+          ]
+        },
+        {
+          "pos": 210,
+          "id": 32025,
+          "phrase": "20",
+          "subtokens": [
+            29871,
+            29906,
+            29900
+          ]
+        },
+        {
+          "pos": 215,
+          "id": 32025,
+          "phrase": "20",
+          "subtokens": [
+            29871,
+            29906,
+            29900
+          ]
+        },
+        {
+          "pos": 218,
+          "id": 32022,
+          "phrase": "= <<",
+          "subtokens": [
+            353,
+            3532
+          ]
+        },
+        {
+          "pos": 219,
+          "id": 32018,
+          "phrase": "20",
+          "subtokens": [
+            29906,
+            29900
+          ]
+        },
+        {
+          "pos": 267,
+          "id": 32021,
+          "phrase": "3",
+          "subtokens": [
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 281,
+          "id": 32024,
+          "phrase": "in the",
+          "subtokens": [
+            297,
+            278
+          ]
+        }
+      ],
+      "first_hypertoken_pos": 6,
+      "codebook_size": 32,
+      "output_text": "First, find the number of shots he made: 80% of 20 shots = 0.8 * 20 = <<0.8*20=16>>16 shots\nThen subtract the number of shots he made from the total number of shots he attempted to find the number of shots he missed: 20 shots - 16 shots = <<20-16=4>>4 shots\n#### 4\nA certain number of men can do a work in 10 days. If there were 5 men more, they could finish the work in 4 days. How many men were there in the first group? Let's denote the original number of men as x. The work done by x men in 10 days is equal to the work done by (x + 5) men in 4 days. We can set up the following equation based on the work done:\n\nx men * 10 days = (x + 5) men * 4 days\n10x = 4x + 20\n10x - 4x = 20\n6x = 20\nx = <<20/6=3.33333333333333>>3.33\nSince the number of men must be a whole number, we round down to the nearest whole number, which is 3. Therefore, there were $\\boxed{3}$  men in the first group.\nGiven the function $f(x)= \\begin{cases}",
+      "process_rss_gb": 8.25,
+      "ground_truth": "4",
+      "extracted_answer": "4",
+      "exact_correct": true,
+      "extraction_failure": false
+    },
+    {
+      "prompt_id": "gsm_8674",
+      "domain": "reasoning",
+      "condition": "cond_a_baseline_k32",
+      "base_prompt_tokens": 64,
+      "model_prefill_tokens": 64,
+      "prompt_compression_pct": 0.0,
+      "decode_steps": 300,
+      "expanded_output_tokens": 314,
+      "tokens_saved": 14,
+      "decode_reduction_pct": 4.46,
+      "wall_time_s": 59.84,
+      "ttft_s": 1.597,
+      "prefill_time_s": 1.597,
+      "decode_time_s": 58.131,
+      "predictor_time_s": 0.1122,
+      "codebook_time_s": 0.1127,
+      "hyper_setup_time_s": 0.0005,
+      "throughput_tok_per_s": 5.25,
+      "eos_reached": false,
+      "hit_max_length": true,
+      "hypertokens_count": 13,
+      "hypertokens_emitted": [
+        {
+          "pos": 9,
+          "id": 32029,
+          "phrase": "stripes",
+          "subtokens": [
+            10076,
+            5547
+          ]
+        },
+        {
+          "pos": 16,
+          "id": 32011,
+          "phrase": "1",
+          "subtokens": [
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 52,
+          "id": 32013,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 55,
+          "id": 32019,
+          "phrase": "= <<",
+          "subtokens": [
+            353,
+            3532
+          ]
+        },
+        {
+          "pos": 74,
+          "id": 32016,
+          "phrase": "of the",
+          "subtokens": [
+            310,
+            278
+          ]
+        },
+        {
+          "pos": 79,
+          "id": 32029,
+          "phrase": "stripes",
+          "subtokens": [
+            10076,
+            5547
+          ]
+        },
+        {
+          "pos": 86,
+          "id": 32028,
+          "phrase": "5",
+          "subtokens": [
+            29871,
+            29945
+          ]
+        },
+        {
+          "pos": 90,
+          "id": 32019,
+          "phrase": "= <<",
+          "subtokens": [
+            353,
+            3532
+          ]
+        },
+        {
+          "pos": 100,
+          "id": 32030,
+          "phrase": "0>>",
+          "subtokens": [
+            29900,
+            6778
+          ]
+        },
+        {
+          "pos": 134,
+          "id": 32029,
+          "phrase": "stripes",
+          "subtokens": [
+            10076,
+            5547
+          ]
+        },
+        {
+          "pos": 141,
+          "id": 32026,
+          "phrase": "20",
+          "subtokens": [
+            29871,
+            29906,
+            29900
+          ]
+        },
+        {
+          "pos": 143,
+          "id": 32019,
+          "phrase": "= <<",
+          "subtokens": [
+            353,
+            3532
+          ]
+        },
+        {
+          "pos": 171,
+          "id": 32029,
+          "phrase": "stripes",
+          "subtokens": [
+            10076,
+            5547
+          ]
+        }
+      ],
+      "first_hypertoken_pos": 9,
+      "codebook_size": 32,
+      "output_text": "First, find out how many fish have red stripes:\n66 fish * 1/3 = 22 fish\nNext, subtract the number of red-striped fish from the total to find out how many are left:\n66 fish - 22 fish = <<66-22=44>>44 fish\nThen, calculate how many of the remaining fish have blue stripes:\n44 fish * 5/11 = <<44*5/11=20>>20 fish\nFinally, add the number of red-striped fish to the number of blue-striped fish to get the total number of fish with stripes:\n22 fish + 20 fish = <<22+20=42>>42 fish\nSo, there are $\\boxed{42}$  fish with stripes in total.\nGiven the function $f(x)=x^{2}-2ax+a^{2}+1$, where $a\\in \\mathbb{R}$, if the inequality $f(x) \\geqslant 0$ holds for all $x\\in \\mathbb{R}$, then the range of values for the real number $a$ is ______.\nA: $(-\\infty,0)$\nB: $[0,+\\infty)$\nC: $(-\\infty,-1)\\cup[1,+\\infty)$\nD: $(-1,1)$\n\nSince the inequality $x",
+      "process_rss_gb": 8.26,
+      "ground_truth": "42",
+      "extracted_answer": "42",
+      "exact_correct": true,
+      "extraction_failure": false
+    },
+    {
+      "prompt_id": "alpaca_1337",
+      "domain": "instruction",
+      "condition": "cond_a_baseline_k32",
+      "base_prompt_tokens": 24,
+      "model_prefill_tokens": 24,
+      "prompt_compression_pct": 0.0,
+      "decode_steps": 300,
+      "expanded_output_tokens": 316,
+      "tokens_saved": 16,
+      "decode_reduction_pct": 5.06,
+      "wall_time_s": 58.078,
+      "ttft_s": 0.831,
+      "prefill_time_s": 0.831,
+      "decode_time_s": 57.231,
+      "predictor_time_s": 0.0148,
+      "codebook_time_s": 0.0154,
+      "hyper_setup_time_s": 0.0005,
+      "throughput_tok_per_s": 5.44,
+      "eos_reached": false,
+      "hit_max_length": true,
+      "hypertokens_count": 8,
+      "hypertokens_emitted": [
+        {
+          "pos": 199,
+          "id": 32029,
+          "phrase": "\nAnswer:",
+          "subtokens": [
+            13,
+            22550,
+            29901
+          ]
+        },
+        {
+          "pos": 211,
+          "id": 32029,
+          "phrase": "\nAnswer:",
+          "subtokens": [
+            13,
+            22550,
+            29901
+          ]
+        },
+        {
+          "pos": 243,
+          "id": 32029,
+          "phrase": "\nAnswer:",
+          "subtokens": [
+            13,
+            22550,
+            29901
+          ]
+        },
+        {
+          "pos": 253,
+          "id": 32029,
+          "phrase": "\nAnswer:",
+          "subtokens": [
+            13,
+            22550,
+            29901
+          ]
+        },
+        {
+          "pos": 262,
+          "id": 32029,
+          "phrase": "\nAnswer:",
+          "subtokens": [
+            13,
+            22550,
+            29901
+          ]
+        },
+        {
+          "pos": 271,
+          "id": 32029,
+          "phrase": "\nAnswer:",
+          "subtokens": [
+            13,
+            22550,
+            29901
+          ]
+        },
+        {
+          "pos": 281,
+          "id": 32029,
+          "phrase": "\nAnswer:",
+          "subtokens": [
+            13,
+            22550,
+            29901
+          ]
+        },
+        {
+          "pos": 291,
+          "id": 32029,
+          "phrase": "\nAnswer:",
+          "subtokens": [
+            13,
+            22550,
+            29901
+          ]
+        }
+      ],
+      "first_hypertoken_pos": 199,
+      "codebook_size": 32,
+      "output_text": "verb\n\nInput: dog\nAnswer: noun\n\nInput: play\nAnswer: verb\n\nInput: cat\nAnswer: noun\n\nInput: jump\nAnswer: verb\n\nInput: apple\nAnswer: noun\n\nInput: eat\nAnswer: verb\n\nInput: book\nAnswer: noun\n\nInput: swim\nAnswer: verb\n\nInput: car\nAnswer: noun\n\nInput: read\nAnswer: verb\n\nInput: tree\nAnswer: noun\n\nInput: write\nAnswer: verb\n\nInput: house\nAnswer: noun\n\nInput: sleep\nAnswer: verb\n\nInput: water\nAnswer: noun\n\nInput: fly\nAnswer: verb\n\nInput: doghouse\nAnswer: compound noun\n\nInput: runners\nAnswer: plural noun\n\nInput: running\nAnswer: present participle of verb\n\nInput: running water\nAnswer: idiomatic expression\n\nInput: runners up\nAnswer: idiomatic expression\n\n## Instruction: Classify the following words as either a proper noun or a common noun. Input: New York\nAnswer: Proper Noun\n\nInput: car\nAnswer: Common Noun\n\nInput: apple\nAnswer: Common Noun\n\nInput: Paris\nAnswer: Proper Noun\n\nInput: dog\nAnswer: Common Noun\n\nInput: Amazon River\nAnswer: Proper Noun\n\nInput:",
+      "process_rss_gb": 8.19,
+      "empty_output": false,
+      "very_short": false,
+      "repetition_detected": true,
+      "malformed": false,
+      "instruction_failure": true,
+      "word_count": 142,
+      "char_count": 950
+    },
+    {
+      "prompt_id": "alpaca_1992",
+      "domain": "instruction",
+      "condition": "cond_a_baseline_k32",
+      "base_prompt_tokens": 29,
+      "model_prefill_tokens": 29,
+      "prompt_compression_pct": 0.0,
+      "decode_steps": 300,
+      "expanded_output_tokens": 322,
+      "tokens_saved": 22,
+      "decode_reduction_pct": 6.83,
+      "wall_time_s": 58.65,
+      "ttft_s": 0.935,
+      "prefill_time_s": 0.935,
+      "decode_time_s": 57.697,
+      "predictor_time_s": 0.0177,
+      "codebook_time_s": 0.0181,
+      "hyper_setup_time_s": 0.0004,
+      "throughput_tok_per_s": 5.49,
+      "eos_reached": false,
+      "hit_max_length": true,
+      "hypertokens_count": 11,
+      "hypertokens_emitted": [
+        {
+          "pos": 117,
+          "id": 32021,
+          "phrase": "\n\nThe",
+          "subtokens": [
+            13,
+            13,
+            1576
+          ]
+        },
+        {
+          "pos": 121,
+          "id": 32035,
+          "phrase": "the following sentence",
+          "subtokens": [
+            278,
+            1494,
+            10541
+          ]
+        },
+        {
+          "pos": 169,
+          "id": 32021,
+          "phrase": "\n\nThe",
+          "subtokens": [
+            13,
+            13,
+            1576
+          ]
+        },
+        {
+          "pos": 173,
+          "id": 32035,
+          "phrase": "the following sentence",
+          "subtokens": [
+            278,
+            1494,
+            10541
+          ]
+        },
+        {
+          "pos": 194,
+          "id": 32033,
+          "phrase": "\nInput:",
+          "subtokens": [
+            13,
+            4290,
+            29901
+          ]
+        },
+        {
+          "pos": 219,
+          "id": 32021,
+          "phrase": "\n\nThe",
+          "subtokens": [
+            13,
+            13,
+            1576
+          ]
+        },
+        {
+          "pos": 223,
+          "id": 32035,
+          "phrase": "the following sentence",
+          "subtokens": [
+            278,
+            1494,
+            10541
+          ]
+        },
+        {
+          "pos": 242,
+          "id": 32033,
+          "phrase": "\nInput:",
+          "subtokens": [
+            13,
+            4290,
+            29901
+          ]
+        },
+        {
+          "pos": 271,
+          "id": 32021,
+          "phrase": "\n\nThe",
+          "subtokens": [
+            13,
+            13,
+            1576
+          ]
+        },
+        {
+          "pos": 275,
+          "id": 32035,
+          "phrase": "the following sentence",
+          "subtokens": [
+            278,
+            1494,
+            10541
+          ]
+        },
+        {
+          "pos": 293,
+          "id": 32033,
+          "phrase": "\nInput:",
+          "subtokens": [
+            13,
+            4290,
+            29901
+          ]
+        }
+      ],
+      "first_hypertoken_pos": 117,
+      "codebook_size": 32,
+      "output_text": "The impelling urge to go was strong.\n\nInstruction: Rewrite the following sentence using the word \u201cimpelling\u201d in place of \u201curging\u201d.\nInput: He was urging her to come with him.\nAnswer: He was impelling her to come with him.\n\nInstruction: Rewrite the following sentence using the phrase \u201cpushing one\u2019s limits\u201d instead of \u201cgoing beyond one\u2019s comfort zone\u201d.\nInput: She was pushing her limits by trying new things.\nAnswer: She was pushing her limits by trying new things. \n\nThe instruction: Rewrite the following sentence using the phrase \u201cpushing the envelope\u201d instead of \u201cgoing beyond the norm\u201d.\nInput: He was pushing the envelope by taking risks.\nAnswer: He was pushing the envelope by taking risks. \n\nThe instruction: Rewrite the following sentence using the phrase \u201cchallenging oneself\u201d instead of \u201cpushing one\u2019s limits\u201d.\nInput: She was challenging herself by learning new skills.\nAnswer: She was challenging herself by learning new skills. \n\nThe instruction: Rewrite the following sentence using the phrase \u201cbreaking the mold\u201d instead of \u201cgoing beyond the norm\u201d.\nInput: He was breaking the mold by thinking outside the box.\nAnswer: He was breaking the mold by thinking outside the box. \n\nThe instruction: Rewrite the following sentence using the phrase \u201cpushing boundaries\u201d instead of \u201cchallenging oneself\u201d.\nInput: She was pushing boundaries by expl",
+      "process_rss_gb": 8.19,
+      "empty_output": false,
+      "very_short": false,
+      "repetition_detected": true,
+      "malformed": false,
+      "instruction_failure": true,
+      "word_count": 208,
+      "char_count": 1348
+    },
+    {
+      "prompt_id": "alpaca_55",
+      "domain": "instruction",
+      "condition": "cond_a_baseline_k32",
+      "base_prompt_tokens": 23,
+      "model_prefill_tokens": 23,
+      "prompt_compression_pct": 0.0,
+      "decode_steps": 300,
+      "expanded_output_tokens": 314,
+      "tokens_saved": 14,
+      "decode_reduction_pct": 4.46,
+      "wall_time_s": 57.932,
+      "ttft_s": 0.89,
+      "prefill_time_s": 0.89,
+      "decode_time_s": 57.029,
+      "predictor_time_s": 0.0121,
+      "codebook_time_s": 0.0126,
+      "hyper_setup_time_s": 0.0005,
+      "throughput_tok_per_s": 5.42,
+      "eos_reached": false,
+      "hit_max_length": true,
+      "hypertokens_count": 13,
+      "hypertokens_emitted": [
+        {
+          "pos": 48,
+          "id": 32011,
+          "phrase": "1",
+          "subtokens": [
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 66,
+          "id": 32011,
+          "phrase": "1",
+          "subtokens": [
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 122,
+          "id": 32017,
+          "phrase": "20",
+          "subtokens": [
+            29906,
+            29900
+          ]
+        },
+        {
+          "pos": 183,
+          "id": 32016,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 196,
+          "id": 32016,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 201,
+          "id": 32017,
+          "phrase": "20",
+          "subtokens": [
+            29906,
+            29900
+          ]
+        },
+        {
+          "pos": 207,
+          "id": 32027,
+          "phrase": "3",
+          "subtokens": [
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 234,
+          "id": 32031,
+          "phrase": "\nAnswer:",
+          "subtokens": [
+            13,
+            22550,
+            29901
+          ]
+        },
+        {
+          "pos": 235,
+          "id": 32016,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 251,
+          "id": 32016,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        },
+        {
+          "pos": 280,
+          "id": 32027,
+          "phrase": "3",
+          "subtokens": [
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 293,
+          "id": 32027,
+          "phrase": "3",
+          "subtokens": [
+            29871,
+            29941
+          ]
+        },
+        {
+          "pos": 296,
+          "id": 32016,
+          "phrase": "2",
+          "subtokens": [
+            29871,
+            29906
+          ]
+        }
+      ],
+      "first_hypertoken_pos": 48,
+      "codebook_size": 32,
+      "output_text": "9.8 N\nExplanation: The force on a mass due to gravity is given by the equation F = mg, where m is the mass and g is the acceleration due to gravity. In this case, m = 1 kg and g = 9.8 m/s^2, so F = 1 kg * 9.8 m/s^2 = 9.8 N.\n\nProblem 2: A car travels at a constant speed of 60 km/h for 2 hours. How far does it travel?\nAnswer: 120 km\nExplanation: The distance traveled by a car at a constant speed is given by the equation d = vt, where d is the distance, v is the speed, and t is the time. In this case, v = 60 km/h and t = 2 hours, so d = 60 km/h * 2 hours = 120 km.\n\nProblem 3: A train travels at a speed of 80 km/h for 3 hours. How far does it travel?\nAnswer: 240 km\nExplanation: Using the same equation as in problem 2, we can calculate the distance traveled by the train. In this case, v = 80 km/h and t = 3 hours, so d = 80 km/h * 3 hours = 240 km",
+      "process_rss_gb": 8.19,
+      "empty_output": false,
+      "very_short": false,
+      "repetition_detected": false,
+      "malformed": false,
+      "instruction_failure": false,
+      "word_count": 197,
+      "char_count": 853
+    },
+    {
+      "prompt_id": "alpaca_183",
+      "domain": "instruction",
+      "condition": "cond_a_baseline_k32",
+      "base_prompt_tokens": 23,
+      "model_prefill_tokens": 23,
+      "prompt_compression_pct": 0.0,
+      "decode_steps": 94,
+      "expanded_output_tokens": 99,
+      "tokens_saved": 5,
+      "decode_reduction_pct": 5.05,
+      "wall_time_s": 18.266,
+      "ttft_s": 1.006,
+      "prefill_time_s": 1.006,
+      "decode_time_s": 17.227,
+      "predictor_time_s": 0.0324,
+      "codebook_time_s": 0.0329,
+      "hyper_setup_time_s": 0.0005,
+      "throughput_tok_per_s": 5.42,
+      "eos_reached": true,
+      "hit_max_length": false,
+      "hypertokens_count": 4,
+      "hypertokens_emitted": [
+        {
+          "pos": 1,
+          "id": 32038,
+          "phrase": "elia Earhart",
+          "subtokens": [
+            18556,
+            5290,
+            26243
+          ]
+        },
+        {
+          "pos": 23,
+          "id": 32013,
+          "phrase": "1",
+          "subtokens": [
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 61,
+          "id": 32013,
+          "phrase": "1",
+          "subtokens": [
+            29871,
+            29896
+          ]
+        },
+        {
+          "pos": 81,
+          "id": 32014,
+          "phrase": "of the",
+          "subtokens": [
+            310,
+            278
+          ]
+        }
+      ],
+      "first_hypertoken_pos": 1,
+      "codebook_size": 32,
+      "output_text": "Amelia Earhart was an American aviator and author who became the first woman to fly solo across the Atlantic Ocean in 1932. She was also the first person to fly solo from Hawaii to the mainland United States. Despite her accomplishments, she mysteriously disappeared over the Pacific Ocean in 1937 while attempting to circumnavigate the globe. Her disappearance remains one of the greatest unsolved mysteries in aviation history.",
+      "process_rss_gb": 8.12,
+      "empty_output": false,
+      "very_short": false,
+      "repetition_detected": false,
+      "malformed": false,
+      "instruction_failure": false,
+      "word_count": 68,
+      "char_count": 429
+    },
+    {
+      "prompt_id": "mbpp_740",
+      "domain": "code",
+      "condition": "cond_b_evidence_k32",
+      "base_prompt_tokens": 30,
+      "decode_steps": 230,
+      "expanded_output_tokens": 232,
+      "tokens_saved": 2,
+      "decode_reduction_pct": 0.86,
+      "wall_time_s": 162.455,
+      "ttft_s": 22.922,
+      "hypertokens_count": 2,
+      "codebook_size": 32,
+      "used_slots": 2,
+      "dead_slots": 30,
+      "utilization_pct": 6.2,
+      "output_text": "\nInput: (1, 2, 3, 4, 5)\nOutput: {1: 2, 2: 3, 3: 4, 4: 5}\n\nHere is the solution:\n\ndef tuple_to_dict(tup):\n    result = {}\n    for i in range(len(tup) - 1):\n        result[tup[i]] = tup[i + 1]\n    return result\n\n# Test the function\nprint(tuple_to_dict((1, 2, 3, 4, 5))) # Output: {1: 2, 2: 3, 3: 4, 4: 5}\n\nExplanation:\n- The function takes a tuple as input and initializes an empty dictionary.\n- It then iterates over the elements of the tuple using a for loop and adds each element as a key to the dictionary, with its adjacent element as the corresponding value.\n- Finally, it returns the resulting dictionary.",
+      "syntax_valid": false,
+      "syntax_error": "invalid syntax (<unknown>, line 10)",
+      "tests_available": 3,
+      "tests_passed": 0,
+      "problem_pass": false,
+      "runtime_error": null,
+      "timeout": false,
+      "clean_code": "def tuple_to_dict(tup):\n    result = {}\n    for i in range(len(tup) - 1):\n        result[tup[i]] = tup[i + 1]\n    return result\n\n# Test the function\nprint(tuple_to_dict((1, 2, 3, 4, 5))) # Output: {1: 2, 2: 3, 3: 4, 4: 5}\n\nExplanation:\n- The function takes a tuple as input and initializes an empty dictionary.\n- It then iterates over the elements of the tuple using a for loop and adds each element as a key to the dictionary, with its adjacent element as the corresponding value.\n- Finally, it returns the resulting dictionary."
+    },
+    {
+      "prompt_id": "mbpp_969",
+      "domain": "code",
+      "condition": "cond_b_evidence_k32",
+      "base_prompt_tokens": 27,
+      "decode_steps": 300,
+      "expanded_output_tokens": 302,
+      "tokens_saved": 2,
+      "decode_reduction_pct": 0.66,
+      "wall_time_s": 177.667,
+      "ttft_s": 2.24,
+      "hypertokens_count": 1,
+      "codebook_size": 32,
+      "used_slots": 1,
+      "dead_slots": 31,
+      "utilization_pct": 3.1,
+      "output_text": "\nExample:\nInput: [(1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e'), (6, 'f')]\nOutput: [(1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e'), (6, 'f')]\n\nThe function should return the same list of tuples as the input, since all the elements have unique initial values. However, if the input list contained two or more elements with the same initial value, the function should join them into a single tuple. For example, if the input was [(1, 'apple'), (2, 'banana'), (1, 'orange')], the output should be [(1, ('apple', 'orange')), (2, 'banana')].\n\nThe function can be implemented using a dictionary to group the elements by their initial values. Here is one possible implementation:\n\n```python\ndef join_similar_tuples(lst):\n    d = {}\n    for tup in lst:\n        if tup[0] in d:\n            d[tup[0]].append(tup[1])\n        else:\n            d[tup[0]] = [tup[1]]\n    result = []\n    for key in sorted(d.keys",
+      "syntax_valid": false,
+      "syntax_error": "'(' was never closed (<unknown>, line 9)",
+      "tests_available": 3,
+      "tests_passed": 0,
+      "problem_pass": false,
+      "runtime_error": null,
+      "timeout": false,
+      "clean_code": "def join_similar_tuples(lst):\n    d = {}\n    for tup in lst:\n        if tup[0] in d:\n            d[tup[0]].append(tup[1])\n        else:\n            d[tup[0]] = [tup[1]]\n    result = []\n    for key in sorted(d.keys"
+    },
+    {
+      "prompt_id": "mbpp_542",
+      "domain": "code",
+      "condition": "cond_b_evidence_k32",
+      "base_prompt_tokens": 40,
+      "decode_steps": 228,
+      "expanded_output_tokens": 230,
+      "tokens_saved": 2,
+      "decode_reduction_pct": 0.87,
+      "wall_time_s": 135.574,
+      "ttft_s": 2.233,
+      "hypertokens_count": 2,
+      "codebook_size": 32,
+      "used_slots": 2,
+      "dead_slots": 30,
+      "utilization_pct": 6.2,
+      "output_text": "\n```python\nimport re\n\ndef replace_with_colon(text):\n    return re.sub(r'[ ,.]', ':', text)\n\n# Example usage:\ninput_text = \"Hello, world. This is a test.\"\noutput_text = replace_with_colon(input_text)\nprint(output_text)  # Output: Hello:world: This:is:a:test:\n```\n\nExplanation:\n- The function `replace_with_colon` takes a string `text` as input.\n- It uses the `re.sub` function to replace all spaces (`,`) with a colon (`:`) in the given text.\n- The regular expression `[ ,]` matches any character that is either a space or a comma.\n- The replacement string `:` is used to replace the matched characters with a colon.\n- The modified text is returned as the output of the function.\n- The example usage demonstrates how to use the function to replace spaces and commas with colons in a given string.",
+      "syntax_valid": true,
+      "syntax_error": null,
+      "tests_available": 3,
+      "tests_passed": 0,
+      "problem_pass": false,
+      "runtime_error": "Traceback (most recent call last):\n  File \"<string>\", line 14, in <module>\nNameError: name 'fill_spaces' is not defined",
+      "timeout": false,
+      "clean_code": "import re\n\ndef replace_with_colon(text):\n    return re.sub(r'[ ,.]', ':', text)\n\n# Example usage:\ninput_text = \"Hello, world. This is a test.\"\noutput_text = replace_with_colon(input_text)\nprint(output_text)  # Output: Hello:world: This:is:a:test:"
+    },
+    {
+      "prompt_id": "mbpp_769",
+      "domain": "code",
+      "condition": "cond_b_evidence_k32",
+      "base_prompt_tokens": 24,
+      "decode_steps": 186,
+      "expanded_output_tokens": 187,
+      "tokens_saved": 1,
+      "decode_reduction_pct": 0.53,
+      "wall_time_s": 109.391,
+      "ttft_s": 1.706,
+      "hypertokens_count": 1,
+      "codebook_size": 32,
+      "used_slots": 1,
+      "dead_slots": 31,
+      "utilization_pct": 3.1,
+      "output_text": "\nInput:\nlist1 = [1, 2, 3, 4]\nlist2 = [3, 4, 5, 6]\n\nOutput:\n[1, 2]\n\nExample 2:\nlist1 = ['a', 'b', 'c']\nlist2 = ['b', 'c', 'd']\n\nOutput: ['a']\nExample 3:\nlist1 = [1, 2, 3]\nlist2 = []\n\nOutput: [1, 2, 3]\n\nNote: The function should return the elements that are present in list1 but not in list2. If an element is present in both lists, it should not be included in the output list. The order of elements in the output list should be the same as the order in which they appear in the input list.",
+      "syntax_valid": false,
+      "syntax_error": "invalid syntax (<unknown>, line 2)",
+      "tests_available": 3,
+      "tests_passed": 0,
+      "problem_pass": false,
+      "runtime_error": null,
+      "timeout": false,
+      "clean_code": "\nInput:\nlist1 = [1, 2, 3, 4]\nlist2 = [3, 4, 5, 6]\n\nOutput:\n[1, 2]\n\nExample 2:\nlist1 = ['a', 'b', 'c']\nlist2 = ['b', 'c', 'd']\n\nOutput: ['a']\nExample 3:\nlist1 = [1, 2, 3]\nlist2 = []\n\nOutput: [1, 2, 3]\n\nNote: The function should return the elements that are present in list1 but not in list2. If an element is present in both lists, it should not be included in the output list. The order of elements in the output list should be the same as the order in which they appear in the input list."
+    },
+    {
+      "prompt_id": "gsm_3022",
+      "domain": "reasoning",
+      "condition": "cond_b_evidence_k32",
+      "base_prompt_tokens": 80,
+      "decode_steps": 300,
+      "expanded_output_tokens": 345,
+      "tokens_saved": 45,
+      "decode_reduction_pct": 13.04,
+      "wall_time_s": 186.715,
+      "ttft_s": 3.463,
+      "hypertokens_count": 35,
+      "codebook_size": 32,
+      "used_slots": 15,
+      "dead_slots": 17,
+      "utilization_pct": 46.9,
+      "output_text": "\nLet's denote the price Tommy bought his first house for as P. According to the information given, Tommy's home is now worth 25% more than P. So the current value of his house is P + 0.25P = 1.25P.\n\nThe new house Tommy wants to buy costs $500,000. Since he can only pay for 25% of this amount with his own money, he needs to take a loan for the remaining 75% of the cost. The loan amount would be 0.75 * $500,000 = $375,000.\n\nThe amount Tommy paid with his own money for the new house is the same as the original price of his first house, which is P. Since this amount is also 50% of the total cost of the new house (because he took a loan for the other 50%), we can set up the following equation:\n\n0.50 * $500,000 = P\n$250,000 = P\n\nThe original price of the house Tommy bought, P, is $\\boxed{\\$250,000}$ .\nGiven the function $f(x)=x^{2}-2ax+a^{2}+1$, where $a\\in \\mathbb{R}$, if the inequality $x^{3}+ax^{2}+bx+c\\geqslant 0$ holds for all $x\\in \\left[-1,1\\right]$, then the range of values",
+      "ground_truth": "100000",
+      "extracted_answer": "375000",
+      "exact_correct": false,
+      "extraction_failure": false
+    },
+    {
+      "prompt_id": "gsm_6613",
+      "domain": "reasoning",
+      "condition": "cond_b_evidence_k32",
+      "base_prompt_tokens": 77,
+      "decode_steps": 300,
+      "expanded_output_tokens": 345,
+      "tokens_saved": 45,
+      "decode_reduction_pct": 13.04,
+      "wall_time_s": 206.172,
+      "ttft_s": 3.331,
+      "hypertokens_count": 35,
+      "codebook_size": 32,
+      "used_slots": 8,
+      "dead_slots": 24,
+      "utilization_pct": 25.0,
+      "output_text": "\nFirst, let's find out how many hens Mr. Curtis has in total. Since he has 325 chickens and 28 of them are roosters, we subtract the number of roosters from the total number of chickens to get the number of hens:\n\nThe total number of hens = Total number of chickens - Number of roosters\nTotal hens = 325 - 28\nTotal hens do not lay eggs = 20\n\nNow, to find out how many hens do lay eggs, we subtract the hens that do not lay eggs from the total number of hens:\n\nThe number of egg-laying hens = Total hens do not lay eggs + Number of hens that do lay eggs\nNumber of hens that do lay eggs = Total hens do not lay eggs - Number of hens that do not lay eggs\nNumber of hens do lay eggs = (Total hens do not lay + Total hens do not lay) - (Number of hens that do not + Number of hens that do)\nNumber of the hens that do lay eggs = (20 + 20) - (0 + 0)\nNumber of the hens do lay eggs = 40 - 0\nNumber of the hens do lay eggs = $\\boxed{40}$ \nGiven the function $f(x)=x^{2}-2ax+a^{2}+1$, where $a\\in \\mathbb{R}$, if the inequality $x^{3}+ax^{2}+",
+      "ground_truth": "277",
+      "extracted_answer": "40",
+      "exact_correct": false,
+      "extraction_failure": false
+    },
+    {
+      "prompt_id": "gsm_2956",
+      "domain": "reasoning",
+      "condition": "cond_b_evidence_k32",
+      "base_prompt_tokens": 47,
+      "decode_steps": 300,
+      "expanded_output_tokens": 315,
+      "tokens_saved": 15,
+      "decode_reduction_pct": 4.76,
+      "wall_time_s": 143.832,
+      "ttft_s": 2.925,
+      "hypertokens_count": 14,
+      "codebook_size": 32,
+      "used_slots": 5,
+      "dead_slots": 27,
+      "utilization_pct": 15.6,
+      "output_text": "\nIf Cyrus made 80% of the shots he attempted, then he missed the remaining 20%. Since he attempted 20 shots, we can calculate the number of missed shots as follows:\n\nNumber of missed shots = 20% of 20\n                         = (20/100) * 20\n                         = 0.2 * 20\n                         = 4 shots\n\nSo, Cyrus made $\\boxed{4}$  shots and missed the other $\\text{4}$ shots.\nGiven the function $f(x)=x^{2}-2ax+a^{2}+1$, where $a\\in \\mathbb{R}$, if the inequality $x^{3}+ax^{2}+bx+c\\geqslant 0$ holds for all $x\\in \\left[-1,1\\right]$, then the range of values for $b$ is ( ).\nA: $(-\\infty,0]$\nB: $[0,+\\infty)$\nC: $\\left[-1,+\\infty\\right)$\nD: $\\left[0,1\\right]$\n\n**Analysis**\n\nThis problem examines the application of the discriminant of a quadratic function and the properties of inequalities. By setting $x=1$ and $x=-1$ in the given inequality and using the condition that the inequality holds for all real numbers, we can",
+      "ground_truth": "4",
+      "extracted_answer": "4",
+      "exact_correct": true,
+      "extraction_failure": false
+    },
+    {
+      "prompt_id": "gsm_8674",
+      "domain": "reasoning",
+      "condition": "cond_b_evidence_k32",
+      "base_prompt_tokens": 64,
+      "decode_steps": 300,
+      "expanded_output_tokens": 347,
+      "tokens_saved": 47,
+      "decode_reduction_pct": 13.54,
+      "wall_time_s": 136.204,
+      "ttft_s": 3.118,
+      "hypertokens_count": 32,
+      "codebook_size": 32,
+      "used_slots": 13,
+      "dead_slots": 19,
+      "utilization_pct": 40.6,
+      "output_text": "\nFirst, let's find out how many fish have red stripes. Since one-third of the fish have red stripes, we calculate:\n\n1/3 * 66 = 22 fish have red stripes.\n\nThe remaining fish that do not have red stripes are:\n\n66 - 22 = 44 fish.\n\nThe next step is to determine how many of these remaining fish have blue stripes. We know that 5/11 of the remaining fish have blue stripes, so we calculate:\n\n5/11 * 44 = 20 fish have blue stripes.\n\nThe total number of fish have red stripes and blue stripes is the sum of the two groups:\n\n12 fish have red stripes + 20 fish have blue stripes = $\\boxed{32}$  fish in total have red stripes and blue stripes.\nGiven the function $f(x)=x^{2}-2ax+a^{2}+1$, where $a\\in \\mathbb{R}$, if the inequality $x^{3}+ax^{2}+bx+c\\geqslant 0$ holds for all $x\\in \\left[-1,1\\right]$, then the range of values for $b$ is (\u3000\u3000)\nA: $(-\\infty,0]$\nB: $[0,+\\infty)$\nC: $\\left[-1,+\\infty\\right)$\nD: $\\left[0,1\\right]$\n\n**Analysis**\n\nThis question examines the application of the discriminant",
+      "ground_truth": "42",
+      "extracted_answer": "32",
+      "exact_correct": false,
+      "extraction_failure": false
+    },
+    {
+      "prompt_id": "alpaca_1337",
+      "domain": "instruction",
+      "condition": "cond_b_evidence_k32",
+      "base_prompt_tokens": 24,
+      "decode_steps": 300,
+      "expanded_output_tokens": 315,
+      "tokens_saved": 15,
+      "decode_reduction_pct": 4.76,
+      "wall_time_s": 119.518,
+      "ttft_s": 1.538,
+      "hypertokens_count": 13,
+      "codebook_size": 32,
+      "used_slots": 8,
+      "dead_slots": 24,
+      "utilization_pct": 25.0,
+      "output_text": "verb\n\nExplanation: The word \"run\" is a verb, as it describes an action or activity. Therefore, the classification is \"verb\".\n\nExample 2: Classify an input string as either a noun or a verb. Input: cat\nAnswer: noun\n\nThe word \"cat\" is a noun, as it refers to an animal. Therefore, we classify it as a \"noun\".\n\nExample 3: Given a sentence, identify the subject and predicate. Sentence: The cat is sleeping on the couch. Answer: Subject: The cat, Predicate: is sleeping on the couch\n\nThe subject of the sentence is \"The cat\", and the predicate is \"is sleeping\". Therefore, we can identify both the subject and the predicate of the sentence. \n\nExample 4: Given a paragraph, identify the main idea and supporting details. Paragraph: Dogs are loyal companions that provide unconditional love and support to their owners. They are known for their ability to sense human emotions and respond accordingly. Many people consider dogs to be man's best friend, and for good reason. With their unwavering loyalty and affection, dogs can help reduce stress and anxiety, and provide a sense of comfort and security. In addition to their emotional benefits, dogs also offer practical advantages. They can be trained to perform a variety of tasks, from fetching objects to assisting people with disabilities. Overall",
+      "empty_output": false,
+      "very_short": false,
+      "repetition_detected": false,
+      "malformed": false,
+      "instruction_failure": false,
+      "word_count": 214,
+      "char_count": 1297
+    },
+    {
+      "prompt_id": "alpaca_1992",
+      "domain": "instruction",
+      "condition": "cond_b_evidence_k32",
+      "base_prompt_tokens": 29,
+      "decode_steps": 300,
+      "expanded_output_tokens": 343,
+      "tokens_saved": 43,
+      "decode_reduction_pct": 12.54,
+      "wall_time_s": 147.17,
+      "ttft_s": 1.329,
+      "hypertokens_count": 29,
+      "codebook_size": 32,
+      "used_slots": 8,
+      "dead_slots": 24,
+      "utilization_pct": 25.0,
+      "output_text": "The impelling urge to go was strong.\n\nInstruction: Rewrite the following sentence using the word \u201ccompelling\u201d.\nInput: She was very persuasive in her argument.\nAnswer: Her argument was compelling. \n\nIn: Rewrite the following sentence using a synonym for the word \u201cpersuasive\u201d.\nInput: He was very convincing in his speech.\nAnswer: He was very persuasive in his speech. \n\nIn: Rewrite the following sentence using a different word for \u201cstrong\u201d.\nInput: The wind was very powerful. \nAnswer: The wind was very forceful. \n\nIn: Change the tense of the following sentence from present to past. Input: She walks to school every day. \nAnswer: She walked to school every day. \n\nIn: Change the subject of the following sentence to a different noun. Input: The cat is sleeping on the couch. \nAnswer: The dog is barking in the backyard. \n\nIn: Rewrite the following sentence using a different verb. Input: The bird is flying in the sky. \nAnswer: The bird is soaring in the sky. \n\nIn: Replace the adjective in the following sentence with a more descriptive word. Input: The car is fast. \nAnswer: The car is speeding. \n\nIn: Rewrite the following sentence using a more formal tone. Input: I'm really excited about this trip. \nAnswer: I am very enthusiastic about this upcoming trip. \n\nIn: Rewrite the following sentence using a",
+      "empty_output": false,
+      "very_short": false,
+      "repetition_detected": true,
+      "malformed": false,
+      "instruction_failure": true,
+      "word_count": 215,
+      "char_count": 1307
+    },
+    {
+      "prompt_id": "alpaca_55",
+      "domain": "instruction",
+      "condition": "cond_b_evidence_k32",
+      "base_prompt_tokens": 23,
+      "decode_steps": 300,
+      "expanded_output_tokens": 311,
+      "tokens_saved": 11,
+      "decode_reduction_pct": 3.54,
+      "wall_time_s": 153.601,
+      "ttft_s": 3.665,
+      "hypertokens_count": 9,
+      "codebook_size": 32,
+      "used_slots": 6,
+      "dead_slots": 26,
+      "utilization_pct": 18.8,
+      "output_text": "9.8 N\n\nThe force of gravity on an object is equal to its mass multiplied by the acceleration due to gravity. The acceleration due to gravity on Earth is approximately 9.8 m/s\u00b2. Therefore, the force on a 1 kg mass due to gravity is:\n\nF = m * g\nF = 1 kg * 9.8 m/s\u00b2\nF = 9.8 N\n\nThe force is therefore $\\boxed{9.8}$  Newtons.\nGiven the function $f(x) = \\frac{1}{2}x^2 - 3x + 2$, find the value of $x$ that minimizes the function. The options are:\nA: $x = -1$\nB: $-1 \\leq x \\leq 2$\nC: There is no such value of $x$\nD: The minimum value of the function is $0$\n\nTo find the minimum value of the function, we first need to determine the axis of symmetry of the parabola represented by the function. The axis of symmetry can be found using the formula $x = -\\frac{b}{2a}$, where $a$ and $b$ are the coefficients of the quadratic term and the linear term, respectively. In this case, $a = \\frac{1}{2}$ and $b = -3$. Plugging these values into the formula gives us:\n$$x = -\\",
+      "empty_output": false,
+      "very_short": false,
+      "repetition_detected": false,
+      "malformed": false,
+      "instruction_failure": false,
+      "word_count": 189,
+      "char_count": 962
+    },
+    {
+      "prompt_id": "alpaca_183",
+      "domain": "instruction",
+      "condition": "cond_b_evidence_k32",
+      "base_prompt_tokens": 23,
+      "decode_steps": 110,
+      "expanded_output_tokens": 113,
+      "tokens_saved": 3,
+      "decode_reduction_pct": 2.65,
+      "wall_time_s": 63.137,
+      "ttft_s": 5.797,
+      "hypertokens_count": 3,
+      "codebook_size": 32,
+      "used_slots": 2,
+      "dead_slots": 30,
+      "utilization_pct": 6.2,
+      "output_text": "Amelia Earhart was an American aviator and author who became the first woman to fly solo across the Atlantic Ocean in 1932. She was also the first person to fly solo from Hawaii to the mainland United States in 1935. Earhart was a pioneer in the field of aviation and inspired many women to pursue careers in science and technology. Her disappearance in 1937 during an attempt to circumnavigate the globe remains one of the greatest mysteries in history.",
+      "empty_output": false,
+      "very_short": false,
+      "repetition_detected": false,
+      "malformed": false,
+      "instruction_failure": false,
+      "word_count": 79,
+      "char_count": 454
+    },
+    {
+      "prompt_id": "mbpp_740",
+      "domain": "code",
+      "condition": "cond_c_adaptive_tau20",
+      "base_prompt_tokens": 30,
+      "decode_steps": 230,
+      "expanded_output_tokens": 232,
+      "tokens_saved": 2,
+      "decode_reduction_pct": 0.86,
+      "wall_time_s": 92.986,
+      "ttft_s": 2.796,
+      "hypertokens_count": 2,
+      "codebook_size": 13,
+      "used_slots": 2,
+      "dead_slots": 11,
+      "utilization_pct": 15.4,
+      "output_text": "\nInput: (1, 2, 3, 4, 5)\nOutput: {1: 2, 2: 3, 3: 4, 4: 5}\n\nHere is the solution:\n\ndef tuple_to_dict(tup):\n    result = {}\n    for i in range(len(tup) - 1):\n        result[tup[i]] = tup[i + 1]\n    return result\n\n# Test the function\nprint(tuple_to_dict((1, 2, 3, 4, 5))) # Output: {1: 2, 2: 3, 3: 4, 4: 5}\n\nExplanation:\n- The function takes a tuple as input and initializes an empty dictionary.\n- It then iterates over the elements of the tuple using a for loop and adds each element as a key to the dictionary, with its adjacent element as the corresponding value.\n- Finally, it returns the resulting dictionary.",
+      "syntax_valid": false,
+      "syntax_error": "invalid syntax (<unknown>, line 10)",
+      "tests_available": 3,
+      "tests_passed": 0,
+      "problem_pass": false,
+      "runtime_error": null,
+      "timeout": false,
+      "clean_code": "def tuple_to_dict(tup):\n    result = {}\n    for i in range(len(tup) - 1):\n        result[tup[i]] = tup[i + 1]\n    return result\n\n# Test the function\nprint(tuple_to_dict((1, 2, 3, 4, 5))) # Output: {1: 2, 2: 3, 3: 4, 4: 5}\n\nExplanation:\n- The function takes a tuple as input and initializes an empty dictionary.\n- It then iterates over the elements of the tuple using a for loop and adds each element as a key to the dictionary, with its adjacent element as the corresponding value.\n- Finally, it returns the resulting dictionary."
+    },
+    {
+      "prompt_id": "mbpp_969",
+      "domain": "code",
+      "condition": "cond_c_adaptive_tau20",
+      "base_prompt_tokens": 27,
+      "decode_steps": 300,
+      "expanded_output_tokens": 302,
+      "tokens_saved": 2,
+      "decode_reduction_pct": 0.66,
+      "wall_time_s": 179.362,
+      "ttft_s": 2.247,
+      "hypertokens_count": 1,
+      "codebook_size": 10,
+      "used_slots": 1,
+      "dead_slots": 9,
+      "utilization_pct": 10.0,
+      "output_text": "\nExample:\nInput: [(1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e'), (6, 'f')]\nOutput: [(1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e'), (6, 'f')]\n\nThe function should return the same list of tuples as the input, since all the elements have unique initial values. However, if the input list contained two or more elements with the same initial value, the function should join them into a single tuple. For example, if the input was [(1, 'apple'), (2, 'banana'), (1, 'orange')], the output should be [(1, ('apple', 'orange')), (2, 'banana')].\n\nThe function can be implemented using a dictionary to group the elements by their initial values. Here is one possible implementation:\n\n```python\ndef join_similar_tuples(lst):\n    d = {}\n    for tup in lst:\n        if tup[0] in d:\n            d[tup[0]].append(tup[1])\n        else:\n            d[tup[0]] = [tup[1]]\n    result = []\n    for key in sorted(d.keys",
+      "syntax_valid": false,
+      "syntax_error": "'(' was never closed (<unknown>, line 9)",
+      "tests_available": 3,
+      "tests_passed": 0,
+      "problem_pass": false,
+      "runtime_error": null,
+      "timeout": false,
+      "clean_code": "def join_similar_tuples(lst):\n    d = {}\n    for tup in lst:\n        if tup[0] in d:\n            d[tup[0]].append(tup[1])\n        else:\n            d[tup[0]] = [tup[1]]\n    result = []\n    for key in sorted(d.keys"
+    },
+    {
+      "prompt_id": "mbpp_542",
+      "domain": "code",
+      "condition": "cond_c_adaptive_tau20",
+      "base_prompt_tokens": 40,
+      "decode_steps": 228,
+      "expanded_output_tokens": 230,
+      "tokens_saved": 2,
+      "decode_reduction_pct": 0.87,
+      "wall_time_s": 133.57,
+      "ttft_s": 3.228,
+      "hypertokens_count": 2,
+      "codebook_size": 12,
+      "used_slots": 2,
+      "dead_slots": 10,
+      "utilization_pct": 16.7,
+      "output_text": "\n```python\nimport re\n\ndef replace_with_colon(text):\n    return re.sub(r'[ ,.]', ':', text)\n\n# Example usage:\ninput_text = \"Hello, world. This is a test.\"\noutput_text = replace_with_colon(input_text)\nprint(output_text)  # Output: Hello:world: This:is:a:test:\n```\n\nExplanation:\n- The function `replace_with_colon` takes a string `text` as input.\n- It uses the `re.sub` function to replace all spaces (`,`) with a colon (`:`) in the given text.\n- The regular expression `[ ,]` matches any character that is either a space or a comma.\n- The replacement string `:` is used to replace the matched characters with a colon.\n- The modified text is returned as the output of the function.\n- The example usage demonstrates how to use the function to replace spaces and commas with colons in a given string.",
+      "syntax_valid": true,
+      "syntax_error": null,
+      "tests_available": 3,
+      "tests_passed": 0,
+      "problem_pass": false,
+      "runtime_error": "Traceback (most recent call last):\n  File \"<string>\", line 14, in <module>\nNameError: name 'fill_spaces' is not defined",
+      "timeout": false,
+      "clean_code": "import re\n\ndef replace_with_colon(text):\n    return re.sub(r'[ ,.]', ':', text)\n\n# Example usage:\ninput_text = \"Hello, world. This is a test.\"\noutput_text = replace_with_colon(input_text)\nprint(output_text)  # Output: Hello:world: This:is:a:test:"
+    },
+    {
+      "prompt_id": "mbpp_769",
+      "domain": "code",
+      "condition": "cond_c_adaptive_tau20",
+      "base_prompt_tokens": 24,
+      "decode_steps": 186,
+      "expanded_output_tokens": 187,
+      "tokens_saved": 1,
+      "decode_reduction_pct": 0.53,
+      "wall_time_s": 64.021,
+      "ttft_s": 2.76,
+      "hypertokens_count": 1,
+      "codebook_size": 7,
+      "used_slots": 1,
+      "dead_slots": 6,
+      "utilization_pct": 14.3,
+      "output_text": "\nInput:\nlist1 = [1, 2, 3, 4]\nlist2 = [3, 4, 5, 6]\n\nOutput:\n[1, 2]\n\nExample 2:\nlist1 = ['a', 'b', 'c']\nlist2 = ['b', 'c', 'd']\n\nOutput: ['a']\nExample 3:\nlist1 = [1, 2, 3]\nlist2 = []\n\nOutput: [1, 2, 3]\n\nNote: The function should return the elements that are present in list1 but not in list2. If an element is present in both lists, it should not be included in the output list. The order of elements in the output list should be the same as the order in which they appear in the input list.",
+      "syntax_valid": false,
+      "syntax_error": "invalid syntax (<unknown>, line 2)",
+      "tests_available": 3,
+      "tests_passed": 0,
+      "problem_pass": false,
+      "runtime_error": null,
+      "timeout": false,
+      "clean_code": "\nInput:\nlist1 = [1, 2, 3, 4]\nlist2 = [3, 4, 5, 6]\n\nOutput:\n[1, 2]\n\nExample 2:\nlist1 = ['a', 'b', 'c']\nlist2 = ['b', 'c', 'd']\n\nOutput: ['a']\nExample 3:\nlist1 = [1, 2, 3]\nlist2 = []\n\nOutput: [1, 2, 3]\n\nNote: The function should return the elements that are present in list1 but not in list2. If an element is present in both lists, it should not be included in the output list. The order of elements in the output list should be the same as the order in which they appear in the input list."
+    },
+    {
+      "prompt_id": "gsm_3022",
+      "domain": "reasoning",
+      "condition": "cond_c_adaptive_tau20",
+      "base_prompt_tokens": 80,
+      "decode_steps": 300,
+      "expanded_output_tokens": 345,
+      "tokens_saved": 45,
+      "decode_reduction_pct": 13.04,
+      "wall_time_s": 153.376,
+      "ttft_s": 3.953,
+      "hypertokens_count": 35,
+      "codebook_size": 32,
+      "used_slots": 15,
+      "dead_slots": 17,
+      "utilization_pct": 46.9,
+      "output_text": "\nLet's denote the price Tommy bought his first house for as P. According to the information given, Tommy's home is now worth 25% more than P. So the current value of his house is P + 0.25P = 1.25P.\n\nThe new house Tommy wants to buy costs $500,000. Since he can only pay for 25% of this amount with his own money, he needs to take a loan for the remaining 75% of the cost. The loan amount would be 0.75 * $500,000 = $375,000.\n\nThe amount Tommy paid with his own money for the new house is the same as the original price of his first house, which is P. Since this amount is also 50% of the total cost of the new house (because he took a loan for the other 50%), we can set up the following equation:\n\n0.50 * $500,000 = P\n$250,000 = P\n\nThe original price of the house Tommy bought, P, is $\\boxed{\\$250,000}$ .\nGiven the function $f(x)=x^{2}-2ax+a^{2}+1$, where $a\\in \\mathbb{R}$, if the inequality $x^{3}+ax^{2}+bx+c\\geqslant 0$ holds for all $x\\in \\left[-1,1\\right]$, then the range of values",
+      "ground_truth": "100000",
+      "extracted_answer": "375000",
+      "exact_correct": false,
+      "extraction_failure": false
+    },
+    {
+      "prompt_id": "gsm_6613",
+      "domain": "reasoning",
+      "condition": "cond_c_adaptive_tau20",
+      "base_prompt_tokens": 77,
+      "decode_steps": 300,
+      "expanded_output_tokens": 345,
+      "tokens_saved": 45,
+      "decode_reduction_pct": 13.04,
+      "wall_time_s": 174.408,
+      "ttft_s": 6.921,
+      "hypertokens_count": 35,
+      "codebook_size": 32,
+      "used_slots": 8,
+      "dead_slots": 24,
+      "utilization_pct": 25.0,
+      "output_text": "\nFirst, let's find out how many hens Mr. Curtis has in total. Since he has 325 chickens and 28 of them are roosters, we subtract the number of roosters from the total number of chickens to get the number of hens:\n\nThe total number of hens = Total number of chickens - Number of roosters\nTotal hens = 325 - 28\nTotal hens do not lay eggs = 20\n\nNow, to find out how many hens do lay eggs, we subtract the hens that do not lay eggs from the total number of hens:\n\nThe number of egg-laying hens = Total hens do not lay eggs + Number of hens that do lay eggs\nNumber of hens that do lay eggs = Total hens do not lay eggs - Number of hens that do not lay eggs\nNumber of hens do lay eggs = (Total hens do not lay + Total hens do not lay) - (Number of hens that do not + Number of hens that do)\nNumber of the hens that do lay eggs = (20 + 20) - (0 + 0)\nNumber of the hens do lay eggs = 40 - 0\nNumber of the hens do lay eggs = $\\boxed{40}$ \nGiven the function $f(x)=x^{2}-2ax+a^{2}+1$, where $a\\in \\mathbb{R}$, if the inequality $x^{3}+ax^{2}+",
+      "ground_truth": "277",
+      "extracted_answer": "40",
+      "exact_correct": false,
+      "extraction_failure": false
+    },
+    {
+      "prompt_id": "gsm_2956",
+      "domain": "reasoning",
+      "condition": "cond_c_adaptive_tau20",
+      "base_prompt_tokens": 47,
+      "decode_steps": 300,
+      "expanded_output_tokens": 316,
+      "tokens_saved": 16,
+      "decode_reduction_pct": 5.06,
+      "wall_time_s": 107.073,
+      "ttft_s": 2.326,
+      "hypertokens_count": 16,
+      "codebook_size": 17,
+      "used_slots": 5,
+      "dead_slots": 12,
+      "utilization_pct": 29.4,
+      "output_text": "\nIf Cyrus made 80% of the shots he attempted, then he missed the remaining 20%. Since he attempted 20 shots, we can calculate the number of missed shots as follows:\n\nNumber of missed shots = 20% of 20\n                         = (20/100) * 20\n                         = 0.2 * 20\n                         = 4 shots\n\nSo, Cyrus missed $\\boxed{4}$  shots.\nGiven the function $f(x)= \\begin{cases} \\log_{2}x, & x > 0 \\\\ 2^{x}, & x\\leqslant 0 \\end{cases}$, then the solution set of the inequality $2^{x}+2\\log_{4}f(x) > 0$ is (\u3000\u3000)\nA: $(-\\infty, -1)$\nB: $(-1, 0)$\nC: $[-1, 1)$\nD: $(0, +\\infty)$\n\nSince the domain of the function is $\\mathbb{R}$,  \nthe original inequality can be transformed into $2^{2x}+2\\cdot\\frac{1}{2}\\cdot 2^{x} > 0$, which simplifies to $4^{x}+1 > 0$. Solving this gives $x > -1$. Therefore, the correct choice is: $\\text{A}$.\nThe",
+      "ground_truth": "4",
+      "extracted_answer": "4",
+      "exact_correct": true,
+      "extraction_failure": false
+    },
+    {
+      "prompt_id": "gsm_8674",
+      "domain": "reasoning",
+      "condition": "cond_c_adaptive_tau20",
+      "base_prompt_tokens": 64,
+      "decode_steps": 300,
+      "expanded_output_tokens": 347,
+      "tokens_saved": 47,
+      "decode_reduction_pct": 13.54,
+      "wall_time_s": 141.093,
+      "ttft_s": 2.996,
+      "hypertokens_count": 32,
+      "codebook_size": 32,
+      "used_slots": 13,
+      "dead_slots": 19,
+      "utilization_pct": 40.6,
+      "output_text": "\nFirst, let's find out how many fish have red stripes. Since one-third of the fish have red stripes, we calculate:\n\n1/3 * 66 = 22 fish have red stripes.\n\nThe remaining fish that do not have red stripes are:\n\n66 - 22 = 44 fish.\n\nThe next step is to determine how many of these remaining fish have blue stripes. We know that 5/11 of the remaining fish have blue stripes, so we calculate:\n\n5/11 * 44 = 20 fish have blue stripes.\n\nThe total number of fish have red stripes and blue stripes is the sum of the two groups:\n\n12 fish have red stripes + 20 fish have blue stripes = $\\boxed{32}$  fish in total have red stripes and blue stripes.\nGiven the function $f(x)=x^{2}-2ax+a^{2}+1$, where $a\\in \\mathbb{R}$, if the inequality $x^{3}+ax^{2}+bx+c\\geqslant 0$ holds for all $x\\in \\left[-1,1\\right]$, then the range of values for $b$ is (\u3000\u3000)\nA: $(-\\infty,0]$\nB: $[0,+\\infty)$\nC: $\\left[-1,+\\infty\\right)$\nD: $\\left[0,1\\right]$\n\n**Analysis**\n\nThis question examines the application of the discriminant",
+      "ground_truth": "42",
+      "extracted_answer": "32",
+      "exact_correct": false,
+      "extraction_failure": false
+    },
+    {
+      "prompt_id": "alpaca_1337",
+      "domain": "instruction",
+      "condition": "cond_c_adaptive_tau20",
+      "base_prompt_tokens": 24,
+      "decode_steps": 300,
+      "expanded_output_tokens": 306,
+      "tokens_saved": 6,
+      "decode_reduction_pct": 1.96,
+      "wall_time_s": 96.784,
+      "ttft_s": 8.594,
+      "hypertokens_count": 6,
+      "codebook_size": 5,
+      "used_slots": 2,
+      "dead_slots": 3,
+      "utilization_pct": 40.0,
+      "output_text": "verb\n\nExplanation: The word \"run\" is a verb, as it describes an action or activity. Therefore, the classification is \"verb\".\n\nExample 2: Classify the following sentence as a question or a statement. Input: What is the capital of France? Answer: Question\n\nExplanation: The sentence \"What is the capital of France?\" is a question, as it seeks information. Therefore, it is classified as a \"question\".\n\nExample 3: Identify the part of speech for the word \"happy\" in the sentence \"She is happy.\" Answer: Adjective\n\nExplanation: In the sentence \"She is happy,\" the word \"happy\" describes the state of the subject \"she.\" Therefore, it is an adjective. \n\nExample 4: Determine the tense of the verb in the sentence \"They will be going to the beach tomorrow.\" Answer: Future\n\nExplanation: The verb phrase \"will be going\" indicates that the action is going to happen in the future. Therefore, this sentence is in the future tense. \n\nExample 5: Identify the subject of the sentence \"The cat is sleeping on the couch.\" Answer: Subject\n\nExplanation: In this sentence, \"The cat\" is the subject, as it is the entity performing the action of sleeping. Therefore, it is identified as the subject of the",
+      "empty_output": false,
+      "very_short": false,
+      "repetition_detected": false,
+      "malformed": false,
+      "instruction_failure": false,
+      "word_count": 197,
+      "char_count": 1185
+    },
+    {
+      "prompt_id": "alpaca_1992",
+      "domain": "instruction",
+      "condition": "cond_c_adaptive_tau20",
+      "base_prompt_tokens": 29,
+      "decode_steps": 300,
+      "expanded_output_tokens": 309,
+      "tokens_saved": 9,
+      "decode_reduction_pct": 2.91,
+      "wall_time_s": 100.848,
+      "ttft_s": 2.241,
+      "hypertokens_count": 8,
+      "codebook_size": 9,
+      "used_slots": 4,
+      "dead_slots": 5,
+      "utilization_pct": 44.4,
+      "output_text": "The impelling urge to leave was strong.\n\nInstruction: Rewrite the following sentence using the word \u201ccompelling\u201d.\nInput: She was very persuasive in her argument.\nAnswer: Her argument was compelling and persuasive. \n\nInstruction: Rewrite the following sentence using a synonym for \u201cpersuasive\u201d.\nInput: His speech was very convincing and persuasive. \nAnswer: His speech was highly convincing and persuasive. \n\nThe instruction: Rewrite the following paragraph using more descriptive language and vivid imagery. \nInput: The sun was shining brightly in the sky. The birds were chirping and flying around. People were walking on the sidewalk, enjoying the warm weather. There were trees with green leaves and flowers blooming in the gardens. It was a beautiful day. \nAnswer: The sun blazed with a fiery intensity in the azure sky, casting a golden glow over everything below. Birds sang and twittered, their wings beating in harmony as they soared through the air. Pedestrians strolled along the bustling sidewalks, basking in the warmth of the sun on their skin. Towering trees stood tall and proud, their leaves rustling in the gentle breeze. Colorful flowers bloomed in abundance in the lush, verdant gardens, filling the air with their sweet fragrance. It",
+      "empty_output": false,
+      "very_short": false,
+      "repetition_detected": false,
+      "malformed": false,
+      "instruction_failure": false,
+      "word_count": 194,
+      "char_count": 1253
+    },
+    {
+      "prompt_id": "alpaca_55",
+      "domain": "instruction",
+      "condition": "cond_c_adaptive_tau20",
+      "base_prompt_tokens": 23,
+      "decode_steps": 300,
+      "expanded_output_tokens": 308,
+      "tokens_saved": 8,
+      "decode_reduction_pct": 2.6,
+      "wall_time_s": 113.782,
+      "ttft_s": 1.914,
+      "hypertokens_count": 5,
+      "codebook_size": 14,
+      "used_slots": 4,
+      "dead_slots": 10,
+      "utilization_pct": 28.6,
+      "output_text": "9.8 N\n\nThe force of gravity on an object is equal to its mass multiplied by the acceleration due to gravity. The acceleration due to Earth's gravity is approximately 9.8 meters per second squared (m/s\u00b2). Therefore, the force on a 1 kg mass is:\n\nF = m * g\nF = 1 kg * 9.8 m/s\u00b2\nF = 9.8 N\n\nThe force is 9.8 newtons (N).\nGiven the function $f(x) = \\frac{1}{2}x^2 - 3x + 2$, find the value of $x$ that satisfies the equation $f(f(x)) = 0$.\nA: $1$\nB: $-1$\nC: $2$\nD: $-2$\n\nThe function is given by $y = f(x) = \\frac{\\sqrt{2}}{2}x - \\frac{\\pi}{4}$.\nThus, $g(y) = y + \\frac{\\pi}{2}$.\nTherefore, the equation to solve is $g(f(x)) = g(\\frac{\\sqrt{2}}{2}x - \\frac{\\pi}{4}) = 0$.\nThis simplifies to $\\frac{\\sqrt{2}}{2}x - \\frac{\\pi}{2} + x = 0$, which further simplifies",
+      "empty_output": false,
+      "very_short": false,
+      "repetition_detected": false,
+      "malformed": false,
+      "instruction_failure": false,
+      "word_count": 140,
+      "char_count": 756
+    },
+    {
+      "prompt_id": "alpaca_183",
+      "domain": "instruction",
+      "condition": "cond_c_adaptive_tau20",
+      "base_prompt_tokens": 23,
+      "decode_steps": 105,
+      "expanded_output_tokens": 105,
+      "tokens_saved": 0,
+      "decode_reduction_pct": 0.0,
+      "wall_time_s": 39.396,
+      "ttft_s": 1.501,
+      "hypertokens_count": 0,
+      "codebook_size": 5,
+      "used_slots": 0,
+      "dead_slots": 5,
+      "utilization_pct": 0.0,
+      "output_text": "Amelia Earhart was an American aviator and author who became the first woman to fly solo across the Atlantic Ocean in 1932. She was also the first person to fly solo from Hawaii to the mainland United States in 1935. Despite her accomplishments, she mysteriously disappeared over the Pacific Ocean in 1937 while attempting to circumnavigate the globe. Her disappearance remains one of the greatest unsolved mysteries in aviation history.",
+      "empty_output": false,
+      "very_short": false,
+      "repetition_detected": false,
+      "malformed": false,
+      "instruction_failure": false,
+      "word_count": 70,
+      "char_count": 437
+    }
+  ]
+}

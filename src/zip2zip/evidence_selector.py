@@ -42,7 +42,10 @@ ISOLATED_SYNTAX_FRAGMENTS = {
     "print(",
     "def ",
     "import ",
-    "assert ",
+    "assert",
+    "\nassert",
+    "# Test",
+    "\n# Test",
     " == ",
     " != ",
 }
@@ -57,6 +60,7 @@ class EvidenceAwareSelector:
         tokenizer: PreTrainedTokenizerBase,
         budget: int = 32,
         initial_vocab_size: int = 32011,
+        max_structural_slots: int = 0,
         provenance_bonus: float = 8.0,
         grounded_numeric_bonus: float = 6.0,
         ungrounded_numeric_penalty: float = 60.0,
@@ -69,6 +73,7 @@ class EvidenceAwareSelector:
         self.tokenizer = tokenizer
         self.budget = budget
         self.initial_vocab_size = initial_vocab_size
+        self.max_structural_slots = max_structural_slots
         self.disabled_ids: Set[int] = set(getattr(predictor_index, "disabled_ids", []))
         self.max_subtokens: int = getattr(predictor_index, "max_subtokens", 4)
         
@@ -269,11 +274,18 @@ class EvidenceAwareSelector:
         # Rank candidates deterministically
         ranked = sorted(scored_candidates, key=lambda x: (-x[1], x[0]))
 
-        # 5. Diversity Mechanism: suppress redundant variants
+        # 5. Diversity & Category Constraints: suppress redundant variants and cap structural slots
         selected_phrases: List[Tuple[int, ...]] = []
         accepted_stems: Dict[str, int] = defaultdict(int)
+        accepted_structural_count = 0
 
         for gram, sc, meta in ranked:
+            # Enforce max structural slots
+            if is_structural(gram, self.tokenizer):
+                if accepted_structural_count >= self.max_structural_slots:
+                    continue
+                accepted_structural_count += 1
+
             phrase_str = self.tokenizer.decode(list(gram)).strip()
             
             # Extract dominant semantic/alphanumeric stem

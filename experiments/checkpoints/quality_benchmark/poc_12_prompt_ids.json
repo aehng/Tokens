@@ -1,0 +1,74 @@
+[
+  {
+    "id": "mbpp_740",
+    "domain": "code",
+    "type": "regression_vs_vanilla",
+    "notes": "Vanilla Phi passed Pass@1, Step 100 failed syntax"
+  },
+  {
+    "id": "mbpp_969",
+    "domain": "code",
+    "type": "regression_vs_vanilla",
+    "notes": "Vanilla Phi passed Pass@1, Step 100 failed syntax"
+  },
+  {
+    "id": "mbpp_542",
+    "domain": "code",
+    "type": "syntax_valid_test_fail",
+    "notes": "Step 100 had valid syntax but wrong function name"
+  },
+  {
+    "id": "mbpp_769",
+    "domain": "code",
+    "type": "heavy_emission_failure",
+    "notes": "108 hypertokens emitted, high tokenization corruption"
+  },
+  {
+    "id": "gsm_3022",
+    "domain": "reasoning",
+    "type": "regression_vs_vanilla",
+    "notes": "Vanilla Phi answered correctly, Step 100 failed with 36 hypers"
+  },
+  {
+    "id": "gsm_6613",
+    "domain": "reasoning",
+    "type": "regression_vs_vanilla",
+    "notes": "Vanilla Phi answered correctly, Step 100 failed with 16 hypers"
+  },
+  {
+    "id": "gsm_2956",
+    "domain": "reasoning",
+    "type": "success_both",
+    "notes": "Both Vanilla and Step 100 answered correctly (35 hypers)"
+  },
+  {
+    "id": "gsm_8674",
+    "domain": "reasoning",
+    "type": "win_vs_vanilla",
+    "notes": "Vanilla failed, Step 100 answered correctly (13 hypers)"
+  },
+  {
+    "id": "alpaca_1337",
+    "domain": "instruction",
+    "type": "regression_vs_vanilla",
+    "notes": "Vanilla succeeded, Step 100 failed instruction constraint"
+  },
+  {
+    "id": "alpaca_1992",
+    "domain": "instruction",
+    "type": "failure_both",
+    "notes": "Both Vanilla and Step 100 failed constraint"
+  },
+  {
+    "id": "alpaca_55",
+    "domain": "instruction",
+    "type": "success_both",
+    "notes": "Both Vanilla and Step 100 succeeded (13 hypers)"
+  },
+  {
+    "id": "alpaca_183",
+    "domain": "instruction",
+    "type": "success_both",
+    "notes": "Both Vanilla and Step 100 succeeded (4 hypers)"
+  }
+]
