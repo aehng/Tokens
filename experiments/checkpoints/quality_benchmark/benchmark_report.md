@@ -313,3 +313,29 @@ assert`, `1, `, `, 2`). Restrict candidate codebooks to high-confidence semantic
 3. **Step 100 Calibration with Contrastive Continuation Loss**:
    - *Evidence*: Step 100 outperformed Step 150 on real quality (+3 prompts net win) despite Step 150's lower reconstruction loss, proving that over-optimizing $\mathcal{L}_{recon}$ degrades continuation.
    - *Action*: Anchor the joint pilot loss with a direct KL divergence penalty against the frozen base model's next-token logits to prevent hyperencoders from drifting past Step 100.
+
+---
+
+### 7.9 Realized Compression Breakdown by Domain
+
+| Model | Domain | Decode Steps | Expanded Tokens | Tokens Saved | Micro Reduction % | Macro Reduction % | Mean Hypers/Prompt | Quality-Preserved Reduction % | Regressed Reduction % |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Official Zip2Zip** | MBPP Code | 4,552 | 6,226 | 1,674 | 26.89% | 22.48% | 65.85 | 0.00% | 23.08% |
+| | GSM8K Math | 6,000 | 8,247 | 2,247 | 27.25% | 27.11% | 94.00 | 26.45% | 25.56% |
+| | Alpaca Instruction | 3,125 | 4,864 | 1,739 | 35.75% | 20.99% | 59.20 | 14.74% | 47.92% |
+| | **Overall** | **13,677** | **19,337** | **5,660** | **29.27%** | **23.53%** | **73.02** | **23.22%** | **34.99%** |
+| **Predictive Step 100** | MBPP Code | 5,590 | 8,722 | 3,132 | **35.91%** | **26.32%** | 88.15 | 0.00% | 31.27% |
+| | GSM8K Math | 6,000 | 6,893 | 893 | **12.96%** | **12.39%** | 33.85 | **12.00%** | 15.53% |
+| | Alpaca Instruction | 3,251 | 3,376 | 125 | **3.70%** | **3.11%** | 4.60 | **3.30%** | 4.76% |
+| | **Overall** | **14,841** | **18,991** | **4,150** | **21.85%** | **13.94%** | **42.20** | **9.03%** | **17.45%** |
+| **Predictive Step 150** | MBPP Code | 5,443 | 7,663 | 2,220 | 28.97% | 18.25% | 61.60 | 0.00% | 24.34% |
+| | GSM8K Math | 6,000 | 6,690 | 690 | 10.31% | 10.11% | 27.90 | 8.98% | 11.81% |
+| | Alpaca Instruction | 3,173 | 3,229 | 56 | 1.73% | 2.02% | 2.50 | 2.05% | 0.50% |
+| | **Overall** | **14,616** | **17,582** | **2,966** | **16.87%** | **10.13%** | **30.67** | **6.61%** | **12.71%** |
+
+#### Domain Compression Gap Analysis:
+1. **Consistency across domains**: Predictive Step 100 is **not** consistently below Official Zip2Zip. On MBPP Code, Step 100 achieved **higher** compression than Official Zip2Zip (35.91% vs 26.89% micro; 3,132 vs 1,674 tokens saved).
+2. **Largest compression gap**: **Alpaca Instruction** (-32.05 pp micro, 3.70% vs 35.75%). Official Zip2Zip suffered repetitive text generation loops that inflated its compression, whereas Step 100 generated concise, fluent responses.
+3. **Smallest compression gap**: **MBPP Code** (9.02 pp gap, with Step 100 leading). Among domains where Step 100 lagged, **GSM8K Math** had the smaller deficit (12.96% vs 27.25%, a 14.29 pp gap), and its 12.00% quality-preserved reduction preserved 60% math accuracy.
+4. **Disproportionate pull-down**: **Alpaca Instruction (3.70% micro)** heavily pulled down Step 100's overall compression number (saving only 125 tokens across 20 prompts). Conversely, MBPP Code (35.91%, 3,132 tokens saved) pulled the overall number up, accounting for 75.5% of all tokens saved by Step 100.
+
