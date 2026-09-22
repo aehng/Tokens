@@ -1,0 +1,36 @@
+{
+  "audit_name": "Phase 0: Answer-Aware Greedy Oracle Scientific Audit",
+  "method_evaluated": "compute_oracle_codebook",
+  "implementation_file": "src/evaluation/offline_segmenter.py",
+  "verdict": "Suboptimal greedy heuristic; NOT a true upper bound",
+  "renamed_designation": "Answer-Aware Greedy Oracle",
+  "validation_suite": "data/cached_pure_pred_val_60.json",
+  "num_validation_samples": 60,
+  "budget_k": 32,
+  "empirical_metrics": {
+    "total_slots_allocated": 1787,
+    "unique_slots_used": 859,
+    "dead_slots_count": 928,
+    "dead_slots_pct": 51.93,
+    "capacity_utilization_pct": 48.07,
+    "greedy_micro_compression_pct": 40.10
+  },
+  "synthetic_counterexample": {
+    "tokens": [1, 2, 3, 99, 1, 2, 3, 88, 1, 2, 3, 77, 4, 5, 66, 4, 5],
+    "base_length": 17,
+    "greedy_k3_selection": ["(1, 2, 3)", "(1, 2)", "(2, 3)"],
+    "greedy_k3_tokens_saved": 6,
+    "greedy_k3_slots_used": 1,
+    "better_k2_selection": ["(1, 2, 3)", "(4, 5)"],
+    "better_k2_tokens_saved": 8,
+    "better_k2_slots_used": 2,
+    "improvement_tokens_saved_pct": 33.33,
+    "slots_saved_pct": 33.33
+  },
+  "failure_modes_identified": [
+    "Subphrase shadowing: length-2 subphrases of frequent length-3 phrases consume slots with zero marginal utility",
+    "Self-overlap distortion: rolling counts overestimate non-overlapping tiling capacity by up to 50%",
+    "Myopic greediness: candidate selection does not condition on previously chosen phrases",
+    "Capacity waste: >50% dead slots across real text responses"
+  ]
+}

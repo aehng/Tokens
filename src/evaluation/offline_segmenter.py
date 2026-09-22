@@ -94,8 +94,9 @@ def compute_oracle_codebook(
     max_length: int = 3,
 ) -> Set[Tuple[int, ...]]:
     """
-    Computes the optimal Oracle codebook of size K that maximizes tokens saved on `tokens`.
-    Greedily selects top K non-overlapping frequent n-grams.
+    Answer-Aware Greedy Oracle: Heuristic codebook of size K using raw rolling n-gram frequency.
+    Note: This is a greedy heuristic (not globally optimal). For the exact and stronger search oracle,
+    see src/evaluation/oracle_v2.py.
     """
     from collections import Counter
 
