@@ -1,0 +1,71 @@
+{
+  "phase": 0,
+  "model": "predictive_step_100",
+  "checkpoint": "experiments/checkpoints/predictive_joint_pilot/checkpoint_step_100.pt",
+  "predictor": "experiments/checkpoints/cached_predictor.pkl",
+  "policy": "CappedPredictorPolicy(budget=32, max_structural_slots=0, allow_numeric=True, filter_bare_punctuation=True)",
+  "validation_suite": "data/cached_pure_pred_val_60.json",
+  "num_prompts": 60,
+  "domains": {
+    "code": {
+      "dataset": "MBPP Python Code",
+      "prompts_count": 20,
+      "objective_quality": "0/20 Pass@1 (0.0%)",
+      "valid_syntax_rate_pct": 20.0,
+      "failure_count": 20,
+      "realized_micro_compression_pct": 35.91,
+      "macro_compression_pct": 26.32,
+      "mean_hypertokens_per_output": 88.15,
+      "quality_preserved_compression_pct": 0.0,
+      "tokens_saved": 3132,
+      "decode_steps": 5590,
+      "expanded_tokens": 8722
+    },
+    "reasoning": {
+      "dataset": "GSM8K Math Reasoning",
+      "prompts_count": 20,
+      "objective_quality": "60.0% (12/20)",
+      "failure_count": 8,
+      "realized_micro_compression_pct": 12.96,
+      "macro_compression_pct": 12.39,
+      "mean_hypertokens_per_output": 33.85,
+      "quality_preserved_compression_pct": 12.0,
+      "quality_preserved_tokens_saved": 491,
+      "tokens_saved": 893,
+      "decode_steps": 6000,
+      "expanded_tokens": 6893
+    },
+    "instruction": {
+      "dataset": "Alpaca Instruction Following",
+      "prompts_count": 20,
+      "objective_quality": "20.0% failure rate (4/20)",
+      "success_count": "16/20 (80.0%)",
+      "failure_count": 4,
+      "realized_micro_compression_pct": 3.7,
+      "macro_compression_pct": 3.11,
+      "mean_hypertokens_per_output": 4.6,
+      "quality_preserved_compression_pct": 3.3,
+      "quality_preserved_tokens_saved": 70,
+      "tokens_saved": 125,
+      "decode_steps": 3251,
+      "expanded_tokens": 3376
+    },
+    "overall": {
+      "dataset": "Full 60-Prompt Held-Out Suite",
+      "prompts_count": 60,
+      "overall_correct": "28/60 (46.7%)",
+      "failure_count": 32,
+      "realized_micro_compression_pct": 21.85,
+      "macro_compression_pct": 13.94,
+      "mean_hypertokens_per_output": 42.2,
+      "quality_preserved_compression_pct": 9.03,
+      "quality_preserved_tokens_saved": 561,
+      "tokens_saved": 4150,
+      "decode_steps": 14841,
+      "expanded_tokens": 18991,
+      "mean_wall_time_s": 49.61,
+      "mean_ttft_s": 1.59,
+      "mean_throughput_tok_per_s": 6.11
+    }
+  }
+}
