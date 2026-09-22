@@ -27,28 +27,22 @@ def segment_tokens_dp(
     dp = [0] * (n + 1)
     backptr = [1] * (n + 1)
 
+    max_step = max((len(p) for p in codebook_phrases), default=3)
+    max_step = max(3, max_step)
+
     for i in range(1, n + 1):
         # 1. Base token (step = 1)
         best_cost = dp[i - 1] + 1
         best_step = 1
 
-        # 2. Length-2 hypertoken
-        if i >= 2:
-            t2 = (tokens[i - 2], tokens[i - 1])
-            if t2 in codebook_phrases:
-                c2 = dp[i - 2] + 1
-                if c2 <= best_cost:  # prefer longer step if cost is equal
-                    best_cost = c2
-                    best_step = 2
-
-        # 3. Length-3 hypertoken
-        if i >= 3:
-            t3 = (tokens[i - 3], tokens[i - 2], tokens[i - 1])
-            if t3 in codebook_phrases:
-                c3 = dp[i - 3] + 1
-                if c3 <= best_cost:  # prefer longer step
-                    best_cost = c3
-                    best_step = 3
+        # Multi-token hypertokens (prefer longer step if cost is equal or better)
+        for step in range(2, min(max_step + 1, i + 1)):
+            phrase = tuple(tokens[i - step : i])
+            if phrase in codebook_phrases:
+                c = dp[i - step] + 1
+                if c <= best_cost:
+                    best_cost = c
+                    best_step = step
 
         dp[i] = best_cost
         backptr[i] = best_step

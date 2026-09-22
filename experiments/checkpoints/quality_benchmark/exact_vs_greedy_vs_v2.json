@@ -1,0 +1,248 @@
+{
+  "part1_exact_validation": [
+    {
+      "case": "synthetic_subphrase_shadowing",
+      "tokens_len": 17,
+      "budget_k": 3,
+      "exact": {
+        "tokens_saved": 10,
+        "runtime_ms": 8.08
+      },
+      "greedy": {
+        "tokens_saved": 6,
+        "runtime_ms": 0.04,
+        "gap_from_exact": 4,
+        "gap_pct": 40.0
+      },
+      "oracle_v2": {
+        "tokens_saved": 10,
+        "runtime_ms": 1.2,
+        "gap_from_exact": 0,
+        "gap_pct": 0.0
+      }
+    },
+    {
+      "case": "synthetic_repeated_arithmetic",
+      "tokens_len": 17,
+      "budget_k": 4,
+      "exact": {
+        "tokens_saved": 10,
+        "runtime_ms": 35.4
+      },
+      "greedy": {
+        "tokens_saved": 8,
+        "runtime_ms": 0.04,
+        "gap_from_exact": 2,
+        "gap_pct": 20.0
+      },
+      "oracle_v2": {
+        "tokens_saved": 9,
+        "runtime_ms": 1.34,
+        "gap_from_exact": 1,
+        "gap_pct": 10.0
+      }
+    },
+    {
+      "case": "synthetic_dense_packing",
+      "tokens_len": 18,
+      "budget_k": 4,
+      "exact": {
+        "tokens_saved": 12,
+        "runtime_ms": 37.99
+      },
+      "greedy": {
+        "tokens_saved": 9,
+        "runtime_ms": 0.04,
+        "gap_from_exact": 3,
+        "gap_pct": 25.0
+      },
+      "oracle_v2": {
+        "tokens_saved": 11,
+        "runtime_ms": 1.48,
+        "gap_from_exact": 1,
+        "gap_pct": 8.3
+      }
+    },
+    {
+      "case": "short_resp_mbpp_740",
+      "tokens_len": 60,
+      "budget_k": 4,
+      "exact": {
+        "tokens_saved": 15,
+        "runtime_ms": 108.21
+      },
+      "greedy": {
+        "tokens_saved": 10,
+        "runtime_ms": 0.09,
+        "gap_from_exact": 5,
+        "gap_pct": 33.3
+      },
+      "oracle_v2": {
+        "tokens_saved": 15,
+        "runtime_ms": 20.06,
+        "gap_from_exact": 0,
+        "gap_pct": 0.0
+      }
+    },
+    {
+      "case": "short_resp_mbpp_969",
+      "tokens_len": 60,
+      "budget_k": 4,
+      "exact": {
+        "tokens_saved": 14,
+        "runtime_ms": 106.96
+      },
+      "greedy": {
+        "tokens_saved": 13,
+        "runtime_ms": 0.1,
+        "gap_from_exact": 1,
+        "gap_pct": 7.1
+      },
+      "oracle_v2": {
+        "tokens_saved": 14,
+        "runtime_ms": 19.98,
+        "gap_from_exact": 0,
+        "gap_pct": 0.0
+      }
+    },
+    {
+      "case": "short_resp_mbpp_542",
+      "tokens_len": 60,
+      "budget_k": 4,
+      "exact": {
+        "tokens_saved": 12,
+        "runtime_ms": 106.44
+      },
+      "greedy": {
+        "tokens_saved": 10,
+        "runtime_ms": 0.09,
+        "gap_from_exact": 2,
+        "gap_pct": 16.7
+      },
+      "oracle_v2": {
+        "tokens_saved": 12,
+        "runtime_ms": 21.28,
+        "gap_from_exact": 0,
+        "gap_pct": 0.0
+      }
+    }
+  ],
+  "part2_k_comparison": {
+    "k_4": {
+      "greedy_oracle": {
+        "tokens_saved": 263,
+        "micro_compression_pct": 19.2,
+        "total_slots": 45,
+        "used_slots": 37,
+        "dead_slots": 8,
+        "capacity_utilization_pct": 82.2,
+        "mean_runtime_ms": 0.13
+      },
+      "oracle_v2_max3": {
+        "tokens_saved": 311,
+        "micro_compression_pct": 22.7,
+        "total_slots": 44,
+        "used_slots": 44,
+        "dead_slots": 0,
+        "capacity_utilization_pct": 100.0,
+        "mean_runtime_ms": 47.85
+      },
+      "oracle_v2_max4": {
+        "tokens_saved": 346,
+        "micro_compression_pct": 25.26,
+        "total_slots": 43,
+        "used_slots": 43,
+        "dead_slots": 0,
+        "capacity_utilization_pct": 100.0,
+        "mean_runtime_ms": 55.32
+      }
+    },
+    "k_8": {
+      "greedy_oracle": {
+        "tokens_saved": 348,
+        "micro_compression_pct": 25.4,
+        "total_slots": 89,
+        "used_slots": 58,
+        "dead_slots": 31,
+        "capacity_utilization_pct": 65.2,
+        "mean_runtime_ms": 0.16
+      },
+      "oracle_v2_max3": {
+        "tokens_saved": 465,
+        "micro_compression_pct": 33.94,
+        "total_slots": 82,
+        "used_slots": 82,
+        "dead_slots": 0,
+        "capacity_utilization_pct": 100.0,
+        "mean_runtime_ms": 104.14
+      },
+      "oracle_v2_max4": {
+        "tokens_saved": 515,
+        "micro_compression_pct": 37.59,
+        "total_slots": 80,
+        "used_slots": 80,
+        "dead_slots": 0,
+        "capacity_utilization_pct": 100.0,
+        "mean_runtime_ms": 123.72
+      }
+    },
+    "k_16": {
+      "greedy_oracle": {
+        "tokens_saved": 453,
+        "micro_compression_pct": 33.07,
+        "total_slots": 176,
+        "used_slots": 92,
+        "dead_slots": 84,
+        "capacity_utilization_pct": 52.3,
+        "mean_runtime_ms": 0.14
+      },
+      "oracle_v2_max3": {
+        "tokens_saved": 628,
+        "micro_compression_pct": 45.84,
+        "total_slots": 151,
+        "used_slots": 151,
+        "dead_slots": 0,
+        "capacity_utilization_pct": 100.0,
+        "mean_runtime_ms": 228.69
+      },
+      "oracle_v2_max4": {
+        "tokens_saved": 701,
+        "micro_compression_pct": 51.17,
+        "total_slots": 145,
+        "used_slots": 145,
+        "dead_slots": 0,
+        "capacity_utilization_pct": 100.0,
+        "mean_runtime_ms": 253.29
+      }
+    },
+    "k_32": {
+      "greedy_oracle": {
+        "tokens_saved": 572,
+        "micro_compression_pct": 41.75,
+        "total_slots": 336,
+        "used_slots": 160,
+        "dead_slots": 176,
+        "capacity_utilization_pct": 47.6,
+        "mean_runtime_ms": 0.13
+      },
+      "oracle_v2_max3": {
+        "tokens_saved": 736,
+        "micro_compression_pct": 53.72,
+        "total_slots": 217,
+        "used_slots": 217,
+        "dead_slots": 0,
+        "capacity_utilization_pct": 100.0,
+        "mean_runtime_ms": 338.34
+      },
+      "oracle_v2_max4": {
+        "tokens_saved": 770,
+        "micro_compression_pct": 56.2,
+        "total_slots": 184,
+        "used_slots": 184,
+        "dead_slots": 0,
+        "capacity_utilization_pct": 100.0,
+        "mean_runtime_ms": 345.46
+      }
+    }
+  }
+}
