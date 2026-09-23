@@ -5,6 +5,7 @@ experiments/checkpoints/*.pt
 experiments/checkpoints/**/*.pt
 experiments/checkpoints/*.bin
 experiments/checkpoints/**/*.bin
+experiments/kaggle/kernel/source.tar.gz
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

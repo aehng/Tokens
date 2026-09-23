@@ -133,20 +133,40 @@ print(json.dumps({"python": platform.python_version(), "torch": str(torch.__vers
     return json.loads(output)
 
 
-def clone_source(repo_commit: str) -> None:
+EXPECTED_SOURCE_ARCHIVE_SHA256 = "4e5aa2ea178a9b22a51db75a2bf5327fa07f2e083c6ea3ee27c612ae5ea0c2c4"
+EXPECTED_SOURCE_COMMIT = "ae780855ef764e7aa37eadb77e2eb92ad13e3182"
+
+
+def unpack_source(repo_commit: str) -> None:
     if REPO_ROOT.exists():
         shutil.rmtree(REPO_ROOT)
-    run_command(
-        ["git", "clone", "--depth", "1", "--branch", PACKAGE_BRANCH, PACKAGE_REPO, str(REPO_ROOT)],
-        log_path=OUTPUT_ROOT / "logs" / "clone.log",
-    )
-    current = run_command(["git", "rev-parse", "HEAD"], cwd=REPO_ROOT).stdout.strip()
-    if current != repo_commit:
-        run_command(["git", "fetch", "--depth", "1", "origin", repo_commit], cwd=REPO_ROOT)
-    run_command(["git", "checkout", "--detach", repo_commit], cwd=REPO_ROOT)
-    checked_out = run_command(["git", "rev-parse", "HEAD"], cwd=REPO_ROOT).stdout.strip()
-    if checked_out != repo_commit:
-        raise RuntimeError(f"Source checkout {checked_out} differs from artifact-pinned commit {repo_commit}")
+    REPO_ROOT.mkdir(parents=True, exist_ok=True)
+
+    # Locate bundled archive in current dir or script dir
+    script_dir = Path(__file__).resolve().parent
+    archive_candidates = [
+        script_dir / "source.tar.gz",
+        Path.cwd() / "source.tar.gz",
+        Path("/kaggle/working/source.tar.gz"),
+        Path("/kaggle/src/source.tar.gz"),
+    ]
+    archive_path = next((p for p in archive_candidates if p.is_file()), None)
+    if archive_path is None:
+        raise FileNotFoundError(f"Bundled source archive not found. Looked in: {archive_candidates}")
+
+    actual_hash = sha256(archive_path)
+    if actual_hash != EXPECTED_SOURCE_ARCHIVE_SHA256:
+        raise RuntimeError(f"Source archive SHA256 mismatch: expected {EXPECTED_SOURCE_ARCHIVE_SHA256}, got {actual_hash}")
+
+    import tarfile
+    with tarfile.open(archive_path, "r:gz") as tar:
+        tar.extractall(path=REPO_ROOT)
+
+    # Ensure source tree is directly importable
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT))
+    if str(REPO_ROOT / "src") not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT / "src"))
 
 
 def resolve_dataset_root() -> Path:
@@ -192,7 +212,7 @@ def verify_artifacts() -> tuple[dict[str, Any], Path, Path]:
 
     checkpoint_path = DATASET_ROOT / "checkpoint_step_100.pt"
     predictor_dataset_path = DATASET_ROOT / "oracle_guided_predictor.pkl"
-    clone_source(artifact_manifest["repo_commit"])
+    unpack_source(artifact_manifest["repo_commit"])
     source_predictor = REPO_ROOT / "experiments/checkpoints/oracle_guided_predictor.pkl"
     if sha256(source_predictor) != sha256(predictor_dataset_path):
         raise RuntimeError("Private predictor artifact differs from the predictor pinned in the source commit")
