@@ -68,23 +68,71 @@ def get_base_weight_hashes(model: Zip2ZipModel) -> Dict[str, str]:
     """Compute verification hashes for representative base model tensors."""
     hashes = {}
     base = model.base_model
-    # Input embedding base
-    if hasattr(base, "model") and hasattr(base.model, "embed_tokens"):
-        emb = base.model.embed_tokens
-        w = getattr(emb, "weight", None)
-        if w is not None:
-            hashes["embed_tokens"] = compute_tensor_hash(w)
+
+    # PEFT and distributed wrappers may put one or more shells around the
+    # causal LM. Prefer their explicit unwrapping APIs, then inspect common
+    # wrapper attributes while looking for the transformer block structure.
+    pending = [base]
+    seen = set()
+    backbone = None
+    while pending:
+        candidate = pending.pop(0)
+        if candidate is None or id(candidate) in seen:
+            continue
+        seen.add(id(candidate))
+        if hasattr(candidate, "layers"):
+            backbone = candidate
+            break
+
+        get_base_model = getattr(candidate, "get_base_model", None)
+        if callable(get_base_model):
+            try:
+                pending.append(get_base_model())
+            except (AttributeError, RuntimeError, TypeError):
+                pass
+        for attr in ("module", "base_model", "model"):
+            child = getattr(candidate, attr, None)
+            if child is not None:
+                pending.append(child)
+
+    excluded_ids = {
+        id(param)
+        for encoder_name in ("input_encoder", "output_encoder")
+        for encoder in (getattr(model, encoder_name, None),)
+        if encoder is not None
+        for param in encoder.parameters()
+    }
+    lora_ids = {
+        id(param)
+        for name, param in base.named_parameters(remove_duplicate=False)
+        if "lora" in name.lower()
+    }
+
+    def record(name: str, weight: Optional[torch.Tensor]) -> None:
+        if weight is not None and id(weight) not in excluded_ids | lora_ids:
+            hashes[name] = compute_tensor_hash(weight)
+
+    # HyperEmbedding/HyperLinear retain the original backbone Parameter. Hash
+    # that tensor, but exclude any parameter aliased to a trainable encoder.
+    embedding = getattr(backbone, "embed_tokens", None) if backbone is not None else None
+    record("embed_tokens", getattr(embedding, "weight", None))
 
     # Layer 0, Layer 16, Layer 31 projection weights
-    layers = getattr(base.model, "layers", []) if hasattr(base, "model") else []
+    layers = getattr(backbone, "layers", []) if backbone is not None else []
     for l_idx in [0, 16, 31]:
         if l_idx < len(layers):
             layer = layers[l_idx]
-            qkv = getattr(layer.self_attn, "qkv_proj", None)
+            self_attn = getattr(layer, "self_attn", None)
+            qkv = getattr(self_attn, "qkv_proj", None)
             if qkv is not None:
                 base_w = getattr(qkv, "base_layer", qkv)
-                if hasattr(base_w, "weight"):
-                    hashes[f"layer_{l_idx}_qkv_base"] = compute_tensor_hash(base_w.weight)
+                record(f"layer_{l_idx}_qkv_base", getattr(base_w, "weight", None))
+
+    if not any(name.startswith("layer_") for name in hashes):
+        raise RuntimeError(
+            "Could not select any frozen transformer-layer tensors to hash; refusing to "
+            "continue with vacuous frozen-weight checks."
+        )
     return hashes
 
 
