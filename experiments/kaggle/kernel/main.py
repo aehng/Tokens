@@ -182,6 +182,8 @@ def verify_artifacts() -> tuple[dict[str, Any], Path, Path]:
         raise RuntimeError("The Kaggle artifact manifest must describe a private validation-only dataset")
     expected_files = artifact_manifest.get("files", {})
     for name, expected in expected_files.items():
+        if name == "dataset-metadata.json":
+            continue
         path = DATASET_ROOT / name
         if not path.is_file():
             raise FileNotFoundError(f"Required Kaggle input artifact is missing: {path}")

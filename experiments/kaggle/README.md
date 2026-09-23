@@ -36,7 +36,9 @@ before loading a model.
 Use `dataset-metadata.json` from this folder with the real Kaggle account slug
 and the private dataset slug. Its license is `other`; the description states
 that upstream model terms apply and the dataset is not intended for
-redistribution. Do not change it to public.
+redistribution. Do not change it to public. Note that Kaggle treats
+`dataset-metadata.json` as upload control metadata and does not expose or
+mount it as a runtime data file inside `/kaggle/input/`.
 
 ## Reproduction
 
