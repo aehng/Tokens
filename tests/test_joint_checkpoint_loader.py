@@ -40,8 +40,9 @@ def make_checkpoint(model):
     return {
         "step": 100,
         "trainable_mode": "joint",
+        "config": {"model": {"name_or_path": "test-zip2zip-model"}, "device": "cpu", "enabled": True},
+        "base_hashes": {},
         "optimizer_state_dict": {"state": {}, "param_groups": []},
-        "config": {"device": "cpu", "enabled": True},
         "lora_state_dict": {
             name: torch.full_like(param, 0.25)
             for name, param in model.base_model.named_parameters()
@@ -64,14 +65,59 @@ class JointCheckpointLoaderTests(unittest.TestCase):
         checkpoint = make_checkpoint(model)
         base_before = model.base_model.backbone.weight.detach().clone()
 
-        report = load_joint_checkpoint(model, checkpoint)
+        with patch.object(
+            model,
+            "load_state_dict",
+            side_effect=AssertionError("the outer checkpoint must never be loaded as a model state_dict"),
+        ) as flat_loader:
+            report = load_joint_checkpoint(model, checkpoint)
+            flat_loader.assert_not_called()
 
         self.assertEqual(report["step"], 100)
+        self.assertEqual(report["model_id"], "test-zip2zip-model")
+        self.assertEqual(report["base_hash_status"], "missing")
         self.assertEqual(report["checkpoint_loader"], CHECKPOINT_LOADER_ID)
+        self.assertGreater(report["changed_tensor_count"], 0)
+        for component in report["components"].values():
+            self.assertEqual(component["missing_keys"], [])
+            self.assertEqual(component["unexpected_keys"], [])
+            self.assertNotEqual(component["before_sha256"], component["after_sha256"])
+            self.assertGreater(component["after_l2_norm"], 0)
         self.assertTrue(torch.equal(model.base_model.backbone.weight, base_before))
         self.assertTrue(torch.all(model.base_model.lora_A.weight == 0.25))
         self.assertTrue(torch.all(model.input_encoder.weight == 0.5))
         self.assertTrue(torch.all(model.output_encoder.weight == 0.75))
+
+    def test_rejects_checkpoint_when_no_trainable_tensor_changes(self):
+        model = TinyModel()
+        checkpoint = make_checkpoint(model)
+        parameters = dict(model.base_model.named_parameters())
+        for name, value in checkpoint["lora_state_dict"].items():
+            parameters[name].data.copy_(value)
+        model.input_encoder.load_state_dict(checkpoint["input_encoder_state_dict"])
+        model.output_encoder.load_state_dict(checkpoint["output_encoder_state_dict"])
+
+        with self.assertRaisesRegex(RuntimeError, "did not change any expected parameter"):
+            load_joint_checkpoint(model, checkpoint)
+
+    def test_requires_checkpoint_training_step(self):
+        model = TinyModel()
+        checkpoint = make_checkpoint(model)
+        checkpoint.pop("step")
+        with self.assertRaisesRegex(ValueError, "non-negative integer"):
+            load_joint_checkpoint(model, checkpoint)
+
+    def test_rejects_a_valid_but_wrong_training_step(self):
+        model = TinyModel()
+        checkpoint = make_checkpoint(model)
+        with self.assertRaisesRegex(ValueError, "expected 150, got 100"):
+            load_joint_checkpoint(model, checkpoint, expected_step=150)
+
+    def test_rejects_checkpoint_for_a_different_model_id(self):
+        model = TinyModel()
+        checkpoint = make_checkpoint(model)
+        with self.assertRaisesRegex(ValueError, "wrong joint checkpoint model ID"):
+            load_joint_checkpoint(model, checkpoint, expected_model_id="another-model")
 
     def test_preserves_checkpoint_dtype_exactly(self):
         model = TinyModel()

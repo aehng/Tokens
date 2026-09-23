@@ -600,7 +600,12 @@ def run(args: argparse.Namespace) -> Path:
                     device=args.device,
                     base_revision=args.base_revision,
                     model_revision=args.zip2zip_revision,
+                    expected_step=int(step),
                 )
+                manifest.setdefault("checkpoint_load_reports", {})[step] = predictive_bundles[step][
+                    "checkpoint_load_report"
+                ]
+                write_json_atomic(run_dir / "run_manifest.json", manifest)
 
         for condition in conditions:
             if condition == "original_phi":
@@ -694,8 +699,16 @@ def main() -> None:
     parser.add_argument("--predictor", default=str(DEFAULT_PREDICTOR))
     parser.add_argument("--conditions", nargs="+", choices=CONDITIONS)
     parser.add_argument("--device", default="cpu", help="cpu, cuda, or an explicit device such as cuda:0")
-    parser.add_argument("--base-revision", help="Pinned Phi/tokenizer hub commit SHA")
-    parser.add_argument("--zip2zip-revision", help="Pinned Zip2Zip hub commit SHA")
+    parser.add_argument(
+        "--base-revision",
+        default=benchmark.DEFAULT_PHI_REVISION,
+        help="Pinned Phi/tokenizer hub commit SHA",
+    )
+    parser.add_argument(
+        "--zip2zip-revision",
+        default=benchmark.DEFAULT_ZIP2ZIP_REVISION,
+        help="Pinned Zip2Zip hub commit SHA",
+    )
     parser.add_argument("--tested-commit", help="Full project Git SHA; inferred when available")
     parser.add_argument("--output-dir", help="Explicit run directory; must be unused or have an identical manifest")
     parser.add_argument("--cache-dir", help="Run-generation cache directory")

@@ -23,6 +23,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 
 from zip2zip import Zip2ZipModel, StaticCodebookManager
 from zip2zip.predictor_policy import CappedPredictorPolicy
+from experiments.load_joint_checkpoint import load_joint_checkpoint
 
 PROMPTS = [
     {
@@ -156,18 +157,21 @@ def main():
 
     # Load checkpoint weights into the existing model
     target_step = 5
-    if os.path.exists(checkpoint_path):
-        print(f"\nLoading weights into model from {checkpoint_path}...")
-        ckpt = torch.load(checkpoint_path, map_location="cpu")
-        target_step = ckpt.get("step", 5)
-        if "lora_state_dict" in ckpt:
-            for k, v in ckpt["lora_state_dict"].items():
-                model.base_model.load_state_dict({k: v}, strict=False)
-        if "input_encoder_state_dict" in ckpt:
-            model.input_encoder.load_state_dict(ckpt["input_encoder_state_dict"], strict=False)
-        if "output_encoder_state_dict" in ckpt and getattr(model, "output_encoder", None) is not None:
-            model.output_encoder.load_state_dict(ckpt["output_encoder_state_dict"], strict=False)
-        print(f"Step-{target_step} weights loaded successfully.\n")
+    if not os.path.isfile(checkpoint_path):
+        raise FileNotFoundError(f"Requested predictive checkpoint is missing: {checkpoint_path}")
+    print(f"\nLoading weights into model from {checkpoint_path}...")
+    load_report = load_joint_checkpoint(
+        model,
+        checkpoint_path,
+        expected_model_id="epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1",
+    )
+    target_step = load_report["step"]
+    print(
+        f"Verified Step-{target_step} with {load_report['changed_tensor_count']} changed tensors; "
+        f"missing={sum(map(len, load_report['missing_keys'].values()))}, "
+        f"unexpected={sum(map(len, load_report['unexpected_keys'].values()))}, "
+        f"base_hashes={load_report['base_hash_status']}.\n"
+    )
 
     print(f"--- Running Step-{target_step} Evaluations ---")
     stepN_results = {}

@@ -144,11 +144,19 @@ def main():
         ).to(device)
         model.output_encoder.to(torch.float32)
 
-        load_report = load_joint_checkpoint(model, CKPT_STEP100_PATH)
+        load_report = load_joint_checkpoint(
+            model,
+            CKPT_STEP100_PATH,
+            expected_step=100,
+            expected_model_id=MODEL_NAME,
+        )
         print(
-            f"Model loaded with {load_report['lora_tensors']} LoRA tensors and "
-            f"{load_report['input_encoder_tensors'] + load_report['output_encoder_tensors']} encoder tensors "
-            f"in {time.time() - t0_m:.1f}s.",
+            f"Verified Step {load_report['step']} using {load_report['checkpoint_loader']}: "
+            f"{load_report['changed_tensor_count']} trained tensors applied; "
+            f"missing={sum(map(len, load_report['missing_keys'].values()))}, "
+            f"unexpected={sum(map(len, load_report['unexpected_keys'].values()))}, "
+            f"base_hashes={load_report['base_hash_status']}; "
+            f"load+verify={time.time() - t0_m:.1f}s.",
             flush=True,
         )
 

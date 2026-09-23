@@ -53,6 +53,8 @@ MAX_NEW_TOKENS = 300
 INITIAL_VOCAB = 32011
 PHI_MODEL_ID = "microsoft/Phi-3.5-mini-instruct"
 ZIP2ZIP_MODEL_ID = "epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1"
+DEFAULT_PHI_REVISION = "2fe192450127e6a83f7441aef6e3ca586c338b77"
+DEFAULT_ZIP2ZIP_REVISION = "11c461733a79d2a5de6b814585c3361ca2aacbe7"
 
 
 class TimingLogitsProcessor(LogitsProcessor):
@@ -111,21 +113,38 @@ def load_predictive_model_bundle(
     device: str,
     base_revision: Optional[str] = None,
     model_revision: Optional[str] = None,
+    expected_step: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Load a checkpoint/model/predictor once for paired prompt conditions."""
+    base_revision = base_revision or DEFAULT_PHI_REVISION
+    model_revision = model_revision or DEFAULT_ZIP2ZIP_REVISION
     device_obj = torch.device(device)
     tokenizer = AutoTokenizer.from_pretrained(
         PHI_MODEL_ID, **_revision_kwargs(base_revision)
     )
     model = _load_zip2zip_model(ZIP2ZIP_MODEL_ID, base_revision, model_revision)
     print(f"Loading checkpoint weights from {checkpoint_path}...", flush=True)
-    report = load_joint_checkpoint(model, checkpoint_path)
+    report = load_joint_checkpoint(
+        model,
+        checkpoint_path,
+        expected_step=expected_step,
+        expected_model_id=ZIP2ZIP_MODEL_ID,
+    )
     print(
-        f"Verified nested checkpoint: {report['lora_tensors']} LoRA, "
-        f"{report['input_encoder_tensors']} input-encoder, and "
-        f"{report['output_encoder_tensors']} output-encoder tensors.",
+        f"Verified Step {report['step']} with {report['checkpoint_loader']}: "
+        f"{report['changed_tensor_count']} trained tensors applied; "
+        f"missing={sum(map(len, report['missing_keys'].values()))}, "
+        f"unexpected={sum(map(len, report['unexpected_keys'].values()))}, "
+        f"base_hashes={report['base_hash_status']}.",
         flush=True,
     )
+    for name, component in report["components"].items():
+        print(
+            f"  {name}: sha256 {component['before_sha256'][:12]} -> "
+            f"{component['after_sha256'][:12]}, L2 {component['before_l2_norm']:.5g} -> "
+            f"{component['after_l2_norm']:.5g}, changed={component['changed_tensor_count']}",
+            flush=True,
+        )
     model.to(device_obj)
     model.eval()
     with open(PREDICTOR_PATH, "rb") as source:
@@ -695,6 +714,11 @@ def run_condition_predictive(
         device=str(device),
         base_revision=base_revision,
         model_revision=model_revision,
+        expected_step=(
+            100 if "predictive_step_100" in condition_name
+            else 150 if "predictive_step_150" in condition_name
+            else None
+        ),
     )
     model = bundle["model"]
     tok = bundle["tokenizer"]

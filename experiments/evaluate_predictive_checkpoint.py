@@ -32,11 +32,12 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 from zip2zip import Zip2ZipModel, StaticCodebookManager
 from zip2zip.predictor_policy import CappedPredictorPolicy
 from src.evaluation.offline_segmenter import segment_tokens_dp
+from experiments.load_joint_checkpoint import load_joint_checkpoint
 from experiments.test_continuation_equivalence import evaluate_continuation_suite
 
 INITIAL_VOCAB = 32011
 SMOKE_VAL_PATH = "data/smoke_val_12.json"
-PREDICTOR_PATH = "experiments/checkpoints/cached_predictor.pkl"
+PREDICTOR_PATH = "experiments/checkpoints/oracle_guided_predictor.pkl"
 
 
 def evaluate_checkpoint(checkpoint_path: str = None, max_new_tokens: int = 150):
@@ -56,17 +57,28 @@ def evaluate_checkpoint(checkpoint_path: str = None, max_new_tokens: int = 150):
     )
 
     # 2. Load checkpoint weights if specified
-    if checkpoint_path and os.path.exists(checkpoint_path):
+    if checkpoint_path:
+        if not os.path.isfile(checkpoint_path):
+            raise FileNotFoundError(f"Requested predictive checkpoint is missing: {checkpoint_path}")
         print(f"Applying weights from {checkpoint_path}...")
-        ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
-        if "lora_state_dict" in ckpt:
-            # Load LoRA
-            model.base_model.load_state_dict(ckpt["lora_state_dict"], strict=False)
-        if "input_encoder_state_dict" in ckpt:
-            model.input_encoder.load_state_dict(ckpt["input_encoder_state_dict"])
-        if "output_encoder_state_dict" in ckpt:
-            model.output_encoder.load_state_dict(ckpt["output_encoder_state_dict"])
-        print(f"Checkpoint loaded (step={ckpt.get('step', 'unknown')}).")
+        report = load_joint_checkpoint(
+            model,
+            checkpoint_path,
+            expected_model_id="epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1",
+        )
+        print(
+            f"Verified checkpoint step={report['step']} loader={report['checkpoint_loader']} "
+            f"changed_tensors={report['changed_tensor_count']} "
+            f"missing={sum(map(len, report['missing_keys'].values()))} "
+            f"unexpected={sum(map(len, report['unexpected_keys'].values()))} "
+            f"base_hashes={report['base_hash_status']} model_id={report['model_id']!r}."
+        )
+        for name, component in report["components"].items():
+            print(
+                f"  {name}: sha256 {component['before_sha256'][:12]} -> "
+                f"{component['after_sha256'][:12]}, L2 {component['before_l2_norm']:.5g} -> "
+                f"{component['after_l2_norm']:.5g}, changed={component['changed_tensor_count']}"
+            )
     model.eval()
 
     # 3. Load 12-prompt smoke test set

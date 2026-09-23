@@ -1,6 +1,12 @@
 import pytest
 
-from experiments.run_k_sweep import DEFAULT_PREDICTOR, _validate_parameters, codebook_hash
+from experiments.run_k_sweep import (
+    DEFAULT_PREDICTOR,
+    DEFAULT_PHI_REVISION,
+    DEFAULT_ZIP2ZIP_REVISION,
+    _validate_parameters,
+    codebook_hash,
+)
 
 
 def test_k_sweep_parameters_accept_planned_fixed_k_set():
@@ -9,6 +15,11 @@ def test_k_sweep_parameters_accept_planned_fixed_k_set():
 
 def test_k_sweep_defaults_to_the_canonical_oracle_guided_predictor():
     assert DEFAULT_PREDICTOR.name == "oracle_guided_predictor.pkl"
+
+
+def test_k_sweep_pins_both_model_revisions():
+    assert len(DEFAULT_PHI_REVISION) == 40
+    assert len(DEFAULT_ZIP2ZIP_REVISION) == 40
 
 
 @pytest.mark.parametrize(

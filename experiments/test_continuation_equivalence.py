@@ -33,6 +33,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 from zip2zip import Zip2ZipModel, StaticCodebookManager
+from experiments.load_joint_checkpoint import load_joint_checkpoint
 
 INITIAL_VOCAB = 32011
 MAX_SUBTOKENS = 4
@@ -300,17 +301,27 @@ if __name__ == "__main__":
     tok = AutoTokenizer.from_pretrained("microsoft/Phi-3.5-mini-instruct")
     m = Zip2ZipModel.from_pretrained(model_id, torch_dtype=torch.float16, low_cpu_mem_usage=True)
 
-    if args.checkpoint and os.path.exists(args.checkpoint):
+    if args.checkpoint:
+        if not os.path.isfile(args.checkpoint):
+            raise FileNotFoundError(f"Requested predictive checkpoint is missing: {args.checkpoint}")
         print(f"Loading checkpoint weights from {args.checkpoint}...")
-        ckpt = torch.load(args.checkpoint, map_location="cpu")
-        if "lora_state_dict" in ckpt:
-            for k, v in ckpt["lora_state_dict"].items():
-                m.base_model.load_state_dict({k: v}, strict=False)
-        if "input_encoder_state_dict" in ckpt:
-            m.input_encoder.load_state_dict(ckpt["input_encoder_state_dict"], strict=False)
-        if "output_encoder_state_dict" in ckpt and getattr(m, "output_encoder", None) is not None:
-            m.output_encoder.load_state_dict(ckpt["output_encoder_state_dict"], strict=False)
-        print("Checkpoint weights loaded successfully.")
+        report = load_joint_checkpoint(
+            m,
+            args.checkpoint,
+            expected_model_id=model_id,
+        )
+        print(
+            f"Verified checkpoint step={report['step']} loader={report['checkpoint_loader']} "
+            f"changed_tensors={report['changed_tensor_count']}; "
+            f"missing={sum(map(len, report['missing_keys'].values()))}, "
+            f"unexpected={sum(map(len, report['unexpected_keys'].values()))}; "
+            f"base_hashes={report['base_hash_status']} model_id={report['model_id']!r}."
+        )
+        for name, component in report["components"].items():
+            print(
+                f"  {name}: sha256 {component['before_sha256'][:12]} -> "
+                f"{component['after_sha256'][:12]}, changed={component['changed_tensor_count']}"
+            )
 
     m.eval()
     os.makedirs(os.path.dirname(args.output), exist_ok=True)

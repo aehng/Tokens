@@ -45,7 +45,7 @@ MODEL_NAME = "epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1"
 POC_IDS_PATH = "experiments/checkpoints/quality_benchmark/poc_12_prompt_ids.json"
 VAL_DATA_PATH = "data/cached_pure_pred_val_60.json"
 RAW_RESULTS_PATH = "experiments/checkpoints/quality_benchmark/raw_results.jsonl"
-PREDICTOR_PATH = "experiments/checkpoints/cached_predictor.pkl"
+PREDICTOR_PATH = "experiments/checkpoints/oracle_guided_predictor.pkl"
 CKPT_STEP100_PATH = "experiments/checkpoints/predictive_joint_pilot/checkpoint_step_100.pt"
 OUT_JSON = "experiments/checkpoints/quality_benchmark/poc_selector_results_mbpp_signature_v1.json"
 OUT_MD = "experiments/checkpoints/quality_benchmark/poc_selector_results_mbpp_signature_v1.md"
@@ -107,11 +107,19 @@ def main():
     model.output_encoder.to(torch.float32)
 
     # Load Step 100 checkpoint
-    load_report = load_joint_checkpoint(model, CKPT_STEP100_PATH)
+    load_report = load_joint_checkpoint(
+        model,
+        CKPT_STEP100_PATH,
+        expected_step=100,
+        expected_model_id=MODEL_NAME,
+    )
     print(
-        f"Model loaded with {load_report['lora_tensors']} LoRA tensors and "
-        f"{load_report['input_encoder_tensors'] + load_report['output_encoder_tensors']} encoder tensors "
-        f"in {time.time() - t0:.1f}s.",
+        f"Verified Step {load_report['step']} using {load_report['checkpoint_loader']}: "
+        f"{load_report['changed_tensor_count']} trained tensors applied; "
+        f"missing={sum(map(len, load_report['missing_keys'].values()))}, "
+        f"unexpected={sum(map(len, load_report['unexpected_keys'].values()))}, "
+        f"base_hashes={load_report['base_hash_status']}; "
+        f"load+verify={time.time() - t0:.1f}s.",
         flush=True,
     )
 

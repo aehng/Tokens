@@ -43,6 +43,8 @@ from experiments.run_quality_benchmark import (  # noqa: E402
     MAX_NEW_TOKENS,
     PHI_MODEL_ID,
     ZIP2ZIP_MODEL_ID,
+    DEFAULT_PHI_REVISION,
+    DEFAULT_ZIP2ZIP_REVISION,
     TimingLogitsProcessor,
     _load_zip2zip_model,
     evaluate_alpaca_instruction,
@@ -203,8 +205,8 @@ def run_sweep(
     validation_data_path: str = str(DEFAULT_VALIDATION_DATA),
     predictor_path: str = str(DEFAULT_PREDICTOR),
     checkpoint_path: str = str(DEFAULT_CHECKPOINT),
-    base_revision: str | None = None,
-    model_revision: str | None = None,
+    base_revision: str | None = DEFAULT_PHI_REVISION,
+    model_revision: str | None = DEFAULT_ZIP2ZIP_REVISION,
     tested_commit: str | None = None,
     max_new_tokens: int = MAX_NEW_TOKENS,
     cache_dir: str | None = None,
@@ -427,10 +429,18 @@ def run_sweep(
             ).to(device)
             model.eval()
             model.output_encoder.to(torch.float32)
-            load_report = load_joint_checkpoint(model, checkpoint_file)
+            load_report = load_joint_checkpoint(
+                model,
+                checkpoint_file,
+                expected_step=100,
+                expected_model_id=ZIP2ZIP_MODEL_ID,
+            )
             print(
-                f"Loaded checkpoint ({load_report['lora_tensors']} LoRA tensors; "
-                f"{load_report['input_encoder_tensors'] + load_report['output_encoder_tensors']} encoder tensors).",
+                f"Verified Step {load_report['step']} using {load_report['checkpoint_loader']}: "
+                f"{load_report['changed_tensor_count']} trained tensors applied; "
+                f"missing={sum(map(len, load_report['missing_keys'].values()))}, "
+                f"unexpected={sum(map(len, load_report['unexpected_keys'].values()))}, "
+                f"base_hashes={load_report['base_hash_status']}.",
                 flush=True,
             )
             dim = model.zip2zip_config.encoder.hidden_size
@@ -654,8 +664,16 @@ def main() -> None:
     )
     parser.add_argument("--cache-dir")
     parser.add_argument("--device", default="cpu")
-    parser.add_argument("--base-revision", help="Full pinned Phi/tokenizer Hub commit SHA for GPU runs")
-    parser.add_argument("--model-revision", help="Full pinned Zip2Zip Hub commit SHA for GPU runs")
+    parser.add_argument(
+        "--base-revision",
+        default=DEFAULT_PHI_REVISION,
+        help="Full pinned Phi/tokenizer Hub commit SHA",
+    )
+    parser.add_argument(
+        "--model-revision",
+        default=DEFAULT_ZIP2ZIP_REVISION,
+        help="Full pinned Zip2Zip Hub commit SHA",
+    )
     parser.add_argument("--tested-commit", help="Full project commit SHA; required for packaged runs without Git")
     parser.add_argument("--max-new-tokens", type=int, default=MAX_NEW_TOKENS)
     args = parser.parse_args()

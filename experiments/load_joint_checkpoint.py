@@ -15,6 +15,7 @@ ignores every trained tensor.
 from __future__ import annotations
 
 import hashlib
+import math
 import os
 from collections.abc import Mapping
 from typing import Any
@@ -22,7 +23,7 @@ from typing import Any
 import torch
 from torch import nn
 
-CHECKPOINT_LOADER_ID = "joint_nested_v1"
+CHECKPOINT_LOADER_ID = "joint_nested_v2"
 
 HISTORICAL_BASELINE_STATUS = "historical_unverified"
 
@@ -63,7 +64,13 @@ def accept_cached_generation(record: Any) -> bool:
     return record.get("checkpoint_loader") == CHECKPOINT_LOADER_ID
 
 
-def load_joint_checkpoint(model: nn.Module, source: str | os.PathLike | Mapping) -> dict:
+def load_joint_checkpoint(
+    model: nn.Module,
+    source: str | os.PathLike | Mapping,
+    *,
+    expected_step: int | None = None,
+    expected_model_id: str | None = None,
+) -> dict:
     """Install nested joint weights onto ``model`` and return a small report.
 
     ``source`` is a checkpoint path or an already-loaded mapping. Every
@@ -72,6 +79,17 @@ def load_joint_checkpoint(model: nn.Module, source: str | os.PathLike | Mapping)
     """
     checkpoint = _read_checkpoint(source)
     _require_nested_sections(checkpoint)
+    step = _checkpoint_step(checkpoint)
+    if expected_step is not None and step != expected_step:
+        raise ValueError(
+            f"wrong joint checkpoint step: expected {expected_step}, got {step}"
+        )
+    checkpoint_model_id = _checkpoint_model_id(checkpoint)
+    if expected_model_id is not None and checkpoint_model_id != expected_model_id:
+        raise ValueError(
+            "wrong joint checkpoint model ID: "
+            f"expected {expected_model_id!r}, got {checkpoint_model_id!r}"
+        )
 
     lora_state = _tensor_mapping(checkpoint[_LORA_KEY], _LORA_KEY)
     input_state = _tensor_mapping(checkpoint[_INPUT_KEY], _INPUT_KEY)
@@ -80,17 +98,19 @@ def load_joint_checkpoint(model: nn.Module, source: str | os.PathLike | Mapping)
     base_model = model.base_model
     input_encoder = model.input_encoder
     output_encoder = getattr(model, "output_encoder", None)
+    if output_encoder is None:
+        raise RuntimeError("joint checkpoint loading requires model.output_encoder")
 
     lora_params = _lora_parameters(base_model)
     _validate_lora(lora_params, lora_state)
     _validate_module_state(input_encoder, input_state, _INPUT_KEY)
-    if output_encoder is None:
-        if output_state:
-            raise RuntimeError(
-                "checkpoint output_encoder_state_dict is non-empty but model.output_encoder is None"
-            )
-    else:
-        _validate_module_state(output_encoder, output_state, _OUTPUT_KEY)
+    _validate_module_state(output_encoder, output_state, _OUTPUT_KEY)
+
+    before = {
+        "lora": _tensor_group_summary(lora_params),
+        "input_encoder": _tensor_group_summary(input_encoder.state_dict()),
+        "output_encoder": _tensor_group_summary(output_encoder.state_dict()),
+    }
 
     encoder_parameter_ids = {
         id(param)
@@ -107,21 +127,66 @@ def load_joint_checkpoint(model: nn.Module, source: str | os.PathLike | Mapping)
 
     _assert_installed(lora_params, lora_state, "lora")
     _assert_module_installed(input_encoder, input_state, _INPUT_KEY)
-    if output_encoder is not None:
-        _assert_module_installed(output_encoder, output_state, _OUTPUT_KEY)
+    _assert_module_installed(output_encoder, output_state, _OUTPUT_KEY)
+
+    after = {
+        "lora": _tensor_group_summary(lora_params),
+        "input_encoder": _tensor_group_summary(input_encoder.state_dict()),
+        "output_encoder": _tensor_group_summary(output_encoder.state_dict()),
+    }
+    components = {
+        "lora": _component_report(before["lora"], after["lora"], lora_state),
+        "input_encoder": _component_report(before["input_encoder"], after["input_encoder"], input_state),
+        "output_encoder": _component_report(before["output_encoder"], after["output_encoder"], output_state),
+    }
+    changed_count = sum(component["changed_tensor_count"] for component in components.values())
+    if changed_count == 0:
+        raise RuntimeError(
+            "joint checkpoint tensors exactly match all live trainable weights before loading; "
+            "the checkpoint load did not change any expected parameter"
+        )
 
     after = _parameter_fingerprint(base_model, encoder_parameter_ids)
     if after != base_fingerprint:
         raise AssertionError("Frozen base weights changed while loading the joint checkpoint")
 
     return {
-        "step": checkpoint.get("step"),
+        "step": step,
         "trainable_mode": checkpoint.get("trainable_mode"),
+        "model_id": checkpoint_model_id,
+        "base_hash_status": (
+            "present_unverified"
+            if isinstance(checkpoint.get("base_hashes"), Mapping) and checkpoint["base_hashes"]
+            else "missing"
+        ),
         "lora_tensors": len(lora_state),
         "input_encoder_tensors": len(input_state),
         "output_encoder_tensors": len(output_state),
+        "missing_keys": {name: values["missing_keys"] for name, values in components.items()},
+        "unexpected_keys": {name: values["unexpected_keys"] for name, values in components.items()},
+        "components": components,
+        "changed_tensor_count": changed_count,
         "checkpoint_loader": CHECKPOINT_LOADER_ID,
     }
+
+
+def _checkpoint_step(checkpoint: Mapping) -> int:
+    step = checkpoint.get("step", checkpoint.get("global_step"))
+    if isinstance(step, bool) or not isinstance(step, int) or step < 0:
+        raise ValueError(
+            "joint checkpoint must contain a non-negative integer `step` or `global_step`; "
+            f"got {step!r}"
+        )
+    return step
+
+
+def _checkpoint_model_id(checkpoint: Mapping) -> str | None:
+    config = checkpoint.get("config")
+    model_config = config.get("model") if isinstance(config, Mapping) else None
+    if not isinstance(model_config, Mapping):
+        return None
+    value = model_config.get("name_or_path")
+    return value if isinstance(value, str) and value else None
 
 
 def _read_checkpoint(source: str | os.PathLike | Mapping) -> Mapping:
@@ -263,6 +328,59 @@ def _bitwise_equal(live: torch.Tensor, src: torch.Tensor) -> bool:
     return bool(torch.equal(a, b))
 
 
+def _tensor_digest(value: torch.Tensor) -> tuple[str, float]:
+    tensor = value.detach().to(device="cpu").contiguous()
+    if tensor.is_floating_point() and not bool(torch.isfinite(tensor).all()):
+        raise RuntimeError("checkpoint/live tensor contains NaN or infinity")
+
+    digest = hashlib.sha256()
+    digest.update(str(tensor.dtype).encode("ascii"))
+    digest.update(str(tuple(tensor.shape)).encode("ascii"))
+    byte_tensor = tensor.reshape(-1).view(torch.uint8)
+    digest.update(memoryview(byte_tensor.numpy()).cast("B"))
+    norm = float(torch.linalg.vector_norm(tensor.float()).item()) if tensor.numel() else 0.0
+    return digest.hexdigest(), norm
+
+
+def _tensor_group_summary(named_tensors: Mapping[str, torch.Tensor]) -> dict:
+    digest = hashlib.sha256()
+    tensor_digests: dict[str, str] = {}
+    squared_norm = 0.0
+    for name, tensor in sorted(named_tensors.items()):
+        tensor_digest, norm = _tensor_digest(tensor)
+        digest.update(name.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(tensor_digest.encode("ascii"))
+        tensor_digests[name] = tensor_digest
+        squared_norm += norm * norm
+    digest.update(str(len(tensor_digests)).encode("ascii"))
+    return {
+        "sha256": digest.hexdigest(),
+        "l2_norm": math.sqrt(squared_norm),
+        "tensor_digests": tensor_digests,
+    }
+
+
+def _component_report(before: Mapping, after: Mapping, incoming: Mapping[str, torch.Tensor]) -> dict:
+    missing = sorted(set(before["tensor_digests"]) - set(incoming))
+    unexpected = sorted(set(incoming) - set(before["tensor_digests"]))
+    changed = [
+        name
+        for name, tensor_digest in before["tensor_digests"].items()
+        if after["tensor_digests"].get(name) != tensor_digest
+    ]
+    return {
+        "tensor_count": len(after["tensor_digests"]),
+        "missing_keys": missing,
+        "unexpected_keys": unexpected,
+        "before_sha256": before["sha256"],
+        "after_sha256": after["sha256"],
+        "before_l2_norm": before["l2_norm"],
+        "after_l2_norm": after["l2_norm"],
+        "changed_tensor_count": len(changed),
+    }
+
+
 def _parameter_fingerprint(base_model: nn.Module, excluded_ids: set[int]) -> str:
     """Hash non-LoRA base parameters, excluding encoder aliases by identity."""
     hasher = hashlib.sha256()
@@ -271,11 +389,12 @@ def _parameter_fingerprint(base_model: nn.Module, excluded_ids: set[int]) -> str
         if "lora" in name.lower() or id(param) in excluded_ids:
             continue
         count += 1
-        tensor = param.detach().cpu().contiguous()
+        tensor = param.detach().to(device="cpu").contiguous()
         hasher.update(name.encode("utf-8"))
         hasher.update(b"\0")
         hasher.update(str(tensor.dtype).encode("utf-8"))
         hasher.update(str(tuple(tensor.shape)).encode("utf-8"))
-        hasher.update(tensor.numpy().tobytes())
+        byte_tensor = tensor.reshape(-1).view(torch.uint8)
+        hasher.update(memoryview(byte_tensor.numpy()).cast("B"))
     hasher.update(str(count).encode("utf-8"))
     return hasher.hexdigest()
