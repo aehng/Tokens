@@ -29,7 +29,7 @@ REPO_ROOT = Path("/kaggle/working/tokens-source")
 PACKAGE_REPO = "https://github.com/aehng/Tokens.git"
 PACKAGE_BRANCH = "codex/kaggle-gpu-enablement"
 LAUNCHER_COMMIT = "4c70e405eb276315a528b1f88952bb4f6635e2e7"
-LAUNCHER_VERSION = "v7-smoke-only"
+LAUNCHER_VERSION = "v8-smoke-only"
 EXPECTED_CONDITIONS = ["original_phi", "predictive_step_100_compressed_prompt"]
 MAJOR_TEXT_DIVERGENCE_THRESHOLD = 0.55
 
@@ -155,21 +155,26 @@ def unpack_source(repo_commit: str) -> None:
     if primary_archive.is_file():
         archive_path = primary_archive
     else:
-        # Fallback candidates logged explicitly
-        script_dir = Path(__file__).resolve().parent
-        archive_candidates = [
-            script_dir / "source.tar.gz",
-            Path.cwd() / "source.tar.gz",
-            Path("/kaggle/working/source.tar.gz"),
-            Path("/kaggle/src/source.tar.gz"),
-        ]
-        archive_path = next((p for p in archive_candidates if p.is_file()), None)
-        if archive_path is None:
-            raise FileNotFoundError(
-                f"Bundled source archive not found. Primary: {primary_archive}. "
-                f"Looked in fallbacks: {archive_candidates}"
-            )
-        print(f"[Provenance] Primary source archive not found; using fallback: {archive_path}")
+        # Fallback search if Kaggle mounted under a nested input directory
+        fallback_matches = sorted(Path("/kaggle/input").rglob("source.tar.gz")) if Path("/kaggle/input").is_dir() else []
+        if fallback_matches:
+            archive_path = fallback_matches[0]
+            print(f"[Provenance] Primary archive not found at {primary_archive}; discovered mount: {archive_path}")
+        else:
+            script_dir = Path(__file__).resolve().parent
+            archive_candidates = [
+                script_dir / "source.tar.gz",
+                Path.cwd() / "source.tar.gz",
+                Path("/kaggle/working/source.tar.gz"),
+                Path("/kaggle/src/source.tar.gz"),
+            ]
+            archive_path = next((p for p in archive_candidates if p.is_file()), None)
+            if archive_path is None:
+                raise FileNotFoundError(
+                    f"Bundled source archive not found. Primary: {primary_archive}. "
+                    f"Looked in /kaggle/input and fallbacks: {archive_candidates}"
+                )
+            print(f"[Provenance] Primary source archive not found; using local fallback: {archive_path}")
 
     actual_hash = sha256(archive_path)
     if actual_hash != EXPECTED_SOURCE_ARCHIVE_SHA256:
@@ -219,6 +224,12 @@ def verify_artifacts() -> tuple[dict[str, Any], Path, Path]:
     artifact_manifest = json.loads((DATASET_ROOT / "artifact_manifest.json").read_text(encoding="utf-8"))
     if artifact_manifest.get("dataset_visibility") != "private" or not artifact_manifest.get("validation_split_only"):
         raise RuntimeError("The Kaggle artifact manifest must describe a private validation-only dataset")
+    expected_dataset_staging_commits = {EXPECTED_SOURCE_COMMIT, "3b77672c2bbf50abaa8afdbbd65e576c10022ec4"}
+    if artifact_manifest.get("repo_commit") not in expected_dataset_staging_commits:
+        raise RuntimeError(
+            f"Artifact manifest repo_commit {artifact_manifest.get('repo_commit')} "
+            f"not in expected commits: {expected_dataset_staging_commits}"
+        )
     expected_files = artifact_manifest.get("files", {})
     for name, expected in expected_files.items():
         if name == "dataset-metadata.json":
@@ -231,7 +242,7 @@ def verify_artifacts() -> tuple[dict[str, Any], Path, Path]:
 
     checkpoint_path = DATASET_ROOT / "checkpoint_step_100.pt"
     predictor_dataset_path = DATASET_ROOT / "oracle_guided_predictor.pkl"
-    unpack_source(artifact_manifest["repo_commit"])
+    unpack_source(EXPECTED_SOURCE_COMMIT)
     source_predictor = REPO_ROOT / "experiments/checkpoints/oracle_guided_predictor.pkl"
     if sha256(source_predictor) != sha256(predictor_dataset_path):
         raise RuntimeError("Private predictor artifact differs from the predictor pinned in the source commit")
@@ -289,7 +300,7 @@ def run_tier1(output_dir: Path, artifact_manifest: dict[str, Any], checkpoint_pa
         "--device", "cuda:0",
         "--base-revision", artifact_manifest["phi_revision"],
         "--zip2zip-revision", artifact_manifest["zip2zip_revision"],
-        "--tested-commit", artifact_manifest["repo_commit"],
+        "--tested-commit", EXPECTED_SOURCE_COMMIT,
         "--output-dir", str(output_dir),
         "--max-new-tokens", "300",
         "--prompts-per-domain", "1",
@@ -381,8 +392,8 @@ def validate_smoke(run_dir: Path, artifact_manifest: dict[str, Any], gpu_info: d
     reasons = []
     if manifest.get("status") != "complete" or set(records_by_key) != expected_keys:
         reasons.append("Smoke run did not produce exactly six complete paired records")
-    if identity.get("tested_commit") != artifact_manifest["repo_commit"]:
-        reasons.append("Smoke manifest tested commit does not match the private artifact manifest")
+    if identity.get("tested_commit") != EXPECTED_SOURCE_COMMIT:
+        reasons.append("Smoke manifest tested commit does not match the expected source commit")
     if identity.get("prompt_ids") != expected_ids:
         reasons.append("Smoke run prompt IDs or order differ from the fixed 3-prompt selection")
     predictive_config = identity.get("conditions", {}).get("predictive_step_100_compressed_prompt", {})
@@ -701,7 +712,8 @@ def main() -> None:
             "source_commit": EXPECTED_SOURCE_COMMIT,
             "launcher_commit": LAUNCHER_COMMIT,
             "launcher_version": LAUNCHER_VERSION,
-            "repo_commit": artifact_manifest["repo_commit"] if "artifact_manifest" in locals() else None,
+            "artifact_manifest_commit": artifact_manifest["repo_commit"] if "artifact_manifest" in locals() else None,
+            "repo_commit": EXPECTED_SOURCE_COMMIT,
             "repo_branch": PACKAGE_BRANCH,
             "model_id": "microsoft/Phi-3.5-mini-instruct",
             "phi_revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
