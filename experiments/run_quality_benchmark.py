@@ -40,6 +40,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 from zip2zip import Zip2ZipModel, Zip2ZipTokenizer, StaticCodebookManager
 from zip2zip.predictor_policy import CappedPredictorPolicy
 from experiments.mbpp_prompt import build_mbpp_prompt
+from experiments.load_joint_checkpoint import load_joint_checkpoint
 
 VAL_DATA_PATH = "data/cached_pure_pred_val_60.json"
 PREDICTOR_PATH = "experiments/checkpoints/cached_predictor.pkl"
@@ -530,14 +531,12 @@ def run_condition_predictive(
     )
 
     print(f"Loading checkpoint weights from {checkpoint_path}...")
-    ckpt = torch.load(checkpoint_path, map_location="cpu")
-    if "lora_state_dict" in ckpt:
-        for k, v in ckpt["lora_state_dict"].items():
-            model.base_model.load_state_dict({k: v}, strict=False)
-    if "input_encoder_state_dict" in ckpt:
-        model.input_encoder.load_state_dict(ckpt["input_encoder_state_dict"], strict=False)
-    if "output_encoder_state_dict" in ckpt and getattr(model, "output_encoder", None) is not None:
-        model.output_encoder.load_state_dict(ckpt["output_encoder_state_dict"], strict=False)
+    load_report = load_joint_checkpoint(model, checkpoint_path)
+    print(
+        f"Verified nested checkpoint: {load_report['lora_tensors']} LoRA, "
+        f"{load_report['input_encoder_tensors']} input-encoder, and "
+        f"{load_report['output_encoder_tensors']} output-encoder tensors."
+    )
     model.eval()
 
     with open(PREDICTOR_PATH, "rb") as f:
