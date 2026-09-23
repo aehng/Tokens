@@ -151,21 +151,24 @@ def clone_source(repo_commit: str) -> None:
 
 def resolve_dataset_root() -> Path:
     input_root = Path("/kaggle/input")
-    mounted = sorted(path for path in input_root.iterdir() if path.is_dir()) if input_root.is_dir() else []
+    manifest_paths = sorted(input_root.rglob("artifact_manifest.json")) if input_root.is_dir() else []
     matches = []
-    for root in mounted:
-        manifest_path = root / "artifact_manifest.json"
+    discovered = []
+    for manifest_path in manifest_paths:
         if not manifest_path.is_file():
             continue
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
+        discovered.append(
+            {"path": str(manifest_path.parent), "private_dataset_id": manifest.get("private_dataset_id")}
+        )
         if manifest.get("private_dataset_id") == DATASET_ID:
-            matches.append(root)
+            matches.append(manifest_path.parent)
     if len(matches) != 1:
         raise FileNotFoundError(
-            f"Expected exactly one mounted input for {DATASET_ID}; found {[str(path) for path in mounted]}. "
+            f"Expected exactly one mounted input for {DATASET_ID}; found {discovered}. "
             "Confirm the private dataset is attached and rerun after Kaggle finishes mounting it."
         )
     return matches[0]
