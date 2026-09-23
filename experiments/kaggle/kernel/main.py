@@ -137,8 +137,8 @@ print(json.dumps({"python": platform.python_version(), "torch": str(torch.__vers
     return json.loads(output)
 
 
-EXPECTED_SOURCE_ARCHIVE_SHA256 = "983568a8e851a1c18b036294b8fc15bdffca5bd57105fcb8540ca90798bda2db"
-EXPECTED_SOURCE_COMMIT = "4a6e84b7df4e39b510d8281e62c861b0d6793644"
+EXPECTED_SOURCE_ARCHIVE_SHA256 = "8ca99e67e579736d3af775680d07a4ac6159feedffbd0e7970176ec602c69d4e"
+EXPECTED_SOURCE_COMMIT = "d7cc4bb5f9750c70412154f29ddde93f09cc1ec9"
 
 
 def unpack_source(repo_commit: str) -> None:
