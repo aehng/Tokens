@@ -29,9 +29,7 @@ DATASET_ID = "elikearl/tokens-step100-gpu-smoke"
 OUTPUT_ROOT = Path("/kaggle/working/tokens-kaggle-output")
 REPO_ROOT = Path("/kaggle/working/tokens-source")
 PACKAGE_REPO = "https://github.com/aehng/Tokens.git"
-PACKAGE_BRANCH = "codex/kaggle-gpu-enablement"
-LAUNCHER_COMMIT = "bf26df84013ed14f6606c0eeca65c9d85f05b255"
-LAUNCHER_VERSION = "v13-runtime-decomposition"
+LAUNCHER_VERSION = "v14-runtime-decomposition-fixed"
 
 
 def write_json(path: Path, payload: Any) -> None:
@@ -139,8 +137,8 @@ print(json.dumps({"python": platform.python_version(), "torch": str(torch.__vers
     return json.loads(output)
 
 
-EXPECTED_SOURCE_ARCHIVE_SHA256 = "e6471649b91ff717edf8155f753d32f56758d1fdb27c492a5440273cb87c03c4"
-EXPECTED_SOURCE_COMMIT = "6b7da0e5a624e634f4beb77847cf1ae6c0a1ae8d"
+EXPECTED_SOURCE_ARCHIVE_SHA256 = "5bdb95253c4f0e99548f385f8e643723f1ea0d1198dd9598a5ce226a84f8c039"
+EXPECTED_SOURCE_COMMIT = "42e3ed3d9e36f1abc4102d5f78fbc1271440fa14"
 
 
 def unpack_source(repo_commit: str) -> None:
@@ -325,13 +323,17 @@ def main() -> None:
     finally:
         sampler.stop()
 
+    launcher_file_path = Path(__file__).resolve()
+    launcher_file_hash = sha256(launcher_file_path) if launcher_file_path.is_file() else None
+
     finished = datetime.now(timezone.utc).isoformat()
     if environment is not None:
         manifest = {
             "schema": "tokens_kaggle_gpu_environment_v1",
             "repo": "aehng/Tokens",
             "source_commit": EXPECTED_SOURCE_COMMIT,
-            "launcher_commit": LAUNCHER_COMMIT,
+            "source_archive_sha256": EXPECTED_SOURCE_ARCHIVE_SHA256,
+            "launcher_file_sha256": launcher_file_hash,
             "launcher_version": LAUNCHER_VERSION,
             "torch_version": environment["torch"],
             "transformers_version": environment["transformers"],
