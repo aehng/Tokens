@@ -28,10 +28,11 @@ OUTPUT_ROOT = Path("/kaggle/working/tokens-kaggle-output")
 REPO_ROOT = Path("/kaggle/working/tokens-source")
 PACKAGE_REPO = "https://github.com/aehng/Tokens.git"
 PACKAGE_BRANCH = "codex/kaggle-gpu-enablement"
-LAUNCHER_COMMIT = "e2ccf7457fc83416eef2d829984b5c7776c703b6"
-LAUNCHER_VERSION = "v9-smoke-only"
+LAUNCHER_COMMIT = "419f196ba6046d41e25b8a3e7b2b83c8bad30623"
+LAUNCHER_VERSION = "v11-smoke-only"
 EXPECTED_CONDITIONS = ["original_phi", "predictive_step_100_compressed_prompt"]
 MAJOR_TEXT_DIVERGENCE_THRESHOLD = 0.55
+
 
 
 def write_json(path: Path, payload: Any) -> None:
@@ -136,7 +137,7 @@ print(json.dumps({"python": platform.python_version(), "torch": str(torch.__vers
 
 
 EXPECTED_SOURCE_ARCHIVE_SHA256 = "4e5aa2ea178a9b22a51db75a2bf5327fa07f2e083c6ea3ee27c612ae5ea0c2c4"
-EXPECTED_SOURCE_COMMIT = "ae780855ef764e7aa37eadb77e2eb92ad13e3182"
+EXPECTED_SOURCE_COMMIT = "419f196ba6046d41e25b8a3e7b2b83c8bad30623"
 
 
 def unpack_source(repo_commit: str) -> None:
@@ -242,7 +243,11 @@ def verify_artifacts() -> tuple[dict[str, Any], Path, Path]:
     artifact_manifest = json.loads((DATASET_ROOT / "artifact_manifest.json").read_text(encoding="utf-8"))
     if artifact_manifest.get("dataset_visibility") != "private" or not artifact_manifest.get("validation_split_only"):
         raise RuntimeError("The Kaggle artifact manifest must describe a private validation-only dataset")
-    expected_dataset_staging_commits = {EXPECTED_SOURCE_COMMIT, "3b77672c2bbf50abaa8afdbbd65e576c10022ec4"}
+    expected_dataset_staging_commits = {
+        EXPECTED_SOURCE_COMMIT,
+        "ae780855ef764e7aa37eadb77e2eb92ad13e3182",  # original source commit
+        "3b77672c2bbf50abaa8afdbbd65e576c10022ec4",  # pre-fix staging commit
+    }
     if artifact_manifest.get("repo_commit") not in expected_dataset_staging_commits:
         raise RuntimeError(
             f"Artifact manifest repo_commit {artifact_manifest.get('repo_commit')} "
