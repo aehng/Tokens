@@ -5,8 +5,8 @@ Determines the new Pareto frontier and whether the optimal operating budget
 shifted upward with the quality-aware predictor.
 
 Outputs:
-- experiments/checkpoints/quality_benchmark/poc_k_recalibration_joint_nested_v1.json
-- experiments/checkpoints/quality_benchmark/poc_k_recalibration_joint_nested_v1.md
+- experiments/checkpoints/quality_benchmark/poc_k_recalibration_mbpp_signature_v1.json
+- experiments/checkpoints/quality_benchmark/poc_k_recalibration_mbpp_signature_v1.md
 """
 
 import json
@@ -26,6 +26,7 @@ sys.path.insert(0, os.path.abspath("src"))
 from zip2zip import Zip2ZipModel, StaticCodebookManager
 from experiments.train_oracle_guided_predictor import OracleGuidedPredictor
 from experiments.load_joint_checkpoint import load_joint_checkpoint, stamp_generation_record, accept_cached_generation
+from experiments.mbpp_prompt import build_mbpp_prompt
 from experiments.run_quality_benchmark import (
     evaluate_mbpp_code,
     evaluate_gsm8k_reasoning,
@@ -33,17 +34,18 @@ from experiments.run_quality_benchmark import (
     TimingLogitsProcessor,
     INITIAL_VOCAB,
     MAX_NEW_TOKENS,
+    sequence_reached_eos,
 )
 
 MODEL_NAME = "epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1"
 POC_IDS_PATH = "experiments/checkpoints/quality_benchmark/poc_12_prompt_ids.json"
 VAL_DATA_PATH = "data/cached_pure_pred_val_60.json"
-PHASE6_RESULTS_PATH = "experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_joint_nested_v1.json"
+PHASE6_RESULTS_PATH = "experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_mbpp_signature_v1.json"
 ORACLE_PRED_PATH = "experiments/checkpoints/oracle_guided_predictor.pkl"
 CKPT_STEP100_PATH = "experiments/checkpoints/predictive_joint_pilot/checkpoint_step_100.pt"
-RAW_RESULTS_PATH = "experiments/checkpoints/quality_benchmark/raw_results.jsonl"
-OUT_JSON = "experiments/checkpoints/quality_benchmark/poc_k_recalibration_joint_nested_v1.json"
-OUT_MD = "experiments/checkpoints/quality_benchmark/poc_k_recalibration_joint_nested_v1.md"
+RAW_RESULTS_PATH = "experiments/checkpoints/quality_benchmark/mbpp_signature_v1/raw_results.jsonl"
+OUT_JSON = "experiments/checkpoints/quality_benchmark/poc_k_recalibration_mbpp_signature_v1.json"
+OUT_MD = "experiments/checkpoints/quality_benchmark/poc_k_recalibration_mbpp_signature_v1.md"
 
 K_SWEEP = [4, 8, 16, 24, 32]
 
@@ -82,7 +84,7 @@ def main():
             for line in f:
                 r = json.loads(line)
                 if r.get("condition") == "original_phi" and r.get("prompt_id") in poc_ids_set:
-                    r["baseline_provenance"] = "historical_unverified"
+                    r["baseline_provenance"] = "mbpp_signature_v1_unverified"
                     vanilla_records.append(r)
     vanilla_records.sort(key=lambda s: order_map[s["prompt_id"]])
 
@@ -157,7 +159,7 @@ def main():
         for s, k in needed:
             pid = s["id"]
             dom = s["domain"]
-            prompt_text = s["prompt"]
+            prompt_text = build_mbpp_prompt(s) if dom == "code" else s["prompt"]
             prompt_ids = tokenizer.encode(prompt_text, add_special_tokens=False)
             base_prompt_len = len(prompt_ids)
 
@@ -218,7 +220,7 @@ def main():
             expanded_output_len = len(expanded_tokens)
             tokens_saved = max(0, expanded_output_len - decode_steps)
             text_out = tokenizer.decode(expanded_tokens, skip_special_tokens=True)
-            eos_reached = (len(new_tokens) > 0 and new_tokens[-1] == tokenizer.eos_token_id) or (decode_steps < MAX_NEW_TOKENS)
+            eos_reached = sequence_reached_eos(new_tokens, tokenizer.eos_token_id)
 
             static_mgr.detach_from_model(model)
             model.codebook_manager.reset()
@@ -251,6 +253,7 @@ def main():
                 "decode_steps": decode_steps,
                 "expanded_output_len": expanded_output_len,
                 "tokens_saved": tokens_saved,
+                "eos_reached": eos_reached,
                 "decode_reduction_pct": (tokens_saved / expanded_output_len * 100.0) if expanded_output_len > 0 else 0.0,
                 "hypertokens_emitted": hypertokens_emitted,
                 "hypertokens_in_codebook": len(codebook_dict),

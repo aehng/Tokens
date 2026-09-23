@@ -11,8 +11,8 @@ Conditions:
 5. NEW Oracle-Guided Predictor (K=8)
 
 Generates:
-- experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_joint_nested_v1.json
-- experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_joint_nested_v1.md
+- experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_mbpp_signature_v1.json
+- experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_mbpp_signature_v1.md
 """
 
 import json
@@ -38,6 +38,7 @@ from experiments.load_joint_checkpoint import (
     accept_cached_generation,
     is_historical_provisional_baseline,
 )
+from experiments.mbpp_prompt import build_mbpp_prompt
 from zip2zip.predictor_policy import CappedPredictorPolicy
 from experiments.train_oracle_guided_predictor import OracleGuidedPredictor
 from experiments.run_quality_benchmark import (
@@ -48,16 +49,17 @@ from experiments.run_quality_benchmark import (
     get_process_rss_gb,
     INITIAL_VOCAB,
     MAX_NEW_TOKENS,
+    sequence_reached_eos,
 )
 
 MODEL_NAME = "epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1"
 POC_IDS_PATH = "experiments/checkpoints/quality_benchmark/poc_12_prompt_ids.json"
 VAL_DATA_PATH = "data/cached_pure_pred_val_60.json"
-POC_PREV_RESULTS_PATH = "experiments/checkpoints/quality_benchmark/poc_selector_results_joint_nested_v1.json"
+POC_PREV_RESULTS_PATH = "experiments/checkpoints/quality_benchmark/poc_selector_results_mbpp_signature_v1.json"
 ORACLE_PRED_PATH = "experiments/checkpoints/oracle_guided_predictor.pkl"
 CKPT_STEP100_PATH = "experiments/checkpoints/predictive_joint_pilot/checkpoint_step_100.pt"
-OUT_JSON = "experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_joint_nested_v1.json"
-OUT_MD = "experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_joint_nested_v1.md"
+OUT_JSON = "experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_mbpp_signature_v1.json"
+OUT_MD = "experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_mbpp_signature_v1.md"
 
 
 def is_correct(r: Dict[str, Any]) -> bool:
@@ -168,7 +170,7 @@ def main():
                 all_records.append(existing_recs[key])
                 continue
 
-            prompt_text = s["prompt"]
+            prompt_text = build_mbpp_prompt(s) if dom == "code" else s["prompt"]
             prompt_ids = tokenizer.encode(prompt_text, add_special_tokens=False)
             base_prompt_len = len(prompt_ids)
 
@@ -237,7 +239,7 @@ def main():
             expanded_output_len = len(expanded_tokens)
             tokens_saved = max(0, expanded_output_len - decode_steps)
             text_out = tokenizer.decode(expanded_tokens, skip_special_tokens=True)
-            eos_reached = (len(new_tokens) > 0 and new_tokens[-1] == tokenizer.eos_token_id) or (decode_steps < MAX_NEW_TOKENS)
+            eos_reached = sequence_reached_eos(new_tokens, tokenizer.eos_token_id)
 
             static_mgr.detach_from_model(model)
             model.codebook_manager.reset()
@@ -269,6 +271,7 @@ def main():
                 "decode_steps": decode_steps,
                 "expanded_output_len": expanded_output_len,
                 "tokens_saved": tokens_saved,
+                "eos_reached": eos_reached,
                 "decode_reduction_pct": (tokens_saved / expanded_output_len * 100.0) if expanded_output_len > 0 else 0.0,
                 "hypertokens_emitted": hypertokens_emitted,
                 "hypertokens_in_codebook": len(codebook_dict),

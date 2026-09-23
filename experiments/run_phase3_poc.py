@@ -28,6 +28,7 @@ from experiments.load_joint_checkpoint import (
     mark_historical_baseline,
     accept_cached_generation,
 )
+from experiments.mbpp_prompt import build_mbpp_prompt
 from experiments.run_quality_benchmark import (
     evaluate_mbpp_code,
     evaluate_gsm8k_reasoning,
@@ -36,6 +37,7 @@ from experiments.run_quality_benchmark import (
     get_process_rss_gb,
     INITIAL_VOCAB,
     MAX_NEW_TOKENS,
+    sequence_reached_eos,
 )
 
 MODEL_NAME = "epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1"
@@ -45,8 +47,8 @@ VAL_DATA_PATH = "data/cached_pure_pred_val_60.json"
 RAW_RESULTS_PATH = "experiments/checkpoints/quality_benchmark/raw_results.jsonl"
 PREDICTOR_PATH = "experiments/checkpoints/cached_predictor.pkl"
 CKPT_STEP100_PATH = "experiments/checkpoints/predictive_joint_pilot/checkpoint_step_100.pt"
-OUT_JSON = "experiments/checkpoints/quality_benchmark/poc_selector_results_joint_nested_v1.json"
-OUT_MD = "experiments/checkpoints/quality_benchmark/poc_selector_results_joint_nested_v1.md"
+OUT_JSON = "experiments/checkpoints/quality_benchmark/poc_selector_results_mbpp_signature_v1.json"
+OUT_MD = "experiments/checkpoints/quality_benchmark/poc_selector_results_mbpp_signature_v1.md"
 
 
 def main():
@@ -141,7 +143,7 @@ def main():
                 cond_results.append(existing_recs[key])
                 continue
 
-            prompt_text = s["prompt"]
+            prompt_text = build_mbpp_prompt(s) if dom == "code" else s["prompt"]
             prompt_ids = tokenizer.encode(prompt_text, add_special_tokens=False)
             base_prompt_len = len(prompt_ids)
 
@@ -211,7 +213,7 @@ def main():
             tokens_saved = max(0, expanded_output_tokens - decode_steps)
             decode_reduction_pct = round((1.0 - decode_steps / max(expanded_output_tokens, 1)) * 100, 2) if expanded_output_tokens > decode_steps else 0.0
 
-            eos_reached = (len(gen_ids) > 0 and gen_ids[-1] == tokenizer.eos_token_id) or (decode_steps < MAX_NEW_TOKENS)
+            eos_reached = sequence_reached_eos(gen_ids, tokenizer.eos_token_id)
             hit_max_length = decode_steps >= MAX_NEW_TOKENS
 
             ttft = timing_proc.ttft or 0.0
@@ -236,6 +238,7 @@ def main():
                 "expanded_output_tokens": expanded_output_tokens,
                 "tokens_saved": tokens_saved,
                 "decode_reduction_pct": decode_reduction_pct,
+                "eos_reached": eos_reached,
                 "wall_time_s": round(total_wall_time, 3),
                 "ttft_s": round(ttft, 3),
                 "hypertokens_count": len(hypertokens_emitted),

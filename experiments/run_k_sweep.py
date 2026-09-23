@@ -31,14 +31,16 @@ from experiments.run_quality_benchmark import (
     TimingLogitsProcessor,
     INITIAL_VOCAB,
     MAX_NEW_TOKENS,
+    sequence_reached_eos,
 )
+from experiments.mbpp_prompt import build_mbpp_prompt
 
 MODEL_NAME = "epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1"
 TOKENIZER_NAME = "microsoft/Phi-3.5-mini-instruct"
 VAL_DATA_PATH = "data/cached_pure_pred_val_60.json"
 PREDICTOR_PATH = "experiments/checkpoints/cached_predictor.pkl"
 CKPT_STEP100_PATH = "experiments/checkpoints/predictive_joint_pilot/checkpoint_step_100.pt"
-POC_RESULTS_PATH = "experiments/checkpoints/quality_benchmark/poc_selector_results_joint_nested_v1.json"
+POC_RESULTS_PATH = "experiments/checkpoints/quality_benchmark/poc_selector_results_mbpp_signature_v1.json"
 
 
 def codebook_hash(codebook_dict: Dict[Tuple[int, ...], int]) -> str:
@@ -107,7 +109,7 @@ def run_sweep(
                 s = samples_map.get(pid)
                 if not s or not accept_cached_generation(r):
                     continue
-                p_text = s["prompt"]
+                p_text = build_mbpp_prompt(s) if s["domain"] == "code" else s["prompt"]
                 p_ids_tok = tokenizer.encode(p_text, add_special_tokens=False)
                 if r.get("condition") == "cond_b_evidence_k32":
                     cb, _ = ev_selector.select_codebook(p_ids_tok, prompt_text=p_text, budget=32)
@@ -176,7 +178,7 @@ def run_sweep(
             res["codebook_size"] = len(codebook_dict)
             return res
 
-        prompt_text = sample["prompt"]
+        prompt_text = build_mbpp_prompt(sample) if dom == "code" else sample["prompt"]
         prompt_ids = tokenizer.encode(prompt_text, add_special_tokens=False)
         base_prompt_len = len(prompt_ids)
 
@@ -234,7 +236,7 @@ def run_sweep(
         tokens_saved = max(0, expanded_output_tokens - decode_steps)
         decode_reduction_pct = round((1.0 - decode_steps / max(expanded_output_tokens, 1)) * 100, 2) if expanded_output_tokens > decode_steps else 0.0
 
-        eos_reached = (len(gen_ids) > 0 and gen_ids[-1] == tokenizer.eos_token_id) or (decode_steps < MAX_NEW_TOKENS)
+        eos_reached = sequence_reached_eos(gen_ids, tokenizer.eos_token_id)
         ttft = timing_proc.ttft or 0.0
 
         static_mgr.detach_from_model(model)
@@ -292,7 +294,7 @@ def run_sweep(
         cfg_records = []
         for s in samples:
             pid = s["id"]
-            prompt_text = s["prompt"]
+            prompt_text = build_mbpp_prompt(s) if s["domain"] == "code" else s["prompt"]
             prompt_ids = tokenizer.encode(prompt_text, add_special_tokens=False)
 
             cb, sel_meta = ev_selector.select_codebook(
@@ -424,8 +426,8 @@ def main():
     parser.add_argument("--prompts_file", type=str, default="experiments/checkpoints/quality_benchmark/poc_12_prompt_ids.json")
     parser.add_argument("--k_values", nargs="+", type=int, default=[4, 8, 16, 24, 32])
     parser.add_argument("--tau_values", nargs="+", type=float, default=[10.0, 15.0, 20.0, 25.0])
-    parser.add_argument("--out_json", type=str, default="experiments/checkpoints/quality_benchmark/k_sweep_results_joint_nested_v1.json")
-    parser.add_argument("--out_md", type=str, default="experiments/checkpoints/quality_benchmark/k_sweep_results_joint_nested_v1.md")
+    parser.add_argument("--out_json", type=str, default="experiments/checkpoints/quality_benchmark/k_sweep_results_mbpp_signature_v1.json")
+    parser.add_argument("--out_md", type=str, default="experiments/checkpoints/quality_benchmark/k_sweep_results_mbpp_signature_v1.md")
     parser.add_argument("--device", type=str, default="cpu")
     args = parser.parse_args()
 

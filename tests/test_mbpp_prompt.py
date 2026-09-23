@@ -96,5 +96,6 @@ def test_all_cached_code_samples_have_prompt_safe_signatures():
             sample["ground_truth_response"], sample_id=sample["id"]
         )
         assert f"```python\n{signature}\n```" in result, sample["id"]
+        assert sample["ground_truth_response"].strip() not in result, sample["id"]
         assert "# Tests" not in result, sample["id"]
         assert "assert " not in result, sample["id"]

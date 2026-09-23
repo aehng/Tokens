@@ -6,7 +6,7 @@ B. Official Reactive Zip2Zip (epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1, nati
 C. Our Predictive Step 100 (checkpoint_step_100.pt, K=32 prompt-predicted codebook)
 D. Our Predictive Step 150 (checkpoint_step_150.pt, K=32 prompt-predicted codebook)
 
-Outputs to experiments/checkpoints/quality_benchmark/:
+Outputs to experiments/checkpoints/quality_benchmark/mbpp_signature_v1/:
 - raw_results.jsonl (line-by-line streaming)
 - aggregate_results.json
 - paired_quality_deltas.json
@@ -39,12 +39,13 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 
 from zip2zip import Zip2ZipModel, Zip2ZipTokenizer, StaticCodebookManager
 from zip2zip.predictor_policy import CappedPredictorPolicy
+from experiments.mbpp_prompt import build_mbpp_prompt
 
 VAL_DATA_PATH = "data/cached_pure_pred_val_60.json"
 PREDICTOR_PATH = "experiments/checkpoints/cached_predictor.pkl"
 CKPT_100_PATH = "experiments/checkpoints/predictive_joint_pilot/checkpoint_step_100.pt"
 CKPT_150_PATH = "experiments/checkpoints/predictive_joint_pilot/checkpoint_step_150.pt"
-OUTPUT_DIR = "experiments/checkpoints/quality_benchmark"
+OUTPUT_DIR = "experiments/checkpoints/quality_benchmark/mbpp_signature_v1"
 MAX_NEW_TOKENS = 300
 INITIAL_VOCAB = 32011
 
@@ -274,7 +275,7 @@ def run_condition_original_phi(
             print(f"[{idx}/{len(samples)}] Skipping already completed {prompt_id} on {condition}")
             continue
 
-        prompt_text = s["prompt"]
+        prompt_text = build_mbpp_prompt(s) if s["domain"] == "code" else s["prompt"]
         prompt_ids = tok.encode(prompt_text, add_special_tokens=False)
         base_prompt_len = len(prompt_ids)
         input_tensor = torch.tensor([prompt_ids], dtype=torch.long)
@@ -390,7 +391,7 @@ def run_condition_official_zip2zip(
             print(f"[{idx}/{len(samples)}] Skipping already completed {prompt_id} on {condition}")
             continue
 
-        prompt_text = s["prompt"]
+        prompt_text = build_mbpp_prompt(s) if s["domain"] == "code" else s["prompt"]
         base_prompt_ids = base_tok.encode(prompt_text, add_special_tokens=False)
         base_prompt_len = len(base_prompt_ids)
 
@@ -564,7 +565,7 @@ def run_condition_predictive(
             print(f"[{idx}/{len(samples)}] Skipping already completed {prompt_id} on {condition_name}")
             continue
 
-        prompt_text = s["prompt"]
+        prompt_text = build_mbpp_prompt(s) if s["domain"] == "code" else s["prompt"]
         prompt_ids = tok.encode(prompt_text, add_special_tokens=False)
         base_prompt_len = len(prompt_ids)
 
