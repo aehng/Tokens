@@ -29,7 +29,7 @@ REPO_ROOT = Path("/kaggle/working/tokens-source")
 PACKAGE_REPO = "https://github.com/aehng/Tokens.git"
 PACKAGE_BRANCH = "codex/kaggle-gpu-enablement"
 LAUNCHER_COMMIT = "26cbd0d2b328214bd275ace3966bf87243184a8c"
-LAUNCHER_VERSION = "v8-smoke-only"
+LAUNCHER_VERSION = "v9-smoke-only"
 EXPECTED_CONDITIONS = ["original_phi", "predictive_step_100_compressed_prompt"]
 MAJOR_TEXT_DIVERGENCE_THRESHOLD = 0.55
 
@@ -150,41 +150,59 @@ def unpack_source(repo_commit: str) -> None:
         shutil.rmtree(REPO_ROOT)
     REPO_ROOT.mkdir(parents=True, exist_ok=True)
 
-    # Primary exact mounted source dataset path
+    # 1. Search for source archive if present
     primary_archive = Path("/kaggle/input/tokens-source-ae78085/source.tar.gz")
+    archive_path = None
     if primary_archive.is_file():
         archive_path = primary_archive
     else:
-        # Fallback search if Kaggle mounted under a nested input directory
         fallback_matches = sorted(Path("/kaggle/input").rglob("source.tar.gz")) if Path("/kaggle/input").is_dir() else []
         if fallback_matches:
             archive_path = fallback_matches[0]
-            print(f"[Provenance] Primary archive not found at {primary_archive}; discovered mount: {archive_path}")
+            print(f"[Provenance] Discovered archive mount at {archive_path}")
+
+    if archive_path is not None:
+        actual_hash = sha256(archive_path)
+        if actual_hash != EXPECTED_SOURCE_ARCHIVE_SHA256:
+            raise RuntimeError(
+                f"Source archive SHA256 mismatch: expected {EXPECTED_SOURCE_ARCHIVE_SHA256}, got {actual_hash}"
+            )
+        print(f"[Provenance] Verified source archive SHA256 ({actual_hash}) at {archive_path}")
+        import tarfile
+        with tarfile.open(archive_path, "r:gz") as tar:
+            tar.extractall(path=REPO_ROOT)
+    else:
+        # 2. Check if Kaggle automatically expanded the source archive in dataset mount
+        extracted_source_dir = Path("/kaggle/input/tokens-source-ae78085")
+        if not (extracted_source_dir / "pyproject.toml").is_file():
+            candidates = [p for p in Path("/kaggle/input").glob("*tokens-source*") if (p / "pyproject.toml").is_file()]
+            if candidates:
+                extracted_source_dir = candidates[0]
+
+        if (extracted_source_dir / "pyproject.toml").is_file():
+            print(f"[Provenance] Kaggle mounted pre-extracted source tree at {extracted_source_dir}. Staging to {REPO_ROOT}...")
+            shutil.copytree(extracted_source_dir, REPO_ROOT, dirs_exist_ok=True)
         else:
-            script_dir = Path(__file__).resolve().parent
-            archive_candidates = [
-                script_dir / "source.tar.gz",
+            local_candidates = [
+                Path(__file__).resolve().parent / "source.tar.gz",
                 Path.cwd() / "source.tar.gz",
                 Path("/kaggle/working/source.tar.gz"),
                 Path("/kaggle/src/source.tar.gz"),
             ]
-            archive_path = next((p for p in archive_candidates if p.is_file()), None)
-            if archive_path is None:
+            local_archive = next((p for p in local_candidates if p.is_file()), None)
+            if local_archive is not None:
+                actual_hash = sha256(local_archive)
+                if actual_hash != EXPECTED_SOURCE_ARCHIVE_SHA256:
+                    raise RuntimeError(
+                        f"Source archive SHA256 mismatch: expected {EXPECTED_SOURCE_ARCHIVE_SHA256}, got {actual_hash}"
+                    )
+                import tarfile
+                with tarfile.open(local_archive, "r:gz") as tar:
+                    tar.extractall(path=REPO_ROOT)
+            else:
                 raise FileNotFoundError(
-                    f"Bundled source archive not found. Primary: {primary_archive}. "
-                    f"Looked in /kaggle/input and fallbacks: {archive_candidates}"
+                    f"Neither source archive nor extracted source tree found. Checked {primary_archive} and {extracted_source_dir}"
                 )
-            print(f"[Provenance] Primary source archive not found; using local fallback: {archive_path}")
-
-    actual_hash = sha256(archive_path)
-    if actual_hash != EXPECTED_SOURCE_ARCHIVE_SHA256:
-        raise RuntimeError(
-            f"Source archive SHA256 mismatch: expected {EXPECTED_SOURCE_ARCHIVE_SHA256}, got {actual_hash}"
-        )
-
-    import tarfile
-    with tarfile.open(archive_path, "r:gz") as tar:
-        tar.extractall(path=REPO_ROOT)
 
     # Ensure source tree is directly importable
     if str(REPO_ROOT) not in sys.path:
