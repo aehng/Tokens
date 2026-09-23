@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from numbers import Integral
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 import torch
 from transformers import AutoTokenizer, LogitsProcessor
@@ -47,6 +48,7 @@ class StaticCodebookManager:
         self.updates_indices: Optional[List[List[int]]] = None
         self.hyper_embedding_weight_cache: Optional[torch.Tensor] = None
         self.hyper_linear_weight_cache: Optional[torch.Tensor] = None
+        self.fast_inference_ready = False
 
         # Position tracking (zip2zip++ base token positions)
         self.runtime_batch_size: Optional[int] = None
@@ -73,9 +75,6 @@ class StaticCodebookManager:
             batch_size: Batch size for generation / prefill.
             device: Target device for tensor allocation.
         """
-        self.hyper_to_subtokens.clear()
-        self.subtokens_to_hyper.clear()
-
         if isinstance(dictionary, dict):
             if not dictionary:
                 items = []
@@ -95,40 +94,78 @@ class StaticCodebookManager:
                 f"max_codebook_size={self.max_codebook_size}"
             )
 
+        new_hyper_to_subtokens: Dict[int, List[int]] = {}
+        new_subtokens_to_hyper: Dict[Tuple[int, ...], int] = {}
+        used_slots = set()
+
         for raw_id, subtokens in items:
-            if not (2 <= len(subtokens) <= self.max_subtokens):
+            if isinstance(raw_id, bool) or not isinstance(raw_id, Integral):
+                raise ValueError(f"Hypertoken ID must be an integer, got {raw_id!r}")
+            raw_id = int(raw_id)
+
+            # Support relative slots [0, K) and absolute IDs [V, V + K).
+            if raw_id < self.initial_vocab_size:
+                entry_idx = raw_id
+                hyper_id = self.initial_vocab_size + raw_id
+            else:
+                entry_idx = raw_id - self.initial_vocab_size
+                hyper_id = raw_id
+
+            if entry_idx < 0 or entry_idx >= self.max_codebook_size:
                 raise ValueError(
-                    f"Subtoken length {len(subtokens)} must be between 2 and "
+                    f"Hypertoken ID {raw_id} is outside relative [0, {self.max_codebook_size}) "
+                    f"or absolute [{self.initial_vocab_size}, "
+                    f"{self.initial_vocab_size + self.max_codebook_size}) bounds"
+                )
+            if entry_idx in used_slots:
+                raise ValueError(f"Duplicate hypertoken slot {entry_idx}")
+            used_slots.add(entry_idx)
+
+            try:
+                subtokens_list = list(subtokens)
+            except TypeError as exc:
+                raise ValueError("Hypertoken definition must be a sequence of token IDs") from exc
+
+            if not (2 <= len(subtokens_list) <= self.max_subtokens):
+                raise ValueError(
+                    f"Subtoken length {len(subtokens_list)} must be between 2 and "
                     f"max_subtokens={self.max_subtokens}"
                 )
-            if any(t >= self.initial_vocab_size for t in subtokens):
-                raise ValueError("Hypertokens cannot contain other hypertokens")
-            if any(t in self.disabled_ids for t in subtokens):
-                raise ValueError("Subtokens contain a disabled token ID")
+            normalized_subtokens = []
+            for token_id in subtokens_list:
+                if isinstance(token_id, bool) or not isinstance(token_id, Integral):
+                    raise ValueError(
+                        f"Base token ID must be an integer, got {token_id!r}"
+                    )
+                token_id = int(token_id)
+                if not 0 <= token_id < self.initial_vocab_size:
+                    raise ValueError(
+                        f"Subtoken ID {token_id} is outside base vocabulary "
+                        f"[0, {self.initial_vocab_size})"
+                    )
+                if token_id in self.disabled_ids:
+                    raise ValueError("Subtokens contain a disabled token ID")
+                normalized_subtokens.append(token_id)
 
-            # Support relative index (0..K-1) or absolute ID (initial_vocab_size..)
-            if raw_id < self.initial_vocab_size:
-                hyper_id = raw_id + self.initial_vocab_size
-                entry_idx = raw_id
-            else:
-                hyper_id = raw_id
-                entry_idx = raw_id - self.initial_vocab_size
+            new_hyper_to_subtokens[hyper_id] = normalized_subtokens
+            new_subtokens_to_hyper[tuple(normalized_subtokens)] = hyper_id
 
-            if entry_idx >= self.max_codebook_size:
-                raise ValueError(
-                    f"Hypertoken entry index {entry_idx} >= max_codebook_size={self.max_codebook_size}"
-                )
+        if used_slots != set(range(len(used_slots))):
+            raise ValueError(
+                "Seeded hypertoken slots must be contiguous from zero because "
+                "unused-logit masking assumes a packed codebook"
+            )
 
-            subtokens_list = list(subtokens)
-            self.hyper_to_subtokens[hyper_id] = subtokens_list
-            self.subtokens_to_hyper[tuple(subtokens_list)] = hyper_id
-
-        self.num_seeded = len(self.hyper_to_subtokens)
+        # Commit the new dictionary only after all validation succeeds.
+        self.hyper_to_subtokens = new_hyper_to_subtokens
+        self.subtokens_to_hyper = new_subtokens_to_hyper
+        self.num_seeded = len(new_hyper_to_subtokens)
         self.runtime_batch_size = batch_size
 
         # Invalidate weight caches so new embeddings will be computed
         self.hyper_embedding_weight_cache = None
         self.hyper_linear_weight_cache = None
+        self.fast_inference_ready = False
         self.base_position_offset = None
         self.position_ids = None
         self._build_updates_tensor(batch_size, device=device)
@@ -205,7 +242,11 @@ class StaticCodebookManager:
         )
         spans = torch.ones_like(ids)
 
-        if is_hyper.any():
+        if self.fast_inference_ready:
+            entry_ids = (ids - self.initial_vocab_size).clamp(0, self.max_codebook_size - 1)
+            hyper_spans = self.hyper_token_spans.gather(1, entry_ids)
+            spans = torch.where(is_hyper, hyper_spans, spans)
+        elif is_hyper.any():
             entry_ids = (ids - self.initial_vocab_size).clamp(0, self.max_codebook_size - 1)
             hyper_spans = self.hyper_token_spans.gather(1, entry_ids)
             # Verify no unseeded hypertoken is referenced
@@ -455,6 +496,7 @@ class StaticCodebookManager:
         """Clear autograd weight caches between training steps."""
         self.hyper_embedding_weight_cache = None
         self.hyper_linear_weight_cache = None
+        self.fast_inference_ready = False
         self._prepared_for_embedding = False
 
     def reset(self, clear_dictionary: bool = False, clear_caches: bool = False) -> None:
@@ -472,6 +514,7 @@ class StaticCodebookManager:
         if clear_caches or clear_dictionary:
             self.hyper_embedding_weight_cache = None
             self.hyper_linear_weight_cache = None
+            self.fast_inference_ready = False
 
         if clear_dictionary:
             self.hyper_to_subtokens.clear()

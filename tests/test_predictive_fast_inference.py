@@ -177,3 +177,63 @@ def test_legacy_positions_match_python_reference_for_random_mixed_chunks():
         actual = manager.prepare_input_ids(ids, attention_mask=mask)
         assert torch.equal(actual, expected)
         assert torch.equal(manager.base_position_offset, offsets)
+
+
+def test_trusted_fast_positions_match_legacy_across_masked_chunks():
+    legacy = make_manager()
+    fast = make_manager()
+    # Request setup will set this only after validating the codebook and
+    # preparing the inference tables. Set it directly here to isolate the
+    # branchless position calculation.
+    fast.fast_inference_ready = True
+    rng = random.Random(9917)
+
+    for length in range(1, 13):
+        ids = torch.tensor(
+            [rng.choice([1, 2, 3, 4, 12, 13]) for _ in range(2 * length)]
+        ).view(2, length)
+        mask = torch.tensor(
+            [[rng.randrange(2) for _ in range(length)] for _ in range(2)]
+        )
+        legacy_positions = legacy.prepare_input_ids(ids, attention_mask=mask)
+        fast_positions = fast.prepare_input_ids(ids, attention_mask=mask)
+        assert torch.equal(fast_positions, legacy_positions)
+        assert torch.equal(fast.base_position_offset, legacy.base_position_offset)
+
+
+def test_seeded_codebook_validation_rejects_invalid_or_sparse_ids_atomically():
+    manager = StaticCodebookManager(
+        initial_vocab_size=12,
+        max_codebook_size=4,
+        max_subtokens=3,
+        embedding_dim=5,
+        pad_token_id=0,
+        disabled_ids=[9],
+    )
+    manager.set_seeded_codebook([[2, 3]])
+    original = dict(manager.hyper_to_subtokens)
+
+    invalid_definitions = [
+        [[-1, 2]],       # negative base token
+        [[2, 12]],       # nested/out-of-base-vocabulary token
+        [[2, 9]],        # disabled base token
+        {1: [2, 3]},     # sparse slot; mask assumes packed slots
+        {16: [2, 3]},    # absolute ID outside [V, V + K)
+    ]
+    for definition in invalid_definitions:
+        with pytest.raises(ValueError):
+            manager.set_seeded_codebook(definition)
+        assert manager.hyper_to_subtokens == original
+
+
+def test_new_codebook_invalidates_fast_inference_readiness_and_vectors():
+    manager = make_manager()
+    manager.fast_inference_ready = True
+    manager.hyper_embedding_weight_cache = torch.ones(1, 4, 5)
+    manager.hyper_linear_weight_cache = torch.ones(1, 4, 5)
+
+    manager.set_seeded_codebook([[3, 4]])
+
+    assert not manager.fast_inference_ready
+    assert manager.hyper_embedding_weight_cache is None
+    assert manager.hyper_linear_weight_cache is None
