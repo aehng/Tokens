@@ -381,7 +381,7 @@ def run_logits_mask_generate_benchmark(
     t0 = time.perf_counter()
     with torch.no_grad():
         out_masked = model.generate(
-            input_tensor,
+            input_ids=input_tensor,
             max_new_tokens=gen_steps,
             min_new_tokens=gen_steps,
             logits_processor=LogitsProcessorList([mask_proc]),
@@ -396,7 +396,7 @@ def run_logits_mask_generate_benchmark(
     t1 = time.perf_counter()
     with torch.no_grad():
         out_bypassed = model.generate(
-            input_tensor,
+            input_ids=input_tensor,
             max_new_tokens=gen_steps,
             min_new_tokens=gen_steps,
             logits_processor=LogitsProcessorList([]),
@@ -596,7 +596,7 @@ def evaluate_3prompt_equivalence(
         proc_list = LogitsProcessorList([static_mgr.get_logits_processor()])
         with torch.no_grad():
             out = model.generate(
-                input_tensor,
+                input_ids=input_tensor,
                 max_new_tokens=max_new_tokens,
                 logits_processor=proc_list,
                 do_sample=False,
