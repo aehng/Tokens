@@ -2,6 +2,12 @@
 
 **Status:** Evaluation policy. This document defines how future runs are selected, pinned, launched, and reported; it does not mean any test has run.
 
+This policy is subordinate to the current phase gates and priorities in the
+[canonical research roadmap](../experiments/RESEARCH_ROADMAP.md). In
+particular, the next planned GPU comparison is the matched Vanilla-vs-
+Predictive Tier-1 runtime/stopping test; tier escalation remains gated on its
+evidence and on quality.
+
 The standing question is whether the current predictive system improves on (1) Vanilla Phi, (2) Official Reactive Zip2Zip, and (3) the previous best verified predictive model. Answer it during development rather than waiting for a final project benchmark, while keeping expensive evaluations gated.
 
 ## Comparators and promotion rule

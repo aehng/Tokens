@@ -1,10 +1,10 @@
-# Qwen3-8B + vLLM Production Validation Plan
+# Qwen3-8B + vLLM Production Validation Plan (Sequencing Superseded)
 
 **Plan date:** Tuesday, 2026-09-22  
 **Target milestone:** Friday, 2026-09-25  
-**Status:** Roadmap only. This document does not claim that the audit, integrations, or benchmarks have been completed.
+**Status:** Historical planning snapshot, retained for Qwen/vLLM scope and validation details. Its near-term schedule and phase ordering are superseded by the [canonical predictive-hypertoken roadmap](../experiments/RESEARCH_ROADMAP.md). Do not use this document to reorder the current Phi phases or to start Qwen work before the Phi stability gate. This document does not claim that its planned integrations or benchmarks have been completed.
 
-This is the authoritative near-term product-validation roadmap. Historical Phi/Zip2Zip measurements remain recorded in [`RESEARCH_LOG.md`](../RESEARCH_LOG.md); they are not silently rewritten. The immediate sequence is a bounded Phi correctness audit, followed by production-stack baselines and a staged Tokens integration. Do not let Phi policy tuning displace the Qwen/vLLM milestone.
+This document preserves the original Qwen/vLLM validation scope. For current priorities and exact sequencing, follow the canonical roadmap. Historical Phi/Zip2Zip measurements remain recorded in [`RESEARCH_LOG.md`](../RESEARCH_LOG.md); they are not silently rewritten.
 
 ## 1. Business question
 
@@ -161,7 +161,7 @@ If time is short, prioritize in this order:
 
 ## 15. Friday deliverables
 
-Create [`docs/QWEN3_VLLM_RESULTS.md`](QWEN3_VLLM_RESULTS.md) after real runs; do not create a blank results file in advance. Include hardware, software/model/tokenizer/vLLM/speculator revisions, benchmark method, prompt/output buckets, concurrency, raw timing data, quality, input/decode reduction, EAGLE acceptance, GPU-seconds/request, confidence intervals where practical, limitations, compatibility blockers, and next recommendation. Link raw JSON and logs. Update `RESEARCH_LOG.md` and this study with corrected Phase 7/K results only after the corrected runs and validity checks. Preserve historical Phi figures and identify which corrected runs supersede them.
+Create `docs/QWEN3_VLLM_RESULTS.md` after real runs; do not create a blank results file in advance. Include hardware, software/model/tokenizer/vLLM/speculator revisions, benchmark method, prompt/output buckets, concurrency, raw timing data, quality, input/decode reduction, EAGLE acceptance, GPU-seconds/request, confidence intervals where practical, limitations, compatibility blockers, and next recommendation. Link raw JSON and logs. Update `RESEARCH_LOG.md` and this study with corrected Phase 7/K results only after the corrected runs and validity checks. Preserve historical Phi figures and identify which corrected runs supersede them.
 
 Conclude with exactly one evidence-supported category:
 

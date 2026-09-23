@@ -619,36 +619,33 @@ Detailed decomposition of Run ID `3de046a1b858dc7a` artifacts (`raw_results.json
    - Full machine-readable breakdown: `experiments/checkpoints/quality_benchmark/tier1_runs/3de046a1b858dc7a/phase5_runtime_diagnostics.json`
    - Comprehensive markdown report: `experiments/checkpoints/quality_benchmark/tier1_runs/3de046a1b858dc7a/phase5_runtime_diagnostics.md`
 
-### Current execution plan and runtime diagnostic contract (2026-09-23)
+### Current research roadmap (2026-09-23; supersedes earlier phase ordering)
 
-The corrected Tier-1 benchmark above is authoritative. The canonical predictive
-prompt is `compressed_prompt` / `predictive_codebook_dp_segmented`; future
-predictive testing uses it. Quality is the primary objective, then
-quality-preserved decode reduction, continuation/termination, effective
-runtime, and raw compression. Do not interpret fewer decode steps as faster
-inference without separating request setup, prefill/TTFT, per-step decode cost,
-and generation trajectory. Predictor plus codebook/setup (~94ms combined)
-cannot alone explain the ~125s compressed-prompt mean wall time.
+The authoritative corrected Tier-1 and Phase-5 results are recorded above.
+Phase 5 is complete, not in flight. Its gate conditions produced byte-identical
+greedy outputs and trajectories, while top-16/top-32 added 21.7%/38.3% CPU
+decode-time overhead. Gate tuning is closed for the primary greedy path; it
+may be reopened only for a specific sampling, constrained-serving, or safety
+question.
 
-Phase 5 contextual emission gating (no gate, top-16, top-32 first-constituent
-plausibility) is in flight; it must not be restarted to add instrumentation.
-After it finishes: Phase 6 K=4/8/16/24/32 under the winning gate or no gate;
-Phase 7 cheap stratified continuation-safety comparisons; Phase 8 predictor
-refit only if continuation labels justify it; Phase 9 Tier-1 comparison;
-Phase 10 short EOS-correct retraining only while Tier-1 improves; Phase 11
-next-token-KL consistency only if drift remains; Phase 12 30 prompts only if
-Tier-1 improves; Phase 13 60 prompts only if Tier-2 succeeds. Detailed
-conditions and gates are in the [current study plan](PREDICTIVE_HYPERTOKEN_STUDY.md).
+Phase 5 also measured 0/12 predictive EOS, 7/12 cap hits, and 578/1,200
+GSM8K decode steps after the extracted final answer. This does not establish
+that hypertokens caused the tails; matched Vanilla behavior must be measured.
+The next sequence is the small Kaggle single-T4 infrastructure smoke, then a
+matched 12-prompt GPU Vanilla-vs-Predictive runtime/stopping comparison. The
+predictor/oracle capture funnel and empirical continuation-safety probes come
+before bottleneck selection and K recalibration. EOS-correct retraining,
+continuation consistency, and larger tiers remain conditional gates; Qwen/vLLM
+comes only after Phi is stable.
 
-Every future live benchmark must collect the v3 runtime/trajectory record
-during the same generation as quality scoring, including prompt/output lengths,
-H events, timing decomposition, termination/repetition, deterministic answer
-tails when available, and paired ratios/derived rates. Do not run a duplicate
-large timing suite. The [benchmark methodology](experiments/QUALITY_BENCHMARK_METHODOLOGY.md)
-defines the contract. Older reports remain historical and must not be
-backfilled with unmeasured fields. Independent asynchronous runs remain pinned
-to exact commits and manifests; work can proceed in parallel until a
-result-dependent decision gate.
+The single source for current phase details, metrics, gates, stop conditions,
+and rationale is [`experiments/RESEARCH_ROADMAP.md`](experiments/RESEARCH_ROADMAP.md).
+Older K-first or Qwen-immediate sequencing elsewhere is historical and
+superseded. Every future live benchmark follows the [v3 runtime/trajectory
+contract](experiments/QUALITY_BENCHMARK_METHODOLOGY.md) during the same
+generation as quality scoring. Do not run a duplicate large timing suite or
+backfill historical runs with unmeasured fields. Keep asynchronous jobs pinned
+to exact commits/manifests and wait only at result-dependent decision gates.
 
 ---
 

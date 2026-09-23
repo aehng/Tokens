@@ -4,6 +4,9 @@ This project is building a **commercial inference product**, not only a research
 
 **First-class v1 serving target: vLLM.** The product should integrate as a runtime/plugin and small sidecar, not replace a customer's serving engine. The Qwen3-8B + vLLM work is a planned validation target; compatibility and performance are not yet established. See the [production validation plan](QWEN3_VLLM_PRODUCTION_VALIDATION.md).
 
+The current research execution order before that later Qwen/vLLM milestone is
+maintained in the single [canonical research roadmap](../experiments/RESEARCH_ROADMAP.md).
+
 Research experiments (Phi-3.5, Zip2Zip, calibration ladders, local CPU/XPU) exist to find the smallest adapter that works. The **end product** is something a datacenter operator can load onto serving stacks they already run, with the simplest possible changeover.
 
 ## What we are shipping toward

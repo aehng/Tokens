@@ -1,6 +1,6 @@
 # Training a `zip2zip` model
 
-> **Scope note:** The TRL example below is an upstream Zip2Zip-style finetuning example. It is not the project's prompt-only predictive training pipeline and is not an instruction to full-finetune the customer model. The planned Qwen/vLLM work is documented in [`QWEN3_VLLM_PRODUCTION_VALIDATION.md`](QWEN3_VLLM_PRODUCTION_VALIDATION.md).
+> **Scope note:** The TRL example below is an upstream Zip2Zip-style finetuning example. It is not the project's prompt-only predictive training pipeline and is not an instruction to full-finetune the customer model. Follow the [canonical research roadmap](../experiments/RESEARCH_ROADMAP.md) for the current phase order. Qwen/vLLM work is a later-stage target documented in [`QWEN3_VLLM_PRODUCTION_VALIDATION.md`](QWEN3_VLLM_PRODUCTION_VALIDATION.md).
 
 ## Project predictive-training data contract
 
@@ -14,7 +14,7 @@ For the project's predictive path (as distinct from the upstream example below):
 
 ## Planned Qwen port constraints
 
-Retokenize with the pinned Qwen tokenizer and use task-valid formatting with a meaningful, balanced set of code, reasoning, and instruction/general examples. Do not judge the architecture from roughly 100 examples. Each training sequence uses the compressed prompt as context followed by compressed response and EOS; mask prompt labels as appropriate, and ensure response content never enters predictor features. Prefer a frozen Qwen base with small PEFT/LoRA and hypermodules plus short calibration; do not full-finetune Qwen3-8B for this validation. Before scaling, gate on forward/backward, gradient flow, checkpoint save/reload, unchanged base hashes, compressed-prompt use, EOS, at least one emitted predictive hypertoken, and coherent continuation. Do not assume Phi modules or representations transfer. The vLLM integration and benchmark remain planned, not verified; follow the current production-validation roadmap.
+Retokenize with the pinned Qwen tokenizer and use task-valid formatting with a meaningful, balanced set of code, reasoning, and instruction/general examples. Do not judge the architecture from roughly 100 examples. Each training sequence uses the compressed prompt as context followed by compressed response and EOS; mask prompt labels as appropriate, and ensure response content never enters predictor features. Prefer a frozen Qwen base with small PEFT/LoRA and hypermodules plus short calibration; do not full-finetune Qwen3-8B for this validation. Before scaling, gate on forward/backward, gradient flow, checkpoint save/reload, unchanged base hashes, compressed-prompt use, EOS, at least one emitted predictive hypertoken, and coherent continuation. Do not assume Phi modules or representations transfer. The vLLM integration and benchmark remain planned, not verified; follow the canonical research roadmap for sequencing and the historical production-validation snapshot for Qwen-specific compatibility requirements.
 
 ## Finetuning using [TRL](https://github.com/huggingface/trl)
 

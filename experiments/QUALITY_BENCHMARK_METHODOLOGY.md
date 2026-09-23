@@ -2,8 +2,10 @@
 
 This document defines the evaluator contract for newly generated quality
 benchmark records. It applies to the fixed Phi tier-1 comparison, the
-quality-benchmark harness, and the K sweep. These runs use validation data;
-they must not read or modify the final TEST split.
+quality-benchmark harness, and any later K recalibration. The immediate
+planned GPU comparison and future live runs must use this contract; the
+current phase order is in [`RESEARCH_ROADMAP.md`](RESEARCH_ROADMAP.md). These
+runs use validation data; they must not read or modify the final TEST split.
 
 ## Versioned contract
 

@@ -457,13 +457,13 @@ We benchmarked 4 distinct conditions across 60 held-out prompts (`data/cached_pu
 - Adaptive-K: $\tau=20.0$ and $\tau=25.0$ achieved **41.7% accuracy** with **5.1–5.5% micro compression**, cutting dead slots by up to 70% ($K=12.3$ mean allocated slots).
 - Key takeaway: Codebook capacity must be restricted to high-confidence evidence-grounded phrases to avoid token distortion. $K=8$ is the optimal fixed budget; $\tau=20.0$ is the optimal adaptive threshold.
 
-## Roadmap Update — Corrected Phi Audit, Then Qwen/vLLM (2026-09-22)
+## Historical Roadmap Snapshot — Corrected Phi Audit, Then Qwen/vLLM (2026-09-22; Superseded)
 
-This update preserves the Phi research plan and its historical measurements, but supersedes the old Phase 3/K-sweep recommendation until the correctness audit is complete. The current K-sweep and related Phase 6/7 results are provisional because the runners may pass the outer nested checkpoint mapping to `load_state_dict(..., strict=False)` instead of explicitly loading the LoRA, input-encoder, and output-encoder states. Verify loaded tensor hashes/values and frozen Phi base hashes, then rerun only K = 4, 8, 16, 24, 32 on the fixed 12-prompt set. Correct the MBPP interface, strengthen instruction scoring, compare raw and training-consistent compressed prompts, and keep a new holdout untouched. Do not scale-retrain Phi for the EOS correction; freeze Phi after this bounded audit.
+This historical update preserved the Phi research plan and its then-current measurements. Its K-first audit/recalibration and immediate Qwen/vLLM ordering are superseded by the [canonical research roadmap](experiments/RESEARCH_ROADMAP.md). The observations below document the plan and code concerns as understood on 2026-09-22; consult the current roadmap and dated research log for current status.
 
 All predictive training targets must include the **compressed response plus EOS**, with EOS label presence and normal termination checked. Predictor inputs remain prompt-only, and training/serving prompt representations must match. Continuation equivalence remains a quality gate because one hypertoken does not reproduce the multiple transformer/KV states of its expanded base tokens.
 
-The next product-validation target is Qwen3-8B in vLLM, with vanilla and compatible EAGLE3 baselines first. Then test Tokens prefill and its additive value over EAGLE3; predictive decode is a separate, higher-risk port, and joint EAGLE3 + predictive decode is stretch work unless actually validated. Verify current official serving interfaces and exact version compatibility before making implementation or performance claims.
+The later product-validation target is Qwen3-8B in vLLM, with vanilla and compatible EAGLE3 baselines first. Then test Tokens prefill and its additive value over EAGLE3; predictive decode is a separate, higher-risk port, and joint EAGLE3 + predictive decode is stretch work unless actually validated. This sequence begins only after the Phi stability gate in the canonical roadmap. Verify current official serving interfaces and exact version compatibility before making implementation or performance claims.
 
 Test contextual emission gating as a bounded experiment: for example, allow a phrase only when its first base token is plausible under the current base logits, using a cheap top-N, probability, or consistency threshold. Measure quality, emissions, decode savings, and overhead; use validation only to choose thresholds and do not bake the gate into the architecture without evidence. The full milestone, metrics, stop conditions, and results-report template are in [`docs/QWEN3_VLLM_PRODUCTION_VALIDATION.md`](docs/QWEN3_VLLM_PRODUCTION_VALIDATION.md).
 
@@ -471,10 +471,17 @@ Test contextual emission gating as a bounded experiment: for example, allow a ph
 
 *Last updated: 2026-09-22. Maintained by Antigravity (Google DeepMind) coding assistant.*
 
-## Current Predictive-Hypertoken Plan — Authoritative Tier-1 and Runtime Diagnosis (2026-09-23)
+## Historical Predictive-Hypertoken Plan Snapshot — Superseded (2026-09-23)
 
-This dated plan supersedes earlier Phi phase ordering and K recommendations
-above. Historical result tables remain historical; the corrected Tier-1 report
+**Current plan:** The execution sequence below was written before the Phase-5
+gate and runtime findings were complete. Its “Phase 5 in flight” and immediate
+K-sweep ordering are historical and superseded. Follow the single current
+[research roadmap](experiments/RESEARCH_ROADMAP.md); do not treat the old list
+below as active instructions. The Tier-1 measurements in this snapshot remain
+historical evidence and are retained.
+
+At the time it was written, this dated plan superseded earlier Phi phase
+ordering and K recommendations. Historical result tables remain historical; the corrected Tier-1 report
 and its exact manifest are authoritative. Phase 5 (Contextual Hypertoken
 Emission Gate) is currently running as three conditions: no gate, top-16, and
 top-32 first-constituent plausibility. Do not restart, replace, or invalidate
@@ -538,7 +545,7 @@ used for quality evaluation; no duplicate expensive timing suite. The
 authoritative Tier-1 report remains historical and must not be backfilled with
 measurements it did not collect.
 
-### Execution after the in-flight Phase 5
+### Superseded execution-order snapshot (preserved for history)
 
 1. **Phase 5 — Contextual Hypertoken Emission Gate (in flight):** compare
    canonical compressed prompt with no gate, top-16, and top-32 first-token

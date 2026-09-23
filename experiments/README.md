@@ -2,27 +2,22 @@
 
 > See `../docs/product.md` for the commercial goal.
 > See `../RESEARCH_LOG.md` for historical results and current status.
-> See `../PREDICTIVE_HYPERTOKEN_STUDY.md` for the primary implementation plan.
-> See [`../docs/QWEN3_VLLM_PRODUCTION_VALIDATION.md`](../docs/QWEN3_VLLM_PRODUCTION_VALIDATION.md) for the active near-term roadmap; it supersedes the older execution order below.
+> See [`RESEARCH_ROADMAP.md`](RESEARCH_ROADMAP.md) for the one canonical current research sequence.
+> See `../PREDICTIVE_HYPERTOKEN_STUDY.md` for study history and implementation context.
+> The Qwen/vLLM plan at [`../docs/QWEN3_VLLM_PRODUCTION_VALIDATION.md`](../docs/QWEN3_VLLM_PRODUCTION_VALIDATION.md) is a later-stage planning snapshot, not the immediate roadmap.
 
-The current research direction is joint predictive-hypertoken training. The
-first gate is continuation correctness after a predicted hypertoken, not a
-large compression percentage or a giant validation sweep.
+The current research direction and phase gates are defined only by
+[`RESEARCH_ROADMAP.md`](RESEARCH_ROADMAP.md). The next steps are a small
+single-T4 infrastructure smoke and a matched GPU Vanilla-vs-Predictive
+runtime/stopping comparison—not a K sweep or large training run.
 
 The active quality-evaluation definitions, safety limits, score semantics,
 generation-health fields, and cache/version rules are documented in
 [QUALITY_BENCHMARK_METHODOLOGY.md](QUALITY_BENCHMARK_METHODOLOGY.md).
 
-## Current Execution Order
-
-Do not launch a large training job automatically. The required order is:
-
-1. Audit nested Step-100 checkpoint loading and affected Phase 3/K-sweep/Phase 6/7 results.
-2. Correct the small Phi evaluation issues and freeze the bounded reference; do not continue Phi policy optimization.
-3. Verify official Qwen3-8B/vLLM/EAGLE3 compatibility and run vanilla and EAGLE3 baselines.
-4. Test Tokens prefill, then predictive decode only after its correctness gates pass.
-
-The historical pilot configuration and validation notes below remain references for the predictive training pipeline; they do not override the current roadmap or authorize a large training run.
+The historical pilot configuration and validation notes below remain references
+for the predictive training pipeline. They do not override the canonical
+roadmap or authorize a large training run.
 
 For Phi quality regressions, follow the [tiered 3-way benchmark policy](../docs/PHI_CONTINUOUS_REGRESSION_BENCHMARK.md). Run meaningful-change benchmarks asynchronously from an immutable checkout pinned to the exact tested commit; continue independent work while they run, and wait only at tier-promotion or other result-dependent gates. Store each result keyed by the full tested commit SHA.
 
