@@ -64,6 +64,45 @@ def compute_tensor_hash(tensor: torch.Tensor) -> str:
     return hashlib.sha256(data.numpy().tobytes()).hexdigest()[:16]
 
 
+def move_training_model_to_device(model: torch.nn.Module, device: str | torch.device) -> torch.nn.Module:
+    """Move the fully configured training model to one explicit device."""
+    target = torch.device(device)
+    if target.type == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError(f"CUDA device {target} was requested but CUDA is unavailable")
+    model.to(target)
+    if target.type == "cuda":
+        torch.cuda.synchronize(target)
+    return model
+
+
+def estimate_minimum_training_memory_bytes(model: torch.nn.Module) -> Dict[str, int]:
+    """Lower-bound model, gradient, and AdamW storage; activations are excluded."""
+    frozen_parameter_bytes = 0
+    trainable_parameter_bytes = 0
+    gradient_bytes = 0
+    adamw_state_bytes = 0
+    for parameter in model.parameters():
+        parameter_bytes = parameter.numel() * parameter.element_size()
+        if parameter.requires_grad:
+            trainable_parameter_bytes += parameter_bytes
+            gradient_bytes += parameter_bytes
+            adamw_state_bytes += 2 * parameter_bytes
+        else:
+            frozen_parameter_bytes += parameter_bytes
+    return {
+        "frozen_parameter_bytes": frozen_parameter_bytes,
+        "trainable_parameter_bytes": trainable_parameter_bytes,
+        "gradient_bytes": gradient_bytes,
+        "adamw_state_bytes": adamw_state_bytes,
+        "static_minimum_bytes": (
+            frozen_parameter_bytes
+            + trainable_parameter_bytes
+            + gradient_bytes
+            + adamw_state_bytes
+        ),
+    }
+
+
 def get_base_weight_hashes(model: Zip2ZipModel) -> Dict[str, str]:
     """Compute verification hashes for representative base model tensors."""
     hashes = {}
@@ -675,6 +714,33 @@ def run_training(
         if hasattr(out_emb, "detach_input"):
             out_emb.detach_input = False
 
+    if device.type == "cuda":
+        memory_estimate = estimate_minimum_training_memory_bytes(model)
+        free_bytes, total_bytes = torch.cuda.mem_get_info(device)
+        minimum_bytes = memory_estimate["static_minimum_bytes"]
+        print(
+            "GPU memory lower bound (excludes activations/workspaces): "
+            f"{minimum_bytes / (1024 ** 3):.2f} GiB static of "
+            f"{free_bytes / (1024 ** 3):.2f} GiB currently free "
+            f"({total_bytes / (1024 ** 3):.2f} GiB total).",
+            flush=True,
+        )
+        if minimum_bytes >= free_bytes:
+            raise RuntimeError(
+                "Requested GPU cannot hold even the model, trainable gradients, and AdamW states; "
+                "no training steps were started. This lower bound excludes activations."
+            )
+
+    print(f"Moving configured model to training device {device}...", flush=True)
+    model = move_training_model_to_device(model, device)
+    if device.type == "cuda":
+        print(
+            f"Using {torch.cuda.get_device_name(device)}; "
+            f"allocated after model placement: "
+            f"{torch.cuda.memory_allocated(device) / (1024 ** 3):.2f} GiB.",
+            flush=True,
+        )
+
     # Record initial base tensor hashes
     base_hashes_initial = get_base_weight_hashes(model)
 
@@ -723,6 +789,9 @@ def run_training(
         if "torch_rng_state" in ckpt:
             torch.set_rng_state(ckpt["torch_rng_state"])
             print("  Restored PyTorch RNG state.")
+        if device.type == "cuda" and ckpt.get("cuda_rng_state") is not None:
+            torch.cuda.set_rng_state(ckpt["cuda_rng_state"], device=device)
+            print(f"  Restored CUDA RNG state for {device}.")
 
         print(f"Checkpoint loaded. Starting at Step {start_step} -> Target Step {target_steps}.\n")
 
@@ -764,6 +833,8 @@ def run_training(
     print(f"Beginning training loop: Step {step + 1} to {target_steps}...\n", flush=True)
 
     while step < target_steps:
+        if device.type == "cuda":
+            torch.cuda.reset_peak_memory_stats(device)
         s = raw_samples[sample_idx % len(raw_samples)]
         sample_idx += 1
 
@@ -798,6 +869,8 @@ def run_training(
         t_cb = time.perf_counter() - t_cb_start
 
         # 3. Forward Pass (LM + Recon)
+        if device.type == "cuda":
+            torch.cuda.synchronize(device)
         t_fwd_start = time.perf_counter()
         out = model(input_ids=input_ids.to(device), labels=labels.to(device))
         lm_loss = out.loss
@@ -813,6 +886,8 @@ def run_training(
         )
 
         total_loss = lm_loss + recon_weight * recon_loss
+        if device.type == "cuda":
+            torch.cuda.synchronize(device)
         t_fwd = time.perf_counter() - t_fwd_start
 
         if not torch.isfinite(total_loss):
@@ -821,6 +896,8 @@ def run_training(
         # 4. Backward Pass
         t_bwd_start = time.perf_counter()
         total_loss.backward()
+        if device.type == "cuda":
+            torch.cuda.synchronize(device)
         t_bwd = time.perf_counter() - t_bwd_start
 
         # 5. Base Gradient Check
@@ -837,9 +914,13 @@ def run_training(
             raise ValueError(f"Non-finite grad norm at step {step + 1}: {grad_norm.item()}")
 
         # 7. Optimizer Step
+        if device.type == "cuda":
+            torch.cuda.synchronize(device)
         t_opt_start = time.perf_counter()
         optimizer.step()
         optimizer.zero_grad()
+        if device.type == "cuda":
+            torch.cuda.synchronize(device)
         t_opt = time.perf_counter() - t_opt_start
 
         step += 1
@@ -868,6 +949,11 @@ def run_training(
             "time_step_total_s": round(t_total, 3),
             "process_rss_gb": ram_now["process_rss_gb"],
             "available_ram_gb": ram_now["available_gb"],
+            "gpu_peak_memory_bytes": (
+                int(torch.cuda.max_memory_allocated(device))
+                if device.type == "cuda"
+                else None
+            ),
         }
         step_records.append(rec)
 
@@ -904,6 +990,9 @@ def run_training(
                 "cumulative_time_s": round(total_cum_time, 2),
                 "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "torch_rng_state": torch.get_rng_state(),
+                "cuda_rng_state": (
+                    torch.cuda.get_rng_state(device) if device.type == "cuda" else None
+                ),
             }
             ckpt_save_path = os.path.join(output_dir, f"checkpoint_step_{step}.pt")
             torch.save(ckpt_data, ckpt_save_path)

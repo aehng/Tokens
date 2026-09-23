@@ -20,6 +20,7 @@ Outputs to experiments/checkpoints/quality_benchmark/mbpp_signature_v1/:
 import argparse
 import ast
 import gc
+import hashlib
 import json
 import os
 import pickle
@@ -28,7 +29,7 @@ import re
 import subprocess
 import sys
 import time
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 
 import psutil
 import torch
@@ -41,14 +42,17 @@ from zip2zip import Zip2ZipModel, Zip2ZipTokenizer, StaticCodebookManager
 from zip2zip.predictor_policy import CappedPredictorPolicy
 from experiments.mbpp_prompt import build_mbpp_prompt
 from experiments.load_joint_checkpoint import load_joint_checkpoint
+from experiments.benchmark_provenance import write_json_atomic
 
 VAL_DATA_PATH = "data/cached_pure_pred_val_60.json"
-PREDICTOR_PATH = "experiments/checkpoints/cached_predictor.pkl"
+PREDICTOR_PATH = "experiments/checkpoints/oracle_guided_predictor.pkl"
 CKPT_100_PATH = "experiments/checkpoints/predictive_joint_pilot/checkpoint_step_100.pt"
 CKPT_150_PATH = "experiments/checkpoints/predictive_joint_pilot/checkpoint_step_150.pt"
 OUTPUT_DIR = "experiments/checkpoints/quality_benchmark/mbpp_signature_v1"
 MAX_NEW_TOKENS = 300
 INITIAL_VOCAB = 32011
+PHI_MODEL_ID = "microsoft/Phi-3.5-mini-instruct"
+ZIP2ZIP_MODEL_ID = "epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1"
 
 
 class TimingLogitsProcessor(LogitsProcessor):
@@ -62,11 +66,113 @@ class TimingLogitsProcessor(LogitsProcessor):
 
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
         if self.ttft is None:
+            if scores.is_cuda:
+                torch.cuda.synchronize(scores.device)
             self.ttft = time.perf_counter() - self.t_start
         self.step_count += 1
         if self.static_mgr is not None:
             scores = self.static_mgr.mask_unused_logits(scores)
         return scores
+
+
+def synchronize_device(device: torch.device) -> None:
+    """Finish queued CUDA work before taking wall-clock timestamps."""
+    if device.type == "cuda":
+        torch.cuda.synchronize(device)
+
+
+def _revision_kwargs(revision: Optional[str]) -> Dict[str, str]:
+    return {"revision": revision} if revision else {}
+
+
+def _load_zip2zip_model(
+    model_id: str,
+    base_revision: Optional[str],
+    model_revision: Optional[str],
+) -> Zip2ZipModel:
+    # Pin the independently-versioned Phi base and Zip2Zip adapter separately.
+    base_model = AutoModelForCausalLM.from_pretrained(
+        PHI_MODEL_ID,
+        torch_dtype=torch.float16,
+        low_cpu_mem_usage=True,
+        **_revision_kwargs(base_revision),
+    )
+    return Zip2ZipModel.from_pretrained(
+        model_id,
+        base_model=base_model,
+        torch_dtype=torch.float16,
+        low_cpu_mem_usage=True,
+        **_revision_kwargs(model_revision),
+    )
+
+
+def load_predictive_model_bundle(
+    checkpoint_path: str,
+    device: str,
+    base_revision: Optional[str] = None,
+    model_revision: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Load a checkpoint/model/predictor once for paired prompt conditions."""
+    device_obj = torch.device(device)
+    tokenizer = AutoTokenizer.from_pretrained(
+        PHI_MODEL_ID, **_revision_kwargs(base_revision)
+    )
+    model = _load_zip2zip_model(ZIP2ZIP_MODEL_ID, base_revision, model_revision)
+    print(f"Loading checkpoint weights from {checkpoint_path}...", flush=True)
+    report = load_joint_checkpoint(model, checkpoint_path)
+    print(
+        f"Verified nested checkpoint: {report['lora_tensors']} LoRA, "
+        f"{report['input_encoder_tensors']} input-encoder, and "
+        f"{report['output_encoder_tensors']} output-encoder tensors.",
+        flush=True,
+    )
+    model.to(device_obj)
+    model.eval()
+    with open(PREDICTOR_PATH, "rb") as source:
+        raw_predictor = pickle.load(source)
+    predictor_index = getattr(raw_predictor, "index", raw_predictor)
+    policy = CappedPredictorPolicy(
+        predictor_index,
+        tokenizer,
+        budget=32,
+        max_structural_slots=0,
+        allow_numeric=True,
+        filter_bare_punctuation=True,
+    )
+    return {
+        "model": model,
+        "tokenizer": tokenizer,
+        "policy": policy,
+        "device": device_obj,
+        "embedding_dim": model.zip2zip_config.encoder.hidden_size,
+        "pad_id": tokenizer.pad_token_id or 32000,
+        "disabled_ids": list(model.zip2zip_config.compression.disabled_ids),
+        "checkpoint_load_report": report,
+    }
+
+
+def _write_generation_record(
+    record: Dict[str, Any],
+    raw_results_path: str,
+    cache_keys: Optional[Mapping[Tuple[str, str], str]],
+    cache_root: Optional[str],
+    tested_commit: Optional[str],
+) -> None:
+    key = None
+    if cache_keys is not None:
+        key = cache_keys.get((record["prompt_id"], record["condition"]))
+        if not key:
+            raise ValueError(
+                f"No exact generation cache key for {record['condition']} / {record['prompt_id']}"
+            )
+        record["record_schema"] = "phi_generation_record_v1"
+        record["generation_cache_key"] = key
+        record["generated_from_commit"] = tested_commit
+
+    if key and cache_root:
+        write_json_atomic(os.path.join(cache_root, f"{key}.json"), record)
+    with open(raw_results_path, "a", encoding="utf-8") as output:
+        output.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
 def get_process_rss_gb() -> float:
@@ -247,6 +353,20 @@ def sequence_reached_eos(generated_ids: List[int], eos_token_id: Optional[int]) 
     return generated_ids[-1] == eos_token_id
 
 
+def prepare_prompt_input_ids(
+    base_prompt_ids: List[int],
+    static_mgr: StaticCodebookManager,
+    compress_prompt: bool,
+) -> List[int]:
+    """Prepare a raw or seeded-codebook prompt and prove compression is lossless."""
+    if not compress_prompt:
+        return list(base_prompt_ids)
+    compressed_ids = static_mgr.segment_sequence(base_prompt_ids)
+    if static_mgr.decode_sequence(compressed_ids) != list(base_prompt_ids):
+        raise ValueError("Compressed prompt does not round-trip to its original token sequence")
+    return compressed_ids
+
+
 # ==============================================================================
 # Model Condition Evaluators
 # ==============================================================================
@@ -256,20 +376,35 @@ def run_condition_original_phi(
     raw_results_path: str,
     completed_keys: Set[Tuple[str, str]],
     max_new_tokens: int = MAX_NEW_TOKENS,
+    device: str = "cpu",
+    base_revision: Optional[str] = None,
+    generation_cache_keys: Optional[Mapping[Tuple[str, str], str]] = None,
+    cache_root: Optional[str] = None,
+    tested_commit: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
+    device = torch.device(device)
     condition = "original_phi"
     print(f"\n{'='*80}\nRUNNING CONDITION A: ORIGINAL PHI (Vanilla Phi-3.5-mini-instruct)\n{'='*80}")
 
-    tok = AutoTokenizer.from_pretrained("microsoft/Phi-3.5-mini-instruct")
+    pending_samples = [
+        sample for sample in samples if (sample["id"], condition) not in completed_keys
+    ]
+    if not pending_samples:
+        print("All original-Phi records have exact cache hits; model load skipped.", flush=True)
+        return []
+
+    tok = AutoTokenizer.from_pretrained(PHI_MODEL_ID, **_revision_kwargs(base_revision))
     model = AutoModelForCausalLM.from_pretrained(
-        "microsoft/Phi-3.5-mini-instruct",
+        PHI_MODEL_ID,
         torch_dtype=torch.float16,
         low_cpu_mem_usage=True,
+        **_revision_kwargs(base_revision),
     )
+    model.to(device)
     model.eval()
 
     results = []
-    for idx, s in enumerate(samples, 1):
+    for idx, s in enumerate(pending_samples, 1):
         prompt_id = s["id"]
         key = (prompt_id, condition)
         if key in completed_keys:
@@ -279,8 +414,9 @@ def run_condition_original_phi(
         prompt_text = build_mbpp_prompt(s) if s["domain"] == "code" else s["prompt"]
         prompt_ids = tok.encode(prompt_text, add_special_tokens=False)
         base_prompt_len = len(prompt_ids)
-        input_tensor = torch.tensor([prompt_ids], dtype=torch.long)
+        input_tensor = torch.tensor([prompt_ids], dtype=torch.long, device=device)
 
+        synchronize_device(device)
         t_start = time.perf_counter()
         timing_proc = TimingLogitsProcessor(t_start)
         proc_list = LogitsProcessorList([timing_proc])
@@ -293,6 +429,7 @@ def run_condition_original_phi(
                 do_sample=False,
                 pad_token_id=tok.eos_token_id,
             )
+        synchronize_device(device)
         t_total = time.perf_counter() - t_start
 
         gen_ids = out[0, base_prompt_len:].tolist()
@@ -349,8 +486,9 @@ def run_condition_original_phi(
 
         results.append(rec)
         completed_keys.add(key)
-        with open(raw_results_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(rec) + "\n")
+        _write_generation_record(
+            rec, raw_results_path, generation_cache_keys, cache_root, tested_commit
+        )
 
         print(
             f"[{idx:2d}/{len(samples)}] {prompt_id:10s} | {dom:11s} | Dec: {decode_steps:3d} steps | "
@@ -370,22 +508,33 @@ def run_condition_official_zip2zip(
     raw_results_path: str,
     completed_keys: Set[Tuple[str, str]],
     max_new_tokens: int = MAX_NEW_TOKENS,
+    device: str = "cpu",
+    base_revision: Optional[str] = None,
+    model_revision: Optional[str] = None,
+    generation_cache_keys: Optional[Mapping[Tuple[str, str], str]] = None,
+    cache_root: Optional[str] = None,
+    tested_commit: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
+    device = torch.device(device)
     condition = "official_zip2zip"
     print(f"\n{'='*80}\nRUNNING CONDITION B: OFFICIAL REACTIVE ZIP2ZIP (Native LZW Path)\n{'='*80}")
 
-    model_id = "epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1"
-    tok = Zip2ZipTokenizer.from_pretrained(model_id)
-    base_tok = AutoTokenizer.from_pretrained("microsoft/Phi-3.5-mini-instruct")
-    model = Zip2ZipModel.from_pretrained(
-        model_id,
-        torch_dtype=torch.float16,
-        low_cpu_mem_usage=True,
-    )
+    pending_samples = [
+        sample for sample in samples if (sample["id"], condition) not in completed_keys
+    ]
+    if not pending_samples:
+        print("All Official Zip2Zip records have exact cache hits; model load skipped.", flush=True)
+        return []
+
+    model_id = ZIP2ZIP_MODEL_ID
+    tok = Zip2ZipTokenizer.from_pretrained(model_id, **_revision_kwargs(model_revision))
+    base_tok = AutoTokenizer.from_pretrained(PHI_MODEL_ID, **_revision_kwargs(base_revision))
+    model = _load_zip2zip_model(model_id, base_revision, model_revision)
+    model.to(device)
     model.eval()
 
     results = []
-    for idx, s in enumerate(samples, 1):
+    for idx, s in enumerate(pending_samples, 1):
         prompt_id = s["id"]
         key = (prompt_id, condition)
         if key in completed_keys:
@@ -396,10 +545,11 @@ def run_condition_official_zip2zip(
         base_prompt_ids = base_tok.encode(prompt_text, add_special_tokens=False)
         base_prompt_len = len(base_prompt_ids)
 
-        inputs = tok(prompt_text, return_tensors="pt")
+        inputs = tok(prompt_text, return_tensors="pt").to(device)
         prefill_len = inputs["input_ids"].shape[1]
         prompt_compression_pct = round((1.0 - prefill_len / max(base_prompt_len, 1)) * 100, 2)
 
+        synchronize_device(device)
         t_start = time.perf_counter()
         timing_proc = TimingLogitsProcessor(t_start)
         proc_list = LogitsProcessorList([timing_proc])
@@ -412,6 +562,7 @@ def run_condition_official_zip2zip(
                 do_sample=False,
                 pad_token_id=tok.eos_token_id,
             )
+        synchronize_device(device)
         t_total = time.perf_counter() - t_start
 
         full_ids = out[0].tolist()
@@ -495,8 +646,9 @@ def run_condition_official_zip2zip(
 
         results.append(rec)
         completed_keys.add(key)
-        with open(raw_results_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(rec) + "\n")
+        _write_generation_record(
+            rec, raw_results_path, generation_cache_keys, cache_root, tested_commit
+        )
 
         print(
             f"[{idx:2d}/{len(samples)}] {prompt_id:10s} | {dom:11s} | Dec: {decode_steps:3d} -> Exp: {expanded_output_tokens:3d} "
@@ -519,45 +671,40 @@ def run_condition_predictive(
     raw_results_path: str,
     completed_keys: Set[Tuple[str, str]],
     max_new_tokens: int = MAX_NEW_TOKENS,
+    device: str = "cpu",
+    base_revision: Optional[str] = None,
+    model_revision: Optional[str] = None,
+    generation_cache_keys: Optional[Mapping[Tuple[str, str], str]] = None,
+    cache_root: Optional[str] = None,
+    tested_commit: Optional[str] = None,
+    compress_prompt: bool = False,
+    model_bundle: Optional[Mapping[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
+    device = torch.device(device)
     print(f"\n{'='*80}\nRUNNING CONDITION {condition_name.upper()} ({checkpoint_path})\n{'='*80}")
+    pending_samples = [
+        sample for sample in samples if (sample["id"], condition_name) not in completed_keys
+    ]
+    if not pending_samples:
+        print(f"All {condition_name} records have exact cache hits; model load skipped.", flush=True)
+        return []
 
-    model_id = "epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1"
-    tok = AutoTokenizer.from_pretrained("microsoft/Phi-3.5-mini-instruct")
-    model = Zip2ZipModel.from_pretrained(
-        model_id,
-        torch_dtype=torch.float16,
-        low_cpu_mem_usage=True,
+    owns_bundle = model_bundle is None
+    bundle = model_bundle or load_predictive_model_bundle(
+        checkpoint_path,
+        device=str(device),
+        base_revision=base_revision,
+        model_revision=model_revision,
     )
-
-    print(f"Loading checkpoint weights from {checkpoint_path}...")
-    load_report = load_joint_checkpoint(model, checkpoint_path)
-    print(
-        f"Verified nested checkpoint: {load_report['lora_tensors']} LoRA, "
-        f"{load_report['input_encoder_tensors']} input-encoder, and "
-        f"{load_report['output_encoder_tensors']} output-encoder tensors."
-    )
-    model.eval()
-
-    with open(PREDICTOR_PATH, "rb") as f:
-        raw_predictor = pickle.load(f)
-    p_index = getattr(raw_predictor, "index", raw_predictor)
-
-    policy = CappedPredictorPolicy(
-        p_index,
-        tok,
-        budget=32,
-        max_structural_slots=0,
-        allow_numeric=True,
-        filter_bare_punctuation=True,
-    )
-
-    dim = model.zip2zip_config.encoder.hidden_size
-    pad_id = tok.pad_token_id or 32000
-    disabled_ids = list(model.zip2zip_config.compression.disabled_ids)
+    model = bundle["model"]
+    tok = bundle["tokenizer"]
+    policy = bundle["policy"]
+    dim = bundle["embedding_dim"]
+    pad_id = bundle["pad_id"]
+    disabled_ids = bundle["disabled_ids"]
 
     results = []
-    for idx, s in enumerate(samples, 1):
+    for idx, s in enumerate(pending_samples, 1):
         prompt_id = s["id"]
         key = (prompt_id, condition_name)
         if key in completed_keys:
@@ -583,14 +730,22 @@ def run_condition_predictive(
             pad_token_id=pad_id,
             disabled_ids=disabled_ids,
         )
-        static_mgr.set_seeded_codebook(codebook_dict, batch_size=1, device=torch.device("cpu"))
+        static_mgr.set_seeded_codebook(codebook_dict, batch_size=1, device=device)
         static_mgr.attach_to_model(model)
         hyper_setup_time_s = time.perf_counter() - t_setup_start
         codebook_time_s = predictor_time_s + hyper_setup_time_s
+        codebook_sha256 = hashlib.sha256(
+            repr(sorted(codebook_dict.items())).encode("utf-8")
+        ).hexdigest()
 
-        input_tensor = torch.tensor([prompt_ids], dtype=torch.long)
+        model_prompt_ids = prepare_prompt_input_ids(
+            prompt_ids, static_mgr, compress_prompt=compress_prompt
+        )
+        model_prompt_len = len(model_prompt_ids)
+        input_tensor = torch.tensor([model_prompt_ids], dtype=torch.long, device=device)
 
         # 3. Generation timing
+        synchronize_device(device)
         t_gen_start = time.perf_counter()
         timing_proc = TimingLogitsProcessor(t_gen_start, static_mgr=static_mgr)
         proc_list = LogitsProcessorList([timing_proc])
@@ -603,10 +758,11 @@ def run_condition_predictive(
                 do_sample=False,
                 pad_token_id=tok.eos_token_id,
             )
+        synchronize_device(device)
         t_gen = time.perf_counter() - t_gen_start
         total_wall_time = codebook_time_s + t_gen
 
-        gen_ids = out[0, base_prompt_len:].tolist()
+        gen_ids = out[0, model_prompt_len:].tolist()
         decode_steps = len(gen_ids)
 
         # 4. Decompress / expand hypertokens to constituent base tokens
@@ -645,8 +801,12 @@ def run_condition_predictive(
             "domain": s["domain"],
             "condition": condition_name,
             "base_prompt_tokens": base_prompt_len,
-            "model_prefill_tokens": base_prompt_len,
-            "prompt_compression_pct": 0.0,
+            "model_prefill_tokens": model_prompt_len,
+            "prompt_compression_pct": round(
+                100.0 * (1 - model_prompt_len / max(base_prompt_len, 1)), 2
+            ),
+            "prompt_representation": "predictive_compressed" if compress_prompt else "raw",
+            "codebook_sha256": codebook_sha256,
             "decode_steps": decode_steps,
             "expanded_output_tokens": expanded_output_tokens,
             "tokens_saved": tokens_saved,
@@ -683,8 +843,9 @@ def run_condition_predictive(
 
         results.append(rec)
         completed_keys.add(key)
-        with open(raw_results_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(rec) + "\n")
+        _write_generation_record(
+            rec, raw_results_path, generation_cache_keys, cache_root, tested_commit
+        )
 
         print(
             f"[{idx:2d}/{len(samples)}] {prompt_id:10s} | {dom:11s} | Dec: {decode_steps:3d} -> Exp: {expanded_output_tokens:3d} "
@@ -693,9 +854,10 @@ def run_condition_predictive(
             flush=True,
         )
 
-    del model
-    del tok
-    gc.collect()
+    if owns_bundle:
+        del model
+        del tok
+        gc.collect()
     return results
 
 
@@ -1079,6 +1241,7 @@ def main():
     parser.add_argument("--evaluate-only", action="store_true", help="Recompute metrics and reports from existing raw_results.jsonl")
     parser.add_argument("--conditions", nargs="+", default=["original_phi", "official_zip2zip", "predictive_step_100", "predictive_step_150"])
     parser.add_argument("--max-new-tokens", type=int, default=MAX_NEW_TOKENS)
+    parser.add_argument("--device", default="cpu", help="Generation device, for example cpu or cuda:0")
     args = parser.parse_args()
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -1102,13 +1265,13 @@ def main():
 
         for c in args.conditions:
             if c == "original_phi":
-                run_condition_original_phi(samples, raw_results_path, completed_keys, max_new_tokens=args.max_new_tokens)
+                run_condition_original_phi(samples, raw_results_path, completed_keys, max_new_tokens=args.max_new_tokens, device=args.device)
             elif c == "official_zip2zip":
-                run_condition_official_zip2zip(samples, raw_results_path, completed_keys, max_new_tokens=args.max_new_tokens)
+                run_condition_official_zip2zip(samples, raw_results_path, completed_keys, max_new_tokens=args.max_new_tokens, device=args.device)
             elif c == "predictive_step_100":
-                run_condition_predictive(CKPT_100_PATH, c, samples, raw_results_path, completed_keys, max_new_tokens=args.max_new_tokens)
+                run_condition_predictive(CKPT_100_PATH, c, samples, raw_results_path, completed_keys, max_new_tokens=args.max_new_tokens, device=args.device)
             elif c == "predictive_step_150":
-                run_condition_predictive(CKPT_150_PATH, c, samples, raw_results_path, completed_keys, max_new_tokens=args.max_new_tokens)
+                run_condition_predictive(CKPT_150_PATH, c, samples, raw_results_path, completed_keys, max_new_tokens=args.max_new_tokens, device=args.device)
             else:
                 print(f"Unknown condition: {c}")
 
