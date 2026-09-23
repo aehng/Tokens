@@ -2,11 +2,43 @@ import json
 
 import pytest
 
-from experiments.run_phi_tier1 import DEFAULT_PREDICTOR, _write_tier1_summary
+from experiments.run_phi_tier1 import (
+    DEFAULT_PREDICTOR,
+    _load_current_run_records,
+    _write_tier1_summary,
+)
 
 
 def test_tier1_defaults_to_the_canonical_oracle_guided_predictor():
     assert DEFAULT_PREDICTOR.name == "oracle_guided_predictor.pkl"
+
+
+def test_tier1_cache_index_uses_the_expected_prompt_ids(tmp_path):
+    cache_root = tmp_path / "cache"
+    cache_root.mkdir()
+    expected = {
+        ("prompt_a", "original_phi"): "cache-a",
+        ("prompt_b", "original_phi"): "cache-b",
+    }
+    for prompt_id, key in (("prompt_a", "cache-a"), ("prompt_b", "cache-b")):
+        row = {
+            "record_schema": "phi_generation_record_v2",
+            "generation_cache_key": key,
+            "prompt_id": prompt_id,
+            "condition": "original_phi",
+        }
+        (cache_root / f"{key}.json").write_text(json.dumps(row), encoding="utf-8")
+
+    completed, records = _load_current_run_records(
+        tmp_path / "raw.jsonl",
+        cache_root,
+        expected,
+        ["original_phi"],
+        [{"id": "prompt_a"}, {"id": "prompt_b"}],
+    )
+
+    assert completed == {("prompt_a", "original_phi"), ("prompt_b", "original_phi")}
+    assert [record["prompt_id"] for record in records] == ["prompt_a", "prompt_b"]
 
 
 def _pair(prompt_id, codebook_sha="same"):

@@ -250,7 +250,10 @@ def _load_current_run_records(
     conditions: list[str],
     samples: list[dict[str, Any]],
 ) -> tuple[set[tuple[str, str]], list[dict[str, Any]]]:
-    by_key = {(sample["id"], condition): key for (sample_id, condition), key in expected_keys.items()}
+    by_key = {
+        (sample_id, condition): key
+        for (sample_id, condition), key in expected_keys.items()
+    }
     completed: set[tuple[str, str]] = set()
     records: dict[tuple[str, str], dict[str, Any]] = {}
 
