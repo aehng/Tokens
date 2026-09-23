@@ -149,16 +149,14 @@ def load_joint_checkpoint(
     after = _parameter_fingerprint(base_model, encoder_parameter_ids)
     if after != base_fingerprint:
         raise AssertionError("Frozen base weights changed while loading the joint checkpoint")
+    base_hash_status, verified_base_hash_names = _verify_checkpoint_base_hashes(model, checkpoint)
 
     return {
         "step": step,
         "trainable_mode": checkpoint.get("trainable_mode"),
         "model_id": checkpoint_model_id,
-        "base_hash_status": (
-            "present_unverified"
-            if isinstance(checkpoint.get("base_hashes"), Mapping) and checkpoint["base_hashes"]
-            else "missing"
-        ),
+        "base_hash_status": base_hash_status,
+        "verified_base_hash_names": verified_base_hash_names,
         "lora_tensors": len(lora_state),
         "input_encoder_tensors": len(input_state),
         "output_encoder_tensors": len(output_state),
@@ -168,6 +166,88 @@ def load_joint_checkpoint(
         "changed_tensor_count": changed_count,
         "checkpoint_loader": CHECKPOINT_LOADER_ID,
     }
+
+
+def _verify_checkpoint_base_hashes(model: nn.Module, checkpoint: Mapping) -> tuple[str, list[str]]:
+    """Verify the representative frozen-backbone hashes saved by the trainer."""
+    expected = checkpoint.get("base_hashes")
+    if not isinstance(expected, Mapping) or not expected:
+        return "missing", []
+
+    base = getattr(model, "base_model", None)
+    if base is None:
+        raise RuntimeError("Cannot verify frozen backbone hashes: model.base_model is missing")
+
+    pending = [base]
+    seen: set[int] = set()
+    backbone = None
+    while pending:
+        candidate = pending.pop(0)
+        if candidate is None or id(candidate) in seen:
+            continue
+        seen.add(id(candidate))
+        if hasattr(candidate, "layers"):
+            backbone = candidate
+            break
+        get_base_model = getattr(candidate, "get_base_model", None)
+        if callable(get_base_model):
+            try:
+                pending.append(get_base_model())
+            except (AttributeError, RuntimeError, TypeError):
+                pass
+        for attribute in ("module", "base_model", "model"):
+            child = getattr(candidate, attribute, None)
+            if child is not None:
+                pending.append(child)
+
+    excluded_ids = {
+        id(parameter)
+        for encoder_name in ("input_encoder", "output_encoder")
+        for encoder in (getattr(model, encoder_name, None),)
+        if encoder is not None
+        for parameter in encoder.parameters()
+    }
+    lora_ids = {
+        id(parameter)
+        for name, parameter in base.named_parameters(remove_duplicate=False)
+        if "lora" in name.lower()
+    }
+    actual_tensors: dict[str, torch.Tensor] = {}
+
+    def record(name: str, tensor: Any) -> None:
+        if isinstance(tensor, torch.Tensor) and id(tensor) not in excluded_ids | lora_ids:
+            actual_tensors[name] = tensor
+
+    embedding = getattr(backbone, "embed_tokens", None) if backbone is not None else None
+    record("embed_tokens", getattr(embedding, "weight", None))
+    layers = getattr(backbone, "layers", []) if backbone is not None else []
+    for layer_index in (0, 16, 31):
+        if layer_index < len(layers):
+            attention = getattr(layers[layer_index], "self_attn", None)
+            qkv = getattr(attention, "qkv_proj", None)
+            if qkv is not None:
+                base_layer = getattr(qkv, "base_layer", qkv)
+                record(f"layer_{layer_index}_qkv_base", getattr(base_layer, "weight", None))
+
+    if not any(name.startswith("layer_") for name in actual_tensors):
+        raise RuntimeError(
+            "Could not select frozen transformer-layer tensors for checkpoint hash verification"
+        )
+
+    missing = sorted(set(expected) - set(actual_tensors))
+    if missing:
+        raise RuntimeError(f"Checkpoint frozen-base hash keys are not available in the loaded model: {missing}")
+    mismatches = []
+    for name, expected_hash in expected.items():
+        tensor = actual_tensors[name].detach().to(device="cpu").contiguous()
+        actual_hash = hashlib.sha256(tensor.numpy().tobytes()).hexdigest()[:16]
+        if actual_hash != expected_hash:
+            mismatches.append(
+                {"tensor": name, "expected": expected_hash, "actual": actual_hash}
+            )
+    if mismatches:
+        raise RuntimeError(f"Frozen backbone hash mismatch against checkpoint metadata: {mismatches}")
+    return "verified", sorted(expected)
 
 
 def _checkpoint_step(checkpoint: Mapping) -> int:

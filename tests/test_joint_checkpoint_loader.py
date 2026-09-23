@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import hashlib
 from pathlib import Path
 from unittest.mock import patch
 
@@ -36,6 +37,16 @@ class UnsupportedCheckpointObject:
     pass
 
 
+def representative_base_hashes(model):
+    tensors = {"embed_tokens": model.base_model.embed_tokens.weight}
+    for index in (0, 16, 31):
+        tensors[f"layer_{index}_qkv_base"] = model.base_model.layers[index].self_attn.qkv_proj.weight
+    return {
+        name: hashlib.sha256(tensor.detach().cpu().contiguous().numpy().tobytes()).hexdigest()[:16]
+        for name, tensor in tensors.items()
+    }
+
+
 def make_checkpoint(model):
     return {
         "step": 100,
@@ -60,6 +71,35 @@ def make_checkpoint(model):
 
 
 class JointCheckpointLoaderTests(unittest.TestCase):
+    def _add_hashable_backbone(self, model):
+        model.base_model.embed_tokens = nn.Embedding(4, 2)
+        model.base_model.layers = nn.ModuleList()
+        for _ in range(32):
+            layer = nn.Module()
+            layer.self_attn = nn.Module()
+            layer.self_attn.qkv_proj = nn.Linear(2, 2, bias=False)
+            model.base_model.layers.append(layer)
+
+    def test_verifies_saved_frozen_backbone_hashes(self):
+        model = TinyModel()
+        self._add_hashable_backbone(model)
+        checkpoint = make_checkpoint(model)
+        checkpoint["base_hashes"] = representative_base_hashes(model)
+
+        report = load_joint_checkpoint(model, checkpoint)
+
+        self.assertEqual(report["base_hash_status"], "verified")
+
+    def test_rejects_frozen_backbone_hash_mismatch(self):
+        model = TinyModel()
+        self._add_hashable_backbone(model)
+        checkpoint = make_checkpoint(model)
+        checkpoint["base_hashes"] = representative_base_hashes(model)
+        checkpoint["base_hashes"]["layer_16_qkv_base"] = "not-the-hash"
+
+        with self.assertRaisesRegex(RuntimeError, "Frozen backbone hash mismatch"):
+            load_joint_checkpoint(model, checkpoint)
+
     def test_loads_nested_weights_exactly_and_ignores_encoder_aliases_in_base_guard(self):
         model = TinyModel()
         checkpoint = make_checkpoint(model)

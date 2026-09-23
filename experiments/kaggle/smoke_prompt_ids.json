@@ -1,0 +1,17 @@
+[
+  {
+    "id": "mbpp_542",
+    "domain": "code",
+    "selection_reason": "Tier-1 paired CPU reference; vanilla Pass@1 and predictive syntax-valid test failure"
+  },
+  {
+    "id": "gsm_2956",
+    "domain": "reasoning",
+    "selection_reason": "Tier-1 paired CPU reference; vanilla and predictive exact answer both correct"
+  },
+  {
+    "id": "alpaca_183",
+    "domain": "instruction",
+    "selection_reason": "Tier-1 paired CPU reference; both outputs pass the mechanical instruction checks"
+  }
+]

@@ -1,0 +1,18 @@
+{
+  "id": "elikearl/tokens-step100-single-t4-validation",
+  "title": "Tokens Step-100 Single T4 Validation",
+  "code_file": "main.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "machine_shape": "NvidiaTeslaT4",
+  "dataset_sources": [
+    "elikearl/tokens-step100-gpu-smoke"
+  ],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}

@@ -158,6 +158,24 @@ def synchronize_device(device: torch.device) -> None:
         torch.cuda.synchronize(device)
 
 
+def cuda_memory_snapshot(device: torch.device | str) -> Optional[Dict[str, int]]:
+    """Return synchronized CUDA memory counters for one explicit device."""
+    target = torch.device(device)
+    if target.type != "cuda" or not torch.cuda.is_available():
+        return None
+    torch.cuda.synchronize(target)
+    free_bytes, total_bytes = torch.cuda.mem_get_info(target)
+    return {
+        "device_index": int(target.index or torch.cuda.current_device()),
+        "allocated_bytes": int(torch.cuda.memory_allocated(target)),
+        "reserved_bytes": int(torch.cuda.memory_reserved(target)),
+        "peak_allocated_bytes": int(torch.cuda.max_memory_allocated(target)),
+        "peak_reserved_bytes": int(torch.cuda.max_memory_reserved(target)),
+        "free_bytes": int(free_bytes),
+        "total_bytes": int(total_bytes),
+    }
+
+
 def _revision_kwargs(revision: Optional[str]) -> Dict[str, str]:
     return {"revision": revision} if revision else {}
 
@@ -244,6 +262,21 @@ def load_predictive_model_bundle(
         )
     model.to(device_obj)
     model.eval()
+    trainable_devices = sorted(
+        {str(parameter.device) for parameter in model.parameters() if parameter.requires_grad}
+    )
+    all_parameter_devices = sorted({str(parameter.device) for parameter in model.parameters()})
+    if device_obj.type == "cuda" and trainable_devices != [str(device_obj)]:
+        raise RuntimeError(
+            "Predictive trainable modules are not all on the requested CUDA device: "
+            f"expected {[str(device_obj)]}, got {trainable_devices}"
+        )
+    if device_obj.type == "cuda" and all_parameter_devices != [str(device_obj)]:
+        raise RuntimeError(
+            "Predictive model parameters are split across devices: "
+            f"expected {[str(device_obj)]}, got {all_parameter_devices}"
+        )
+    model_loaded_cuda_memory = cuda_memory_snapshot(device_obj)
     raw_predictor = load_oracle_predictor(PREDICTOR_PATH)
     predictor_index = getattr(raw_predictor, "index", raw_predictor)
     policy = CappedPredictorPolicy(
@@ -263,6 +296,25 @@ def load_predictive_model_bundle(
         "pad_id": tokenizer.pad_token_id or 32000,
         "disabled_ids": list(model.zip2zip_config.compression.disabled_ids),
         "checkpoint_load_report": report,
+        "cuda_memory_model_loaded": model_loaded_cuda_memory,
+        "device_placement": {
+            "requested_device": str(device_obj),
+            "all_parameter_devices": all_parameter_devices,
+            "trainable_parameter_devices": trainable_devices,
+        },
+        "predictor_report": {
+            "artifact_class": type(raw_predictor).__name__,
+            "index_class": type(predictor_index).__name__,
+            "policy": {
+                "kind": "capped_predictor",
+                "budget": policy.budget,
+                "max_structural_slots": policy.max_structural_slots,
+                "allow_numeric": policy.allow_numeric,
+                "max_numeric_slots": policy.max_numeric_slots,
+                "filter_bare_punctuation": policy.filter_bare_punctuation,
+                "max_subtokens": policy.max_subtokens,
+            },
+        },
     }
 
 
@@ -778,6 +830,14 @@ def run_condition_original_phi(
     )
     model.to(device)
     model.eval()
+    vanilla_parameter_devices = sorted({str(parameter.device) for parameter in model.parameters()})
+    if device.type == "cuda":
+        if vanilla_parameter_devices != [str(device)]:
+            raise RuntimeError(
+                "Vanilla model parameters are split across devices: "
+                f"expected {[str(device)]}, got {vanilla_parameter_devices}"
+            )
+    model_loaded_cuda_memory = cuda_memory_snapshot(device)
 
     results = []
     for idx, s in enumerate(pending_samples, 1):
@@ -793,6 +853,8 @@ def run_condition_original_phi(
         input_tensor = torch.tensor([prompt_ids], dtype=torch.long, device=device)
 
         synchronize_device(device)
+        if device.type == "cuda":
+            torch.cuda.reset_peak_memory_stats(device)
         t_start = time.perf_counter()
         timing_proc = TimingLogitsProcessor(t_start)
         proc_list = LogitsProcessorList([timing_proc])
@@ -807,6 +869,7 @@ def run_condition_original_phi(
             )
         synchronize_device(device)
         t_total = time.perf_counter() - t_start
+        cuda_memory_after_generation = cuda_memory_snapshot(device)
 
         gen_ids = out[0, base_prompt_len:].tolist()
         decode_steps = len(gen_ids)
@@ -853,6 +916,12 @@ def run_condition_original_phi(
             "codebook_size": 0,
             "output_text": output_text,
             "process_rss_gb": get_process_rss_gb(),
+            "cuda_memory_model_loaded": model_loaded_cuda_memory,
+            "cuda_memory_generation": cuda_memory_after_generation,
+            "device_placement": {
+                "requested_device": str(device),
+                "all_parameter_devices": vanilla_parameter_devices,
+            },
         }
         rec.update(
             generation_health_fields(
@@ -1155,6 +1224,8 @@ def run_condition_predictive(
 
         # 3. Generation timing
         synchronize_device(device)
+        if device.type == "cuda":
+            torch.cuda.reset_peak_memory_stats(device)
         t_gen_start = time.perf_counter()
         timing_proc = TimingLogitsProcessor(t_gen_start, static_mgr=static_mgr)
         procs = [timing_proc]
@@ -1178,6 +1249,7 @@ def run_condition_predictive(
             )
         synchronize_device(device)
         t_gen = time.perf_counter() - t_gen_start
+        cuda_memory_after_generation = cuda_memory_snapshot(device)
         total_wall_time = codebook_time_s + t_gen
 
         gen_ids = out[0, model_prompt_len:].tolist()
@@ -1227,7 +1299,9 @@ def run_condition_predictive(
             "prompt_compression_pct": round(
                 100.0 * (1 - model_prompt_len / max(base_prompt_len, 1)), 2
             ),
-            "prompt_representation": "predictive_compressed" if compress_prompt else "raw",
+            "prompt_representation": (
+                "predictive_codebook_dp_segmented" if compress_prompt else "raw_base_token_ids"
+            ),
             "codebook_sha256": codebook_sha256,
             "decode_steps": decode_steps,
             "expanded_output_tokens": expanded_output_tokens,
@@ -1254,6 +1328,9 @@ def run_condition_predictive(
             "codebook_size": len(codebook_dict),
             "output_text": output_text,
             "process_rss_gb": get_process_rss_gb(),
+            "cuda_memory_model_loaded": bundle.get("cuda_memory_model_loaded"),
+            "cuda_memory_generation": cuda_memory_after_generation,
+            "device_placement": bundle.get("device_placement"),
             "emission_gate_top_n": emission_gate_top_n,
             "emission_gate_stats": emission_gate.get_stats() if emission_gate is not None else None,
         }

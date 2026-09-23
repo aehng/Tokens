@@ -1,0 +1,35 @@
+{
+  "schema": "tokens_kaggle_gpu_environment_v1",
+  "repo": "aehng/Tokens",
+  "repo_commit": "filled-in by the private artifact manifest after the package commit",
+  "repo_branch": "codex/kaggle-gpu-enablement",
+  "model_id": "microsoft/Phi-3.5-mini-instruct",
+  "phi_revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+  "tokenizer_id": "microsoft/Phi-3.5-mini-instruct",
+  "tokenizer_revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+  "zip2zip_id": "epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1",
+  "zip2zip_revision": "11c461733a79d2a5de6b814585c3361ca2aacbe7",
+  "checkpoint": {
+    "path": "experiments/checkpoints/predictive_joint_pilot/checkpoint_step_100.pt",
+    "step": 100,
+    "sha256": "2c3606c075ac96dff1f607043f58241251d837f2340ae950d3dc309e9820fd44"
+  },
+  "predictor": {
+    "path": "experiments/checkpoints/oracle_guided_predictor.pkl",
+    "sha256": "5ea21e53f119e7416e719b835536b4e5ce3b7fab1a989040f3b3052dbe4908f7"
+  },
+  "prompt_ids": ["mbpp_542", "gsm_2956", "alpaca_183"],
+  "predictive_condition": "predictive_step_100_compressed_prompt",
+  "prompt_representation": "predictive_codebook_dp_segmented",
+  "emission_gate_top_n": null,
+  "requested_device": "cuda:0",
+  "python_dependency_lock": "experiments/kaggle/requirements_kaggle.txt",
+  "torch_version": null,
+  "transformers_version": "4.47.1",
+  "cuda_version": null,
+  "gpu_name": null,
+  "gpu_memory_bytes": null,
+  "idle_vram": null,
+  "model_loaded_vram": null,
+  "peak_inference_vram": null
+}

@@ -83,11 +83,16 @@ def _runtime_identity(device: str) -> dict[str, Any]:
     if torch.cuda.is_available():
         for index in range(torch.cuda.device_count()):
             props = torch.cuda.get_device_properties(index)
+            free_bytes, total_bytes = torch.cuda.mem_get_info(index)
             info["gpus"].append(
                 {
                     "index": index,
                     "name": torch.cuda.get_device_name(index),
                     "memory_bytes": int(props.total_memory),
+                    "idle_allocated_bytes": int(torch.cuda.memory_allocated(index)),
+                    "idle_reserved_bytes": int(torch.cuda.memory_reserved(index)),
+                    "idle_free_bytes": int(free_bytes),
+                    "idle_total_bytes": int(total_bytes),
                     "capability": list(torch.cuda.get_device_capability(index)),
                 }
             )
@@ -242,7 +247,7 @@ def _build_identity(
         "schema": "phi_tier1_run_identity_v3",
         "runtime_diagnostics_schema": "phi_runtime_diagnostics_v1",
         "tested_commit": tested_commit,
-        "tier": "phi_tier1_12",
+        "tier": f"phi_tier1_{len(samples)}",
         "prompt_ids_file_sha256": file_sha256(args.prompt_ids_file),
         "validation_data_sha256": file_sha256(args.validation_data),
         "prompt_ids": [sample["id"] for sample in samples],
@@ -573,7 +578,12 @@ def run(args: argparse.Namespace) -> Path:
     predictor_path = Path(args.predictor).resolve()
     with validation_path.open("r", encoding="utf-8") as source:
         all_samples = json.load(source)
-    samples = select_prompt_subset(all_samples, prompt_ids_path, EXPECTED_DOMAINS)
+    expected_per_domain = args.prompts_per_domain
+    samples = select_prompt_subset(
+        all_samples,
+        prompt_ids_path,
+        {domain: expected_per_domain for domain in EXPECTED_DOMAINS},
+    )
 
     conditions = args.conditions or [
         "original_phi",
@@ -645,34 +655,6 @@ def run(args: argparse.Namespace) -> Path:
 
     predictive_bundles: dict[str, dict[str, Any]] = {}
     try:
-        for step in ("100", "150"):
-            step_conditions = [
-                condition for condition in conditions
-                if condition.startswith(f"predictive_step_{step}")
-            ]
-            needs_generation = any(
-                (sample["id"], condition) not in completed_keys
-                for condition in step_conditions
-                for sample in samples
-            )
-            if step_conditions and needs_generation:
-                checkpoint_for_step = (
-                    checkpoint_path
-                    if step == "100"
-                    else checkpoint_path.with_name("checkpoint_step_150.pt")
-                )
-                predictive_bundles[step] = benchmark.load_predictive_model_bundle(
-                    str(checkpoint_for_step),
-                    device=args.device,
-                    base_revision=args.base_revision,
-                    model_revision=args.zip2zip_revision,
-                    expected_step=int(step),
-                )
-                manifest.setdefault("checkpoint_load_reports", {})[step] = predictive_bundles[step][
-                    "checkpoint_load_report"
-                ]
-                write_json_atomic(run_dir / "run_manifest.json", manifest)
-
         for condition in conditions:
             if condition == "original_phi":
                 benchmark.run_condition_original_phi(
@@ -700,6 +682,29 @@ def run(args: argparse.Namespace) -> Path:
                     tested_commit=tested_commit,
                 )
             elif condition.startswith("predictive_step_100"):
+                if "100" not in predictive_bundles and any(
+                    (sample["id"], condition) not in completed_keys for sample in samples
+                ):
+                    predictive_bundles["100"] = benchmark.load_predictive_model_bundle(
+                        str(checkpoint_path),
+                        device=args.device,
+                        base_revision=args.base_revision,
+                        model_revision=args.zip2zip_revision,
+                        expected_step=100,
+                    )
+                    manifest.setdefault("checkpoint_load_reports", {})["100"] = predictive_bundles[
+                        "100"
+                    ]["checkpoint_load_report"]
+                    manifest["runtime_resources"] = {
+                        "predictive_model_loaded_cuda_memory": predictive_bundles["100"].get(
+                            "cuda_memory_model_loaded"
+                        ),
+                        "predictive_device_placement": predictive_bundles["100"].get(
+                            "device_placement"
+                        ),
+                        "predictor_report": predictive_bundles["100"].get("predictor_report"),
+                    }
+                    write_json_atomic(run_dir / "run_manifest.json", manifest)
                 gate_n = condition_configs[condition].get("emission_gate_top_n")
                 benchmark.run_condition_predictive(
                     str(checkpoint_path),
@@ -720,6 +725,20 @@ def run(args: argparse.Namespace) -> Path:
                 )
             elif condition.startswith("predictive_step_150"):
                 checkpoint_150 = checkpoint_path.with_name("checkpoint_step_150.pt")
+                if "150" not in predictive_bundles and any(
+                    (sample["id"], condition) not in completed_keys for sample in samples
+                ):
+                    predictive_bundles["150"] = benchmark.load_predictive_model_bundle(
+                        str(checkpoint_150),
+                        device=args.device,
+                        base_revision=args.base_revision,
+                        model_revision=args.zip2zip_revision,
+                        expected_step=150,
+                    )
+                    manifest.setdefault("checkpoint_load_reports", {})["150"] = predictive_bundles[
+                        "150"
+                    ]["checkpoint_load_report"]
+                    write_json_atomic(run_dir / "run_manifest.json", manifest)
                 benchmark.run_condition_predictive(
                     str(checkpoint_150),
                     condition,
@@ -754,6 +773,23 @@ def run(args: argparse.Namespace) -> Path:
     except BaseException as exc:
         manifest["status"] = "failed"
         manifest["error"] = f"{type(exc).__name__}: {exc}"
+        if torch.cuda.is_available() and torch.device(args.device).type == "cuda":
+            try:
+                target = torch.device(args.device)
+                free_bytes, total_bytes = torch.cuda.mem_get_info(target)
+                manifest["failure_cuda_memory"] = {
+                    "device": str(target),
+                    "allocated_bytes": int(torch.cuda.memory_allocated(target)),
+                    "reserved_bytes": int(torch.cuda.memory_reserved(target)),
+                    "peak_allocated_bytes": int(torch.cuda.max_memory_allocated(target)),
+                    "peak_reserved_bytes": int(torch.cuda.max_memory_reserved(target)),
+                    "free_bytes": int(free_bytes),
+                    "total_bytes": int(total_bytes),
+                }
+            except BaseException as memory_error:
+                manifest["failure_cuda_memory_error"] = (
+                    f"{type(memory_error).__name__}: {memory_error}"
+                )
         manifest["finished_at_utc"] = dt.datetime.now(dt.timezone.utc).isoformat()
         write_json_atomic(run_dir / "run_manifest.json", manifest)
         raise
@@ -781,9 +817,17 @@ def main() -> None:
     parser.add_argument("--output-dir", help="Explicit run directory; must be unused or have an identical manifest")
     parser.add_argument("--cache-dir", help="Run-generation cache directory")
     parser.add_argument("--max-new-tokens", type=int, default=benchmark.MAX_NEW_TOKENS)
+    parser.add_argument(
+        "--prompts-per-domain",
+        type=int,
+        default=4,
+        help="Expected count for each of the fixed Tier-1 domains (default: 4).",
+    )
     args = parser.parse_args()
     if args.max_new_tokens <= 0:
         parser.error("--max-new-tokens must be positive")
+    if args.prompts_per_domain <= 0:
+        parser.error("--prompts-per-domain must be positive")
     run_dir = run(args)
     print(f"Tier-1 run artifacts: {run_dir}")
 
