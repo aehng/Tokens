@@ -23,6 +23,7 @@ os.environ.setdefault("HF_HOME", "/kaggle/temp/tokens-hf-cache")
 os.environ.setdefault("PIP_CACHE_DIR", "/kaggle/temp/tokens-pip-cache")
 
 DATASET_ROOT = Path("/kaggle/input/tokens-step100-gpu-smoke")
+DATASET_ID = "elikearl/tokens-step100-gpu-smoke"
 OUTPUT_ROOT = Path("/kaggle/working/tokens-kaggle-output")
 REPO_ROOT = Path("/kaggle/working/tokens-source")
 PACKAGE_REPO = "https://github.com/aehng/Tokens.git"
@@ -141,11 +142,38 @@ def clone_source(repo_commit: str) -> None:
     )
     current = run_command(["git", "rev-parse", "HEAD"], cwd=REPO_ROOT).stdout.strip()
     if current != repo_commit:
-        raise RuntimeError(f"Source branch HEAD {current} differs from artifact-pinned commit {repo_commit}")
+        run_command(["git", "fetch", "--depth", "1", "origin", repo_commit], cwd=REPO_ROOT)
     run_command(["git", "checkout", "--detach", repo_commit], cwd=REPO_ROOT)
+    checked_out = run_command(["git", "rev-parse", "HEAD"], cwd=REPO_ROOT).stdout.strip()
+    if checked_out != repo_commit:
+        raise RuntimeError(f"Source checkout {checked_out} differs from artifact-pinned commit {repo_commit}")
+
+
+def resolve_dataset_root() -> Path:
+    input_root = Path("/kaggle/input")
+    mounted = sorted(path for path in input_root.iterdir() if path.is_dir()) if input_root.is_dir() else []
+    matches = []
+    for root in mounted:
+        manifest_path = root / "artifact_manifest.json"
+        if not manifest_path.is_file():
+            continue
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if manifest.get("private_dataset_id") == DATASET_ID:
+            matches.append(root)
+    if len(matches) != 1:
+        raise FileNotFoundError(
+            f"Expected exactly one mounted input for {DATASET_ID}; found {[str(path) for path in mounted]}. "
+            "Confirm the private dataset is attached and rerun after Kaggle finishes mounting it."
+        )
+    return matches[0]
 
 
 def verify_artifacts() -> tuple[dict[str, Any], Path, Path]:
+    global DATASET_ROOT
+    DATASET_ROOT = resolve_dataset_root()
     artifact_manifest = json.loads((DATASET_ROOT / "artifact_manifest.json").read_text(encoding="utf-8"))
     if artifact_manifest.get("dataset_visibility") != "private" or not artifact_manifest.get("validation_split_only"):
         raise RuntimeError("The Kaggle artifact manifest must describe a private validation-only dataset")
