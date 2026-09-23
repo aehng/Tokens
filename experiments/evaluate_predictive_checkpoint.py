@@ -34,6 +34,12 @@ from zip2zip.predictor_policy import CappedPredictorPolicy
 from src.evaluation.offline_segmenter import segment_tokens_dp
 from experiments.load_joint_checkpoint import load_joint_checkpoint
 from experiments.test_continuation_equivalence import evaluate_continuation_suite
+from experiments.mbpp_prompt import build_mbpp_prompt
+from experiments.load_oracle_predictor import load_oracle_predictor
+from experiments.run_quality_benchmark import (
+    evaluate_mbpp_code,
+    generation_health_fields,
+)
 
 INITIAL_VOCAB = 32011
 SMOKE_VAL_PATH = "data/smoke_val_12.json"
@@ -86,9 +92,7 @@ def evaluate_checkpoint(checkpoint_path: str = None, max_new_tokens: int = 150):
         val_samples = json.load(f)
 
     # 4. Load predictor policy
-    import pickle
-    with open(PREDICTOR_PATH, "rb") as f:
-        raw_predictor = pickle.load(f)
+    raw_predictor = load_oracle_predictor(PREDICTOR_PATH)
     p_index = getattr(raw_predictor, "index", raw_predictor)
     policy = CappedPredictorPolicy(p_index, tokenizer, budget=32, max_structural_slots=8)
 
@@ -103,9 +107,14 @@ def evaluate_checkpoint(checkpoint_path: str = None, max_new_tokens: int = 150):
     tot_hypers_emitted = 0
 
     for i, s in enumerate(val_samples, 1):
-        prompt_text = s["prompt"]
         dom = s["domain"]
-        p_ids = s.get("prompt_token_ids") or tokenizer.encode(prompt_text, add_special_tokens=False)
+        prompt_text = build_mbpp_prompt(s) if dom == "code" else s["prompt"]
+        p_ids = (
+            tokenizer.encode(prompt_text, add_special_tokens=False)
+            if dom == "code"
+            else s.get("prompt_token_ids")
+            or tokenizer.encode(prompt_text, add_special_tokens=False)
+        )
 
         # Prompt-only codebook selection
         codebook, _ = policy.select_codebook(p_ids)
@@ -163,11 +172,15 @@ def evaluate_checkpoint(checkpoint_path: str = None, max_new_tokens: int = 150):
 
         # Quality check
         quality_ok = True
+        quality_metrics = {}
         if dom == "code":
-            try:
-                ast.parse(out_text)
-            except SyntaxError:
-                quality_ok = False
+            assertions = [
+                line.strip()
+                for line in s.get("ground_truth_response", "").splitlines()
+                if line.strip().startswith("assert")
+            ]
+            quality_metrics = evaluate_mbpp_code(out_text, assertions)
+            quality_ok = bool(quality_metrics["problem_pass"])
         elif dom == "reasoning":
             ground_truth = s.get("ground_truth_response", "")
             gt_m = re.search(r"####\s*(-?[\d\.,]+)", ground_truth)
@@ -178,7 +191,7 @@ def evaluate_checkpoint(checkpoint_path: str = None, max_new_tokens: int = 150):
         print(f"[{i:2d}/12] [{dom:11s}] Steps: {decode_steps:3d} | BaseEq: {base_equiv:3d} | "
               f"Saved: {step_savings:2d} ({savings_pct:4.1f}%) | Hypers: {len(hypers):2d} | Valid: {quality_ok}", flush=True)
 
-        results.append({
+        result = {
             "id": s["id"],
             "domain": dom,
             "decode_steps": decode_steps,
@@ -188,7 +201,16 @@ def evaluate_checkpoint(checkpoint_path: str = None, max_new_tokens: int = 150):
             "hypers_emitted": len(hypers),
             "quality_ok": quality_ok,
             "output_preview": out_text[:80].replace("\n", " "),
-        })
+            **quality_metrics,
+            **generation_health_fields(
+                out_text,
+                gen_tokens,
+                tokenizer.eos_token_id,
+                max_new_tokens,
+                base_equiv,
+            ),
+        }
+        results.append(result)
 
     # Aggregate
     micro_savings_pct = ((tot_base_tokens - tot_decode_steps) / tot_base_tokens * 100.0) if tot_base_tokens else 0.0

@@ -110,7 +110,8 @@ def _condition_config(
         "base_model_revision": base_revision,
         "tokenizer_id": benchmark.PHI_MODEL_ID,
         "tokenizer_revision": base_revision,
-        "prompt_builder": "mbpp_signature_v1",
+        "prompt_builder": benchmark.PROMPT_FORMATTER_VERSION,
+        "evaluator_version": benchmark.EVALUATOR_VERSION,
     }
     if condition == "original_phi":
         return {**common, "condition": condition, "prompt_representation": "raw"}
@@ -155,6 +156,7 @@ def _source_identity() -> tuple[dict[str, str], str]:
         REPO_ROOT / "experiments" / "run_quality_benchmark.py",
         REPO_ROOT / "experiments" / "mbpp_prompt.py",
         REPO_ROOT / "experiments" / "load_joint_checkpoint.py",
+        REPO_ROOT / "experiments" / "load_oracle_predictor.py",
         REPO_ROOT / "src" / "zip2zip" / "model.py",
         REPO_ROOT / "src" / "zip2zip" / "tokenizer.py",
         REPO_ROOT / "src" / "zip2zip" / "static_codebook.py",
@@ -167,6 +169,8 @@ def _source_identity() -> tuple[dict[str, str], str]:
             "evaluate_mbpp_code",
             "evaluate_gsm8k_reasoning",
             "evaluate_alpaca_instruction",
+            "severe_repetition_metrics",
+            "generation_health_fields",
             "TimingLogitsProcessor",
             "synchronize_device",
         )
@@ -219,7 +223,7 @@ def _build_identity(
             )
 
     identity = {
-        "schema": "phi_tier1_run_identity_v1",
+        "schema": "phi_tier1_run_identity_v2",
         "tested_commit": tested_commit,
         "tier": "phi_tier1_12",
         "prompt_ids_file_sha256": file_sha256(args.prompt_ids_file),
@@ -392,10 +396,16 @@ def _write_tier1_summary(
                 "count": len(reasoning),
             },
             "instruction": {
-                "mechanical_issue_count": sum(bool(record.get("instruction_failure")) for record in instruction),
+                "mechanical_issue_count": sum(
+                    bool(record.get("mechanical_instruction_failure")) for record in instruction
+                ),
                 "count": len(instruction),
                 "eos_count": sum(bool(record.get("eos_reached")) for record in instruction),
-                "truncated_count": sum(bool(record.get("hit_max_length")) for record in instruction),
+                "hit_generation_cap_count": sum(bool(record.get("hit_max_length")) for record in instruction),
+                "truncated_count": sum(bool(record.get("truncated")) for record in instruction),
+                "severe_repetition_count": sum(
+                    bool(record.get("severe_repetition_detected")) for record in instruction
+                ),
                 "semantic_score": None,
             },
             "compute": {
@@ -448,7 +458,14 @@ def _write_tier1_summary(
             if sample["domain"] == "code"
             else ("exact_correct",)
             if sample["domain"] == "reasoning"
-            else ("instruction_failure", "eos_reached", "hit_max_length")
+            else (
+                "mechanical_instruction_failure",
+                "eos_reached",
+                "hit_max_length",
+                "truncated",
+                "severe_repetition_detected",
+                "response_length_base_tokens",
+            )
         )
         paired.append(
             {

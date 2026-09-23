@@ -23,7 +23,6 @@ import hashlib
 import json
 import math
 import os
-import pickle
 import sys
 import time
 from typing import Dict, List, Optional, Tuple, Any
@@ -43,6 +42,7 @@ from zip2zip.training_objectives import (
     configure_joint_training_parameters,
     DifferentiableTrainingManager,
 )
+from experiments.load_oracle_predictor import load_oracle_predictor
 
 
 def get_ram_info() -> Dict[str, float]:
@@ -274,9 +274,8 @@ def run_cpu_probe(
     model_name = cfg["model"]["name_or_path"]
     tokenizer = AutoTokenizer.from_pretrained("microsoft/Phi-3.5-mini-instruct")
 
-    predictor_path = "experiments/checkpoints/cached_predictor.pkl"
-    with open(predictor_path, "rb") as f:
-        raw_predictor = pickle.load(f)
+    predictor_path = "experiments/checkpoints/oracle_guided_predictor.pkl"
+    raw_predictor = load_oracle_predictor(predictor_path)
     p_index = getattr(raw_predictor, "index", raw_predictor)
 
     policy = CappedPredictorPolicy(
@@ -653,9 +652,8 @@ def run_training(
     model_name = cfg["model"]["name_or_path"]
     tokenizer = AutoTokenizer.from_pretrained("microsoft/Phi-3.5-mini-instruct")
 
-    predictor_path = "experiments/checkpoints/cached_predictor.pkl"
-    with open(predictor_path, "rb") as f:
-        raw_predictor = pickle.load(f)
+    predictor_path = "experiments/checkpoints/oracle_guided_predictor.pkl"
+    raw_predictor = load_oracle_predictor(predictor_path)
     p_index = getattr(raw_predictor, "index", raw_predictor)
 
     policy = CappedPredictorPolicy(

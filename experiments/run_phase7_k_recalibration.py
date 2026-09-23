@@ -5,13 +5,12 @@ Determines the new Pareto frontier and whether the optimal operating budget
 shifted upward with the quality-aware predictor.
 
 Outputs:
-- experiments/checkpoints/quality_benchmark/poc_k_recalibration_mbpp_signature_v1.json
-- experiments/checkpoints/quality_benchmark/poc_k_recalibration_mbpp_signature_v1.md
+- experiments/checkpoints/quality_benchmark/poc_k_recalibration_mbpp_signature_v2.json
+- experiments/checkpoints/quality_benchmark/poc_k_recalibration_mbpp_signature_v2.md
 """
 
 import json
 import os
-import pickle
 import sys
 import time
 from collections import defaultdict
@@ -25,6 +24,7 @@ sys.path.insert(0, os.path.abspath("src"))
 
 from zip2zip import Zip2ZipModel, StaticCodebookManager
 from experiments.train_oracle_guided_predictor import OracleGuidedPredictor
+from experiments.load_oracle_predictor import load_oracle_predictor
 from experiments.load_joint_checkpoint import load_joint_checkpoint, stamp_generation_record, accept_cached_generation
 from experiments.mbpp_prompt import build_mbpp_prompt
 from experiments.run_quality_benchmark import (
@@ -40,12 +40,12 @@ from experiments.run_quality_benchmark import (
 MODEL_NAME = "epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1"
 POC_IDS_PATH = "experiments/checkpoints/quality_benchmark/poc_12_prompt_ids.json"
 VAL_DATA_PATH = "data/cached_pure_pred_val_60.json"
-PHASE6_RESULTS_PATH = "experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_mbpp_signature_v1.json"
+PHASE6_RESULTS_PATH = "experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_mbpp_signature_v2.json"
 ORACLE_PRED_PATH = "experiments/checkpoints/oracle_guided_predictor.pkl"
 CKPT_STEP100_PATH = "experiments/checkpoints/predictive_joint_pilot/checkpoint_step_100.pt"
 RAW_RESULTS_PATH = "experiments/checkpoints/quality_benchmark/mbpp_signature_v1/raw_results.jsonl"
-OUT_JSON = "experiments/checkpoints/quality_benchmark/poc_k_recalibration_mbpp_signature_v1.json"
-OUT_MD = "experiments/checkpoints/quality_benchmark/poc_k_recalibration_mbpp_signature_v1.md"
+OUT_JSON = "experiments/checkpoints/quality_benchmark/poc_k_recalibration_mbpp_signature_v2.json"
+OUT_MD = "experiments/checkpoints/quality_benchmark/poc_k_recalibration_mbpp_signature_v2.md"
 
 K_SWEEP = [4, 8, 16, 24, 32]
 
@@ -57,7 +57,7 @@ def is_correct(r: Dict[str, Any]) -> bool:
     elif dom == "reasoning":
         return r.get("exact_correct", False)
     elif dom == "instruction":
-        return not r.get("instruction_failure", False)
+        return bool(r.get("mechanical_instruction_pass", False))
     return False
 
 
@@ -132,7 +132,7 @@ def main():
     if needed:
         tokenizer = AutoTokenizer.from_pretrained("microsoft/Phi-3.5-mini-instruct")
         with open(ORACLE_PRED_PATH, "rb") as f:
-            predictor_model: OracleGuidedPredictor = pickle.load(f)
+            predictor_model: OracleGuidedPredictor = load_oracle_predictor(f)
 
         print("Loading Zip2Zip Step-100 model for live generations...", flush=True)
         t0_m = time.time()
@@ -249,7 +249,7 @@ def main():
             elif dom == "reasoning":
                 corr = eval_res.get("exact_correct", False)
             elif dom == "instruction":
-                corr = not eval_res.get("instruction_failure", False)
+                corr = bool(eval_res.get("mechanical_instruction_pass", False))
 
             rec = stamp_generation_record({
                 "prompt_id": pid,

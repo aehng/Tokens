@@ -1,15 +1,15 @@
 """Unit tests for EvidenceAwareSelector."""
 
 import os
-import pickle
 import time
 import unittest
 from typing import Tuple
 
 from transformers import AutoTokenizer
 from zip2zip.evidence_selector import EvidenceAwareSelector
+from experiments.load_oracle_predictor import load_oracle_predictor
 
-PREDICTOR_PATH = "experiments/checkpoints/cached_predictor.pkl"
+PREDICTOR_PATH = "experiments/checkpoints/oracle_guided_predictor.pkl"
 
 
 class TestEvidenceAwareSelector(unittest.TestCase):
@@ -17,8 +17,7 @@ class TestEvidenceAwareSelector(unittest.TestCase):
     def setUpClass(cls):
         cls.tokenizer = AutoTokenizer.from_pretrained("microsoft/Phi-3.5-mini-instruct")
         if os.path.exists(PREDICTOR_PATH):
-            with open(PREDICTOR_PATH, "rb") as f:
-                raw_pred = pickle.load(f)
+            raw_pred = load_oracle_predictor(PREDICTOR_PATH)
             cls.index = getattr(raw_pred, "index", raw_pred)
         else:
             # Mock index for testing environment

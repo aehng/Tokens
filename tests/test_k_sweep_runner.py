@@ -6,6 +6,7 @@ from experiments.run_k_sweep import (
     DEFAULT_ZIP2ZIP_REVISION,
     _validate_parameters,
     codebook_hash,
+    domain_scoring_summary,
 )
 
 
@@ -35,3 +36,22 @@ def test_codebook_hash_covers_all_mapping_entries():
     first = {(1, 2): 32011, (4, 5, 6): 32012}
     assert codebook_hash(first) == codebook_hash(dict(reversed(list(first.items()))))
     assert codebook_hash(first) != codebook_hash({(1, 2): 32011})
+
+
+def test_k_sweep_reports_instruction_as_mechanical_and_separately():
+    scores = domain_scoring_summary(
+        [
+            {"domain": "code", "problem_pass": True},
+            {"domain": "reasoning", "exact_correct": False},
+            {"domain": "instruction", "mechanical_instruction_pass": True},
+            {"domain": "instruction", "mechanical_instruction_pass": False},
+        ]
+    )
+
+    assert scores["code"]["measurement"] == "MBPP pass@1"
+    assert scores["code"]["rate_pct"] == 100.0
+    assert scores["reasoning"]["measurement"] == "GSM8K exact answer"
+    assert scores["reasoning"]["rate_pct"] == 0.0
+    assert scores["instruction"]["measurement"] == "Alpaca mechanical checks"
+    assert scores["instruction"]["passed"] == 1
+    assert scores["instruction"]["semantic_adherence_available"] is False

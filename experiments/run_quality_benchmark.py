@@ -6,7 +6,7 @@ B. Official Reactive Zip2Zip (epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1, nati
 C. Our Predictive Step 100 (checkpoint_step_100.pt, K=32 prompt-predicted codebook)
 D. Our Predictive Step 150 (checkpoint_step_150.pt, K=32 prompt-predicted codebook)
 
-Outputs to experiments/checkpoints/quality_benchmark/mbpp_signature_v1/:
+Outputs to experiments/checkpoints/quality_benchmark/mbpp_signature_v2/:
 - raw_results.jsonl (line-by-line streaming)
 - aggregate_results.json
 - paired_quality_deltas.json
@@ -23,12 +23,13 @@ import gc
 import hashlib
 import json
 import os
-import pickle
 import random
 import re
 import subprocess
 import sys
+import tempfile
 import time
+from collections import Counter
 from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 
 import psutil
@@ -42,19 +43,80 @@ from zip2zip import Zip2ZipModel, Zip2ZipTokenizer, StaticCodebookManager
 from zip2zip.predictor_policy import CappedPredictorPolicy
 from experiments.mbpp_prompt import build_mbpp_prompt
 from experiments.load_joint_checkpoint import load_joint_checkpoint
+from experiments.load_oracle_predictor import load_oracle_predictor
 from experiments.benchmark_provenance import write_json_atomic
 
 VAL_DATA_PATH = "data/cached_pure_pred_val_60.json"
 PREDICTOR_PATH = "experiments/checkpoints/oracle_guided_predictor.pkl"
 CKPT_100_PATH = "experiments/checkpoints/predictive_joint_pilot/checkpoint_step_100.pt"
 CKPT_150_PATH = "experiments/checkpoints/predictive_joint_pilot/checkpoint_step_150.pt"
-OUTPUT_DIR = "experiments/checkpoints/quality_benchmark/mbpp_signature_v1"
+OUTPUT_DIR = "experiments/checkpoints/quality_benchmark/mbpp_signature_v2"
 MAX_NEW_TOKENS = 300
 INITIAL_VOCAB = 32011
 PHI_MODEL_ID = "microsoft/Phi-3.5-mini-instruct"
 ZIP2ZIP_MODEL_ID = "epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1"
 DEFAULT_PHI_REVISION = "2fe192450127e6a83f7441aef6e3ca586c338b77"
 DEFAULT_ZIP2ZIP_REVISION = "11c461733a79d2a5de6b814585c3361ca2aacbe7"
+EVALUATOR_VERSION = "phi_quality_evaluator_v2"
+PROMPT_FORMATTER_VERSION = "mbpp_task_signature_v2"
+GENERATION_RECORD_SCHEMA = "phi_generation_record_v2"
+
+MBPP_ALLOWED_IMPORTS = frozenset(
+    {"math", "re", "collections", "heapq", "itertools", "bisect", "string", "functools", "operator"}
+)
+MBPP_SAFE_BUILTINS = (
+    "abs", "all", "any", "bin", "bool", "bytearray", "bytes", "callable", "chr",
+    "complex", "dict", "divmod", "enumerate", "filter", "float", "frozenset", "hash",
+    "hex", "int", "isinstance", "issubclass", "iter", "len", "list", "map", "max",
+    "min", "next", "oct", "ord", "pow", "print", "range", "repr", "reversed", "round",
+    "set", "slice", "sorted", "str", "sum", "tuple", "zip", "AssertionError",
+    "AttributeError", "Exception", "IndexError", "KeyError", "NameError",
+    "NotImplementedError", "RuntimeError", "StopIteration", "TypeError", "ValueError",
+    "ZeroDivisionError",
+)
+MBPP_MEMORY_LIMIT_BYTES = 512 * 1024 * 1024
+
+_MBPP_RUNNER = r"""
+import bisect as _bisect
+import builtins as _builtins
+import collections as _collections
+import functools as _functools
+import heapq as _heapq
+import itertools as _itertools
+import json as _json
+import math as _math
+import operator as _operator
+import re as _re
+import string as _string
+import sys as _sys
+
+_allowed_modules = {
+    "math": _math,
+    "re": _re,
+    "collections": _collections,
+    "heapq": _heapq,
+    "itertools": _itertools,
+    "bisect": _bisect,
+    "string": _string,
+    "functools": _functools,
+    "operator": _operator,
+}
+
+def _safe_import(name, globals=None, locals=None, fromlist=(), level=0):
+    if level != 0 or name.split(".", 1)[0] not in _allowed_modules:
+        raise ImportError("module is not available in the restricted MBPP evaluator")
+    return _builtins.__import__(name, globals, locals, fromlist, level)
+
+_SAFE_BUILTIN_NAMES = __SAFE_BUILTIN_NAMES__
+_safe_builtins = {name: getattr(_builtins, name) for name in _SAFE_BUILTIN_NAMES}
+_safe_builtins["__import__"] = _safe_import
+_namespace = {"__builtins__": _safe_builtins, "__name__": "__mbpp__"}
+_namespace.update(_allowed_modules)
+_payload = _json.loads(_sys.stdin.read())
+exec(compile(_payload["code"], "<generated-mbpp-code>", "exec"), _namespace, _namespace)
+for _index, _test in enumerate(_payload["assert_statements"]):
+    exec(compile(_test, f"<mbpp-assert-{_index}>", "exec"), _namespace, _namespace)
+"""
 
 
 class TimingLogitsProcessor(LogitsProcessor):
@@ -147,8 +209,7 @@ def load_predictive_model_bundle(
         )
     model.to(device_obj)
     model.eval()
-    with open(PREDICTOR_PATH, "rb") as source:
-        raw_predictor = pickle.load(source)
+    raw_predictor = load_oracle_predictor(PREDICTOR_PATH)
     predictor_index = getattr(raw_predictor, "index", raw_predictor)
     policy = CappedPredictorPolicy(
         predictor_index,
@@ -177,6 +238,9 @@ def _write_generation_record(
     cache_root: Optional[str],
     tested_commit: Optional[str],
 ) -> None:
+    record["record_schema"] = GENERATION_RECORD_SCHEMA
+    record["evaluator_version"] = EVALUATOR_VERSION
+    record["prompt_formatter_version"] = PROMPT_FORMATTER_VERSION
     key = None
     if cache_keys is not None:
         key = cache_keys.get((record["prompt_id"], record["condition"]))
@@ -184,7 +248,6 @@ def _write_generation_record(
             raise ValueError(
                 f"No exact generation cache key for {record['condition']} / {record['prompt_id']}"
             )
-        record["record_schema"] = "phi_generation_record_v1"
         record["generation_cache_key"] = key
         record["generated_from_commit"] = tested_commit
 
@@ -205,20 +268,119 @@ def get_process_rss_gb() -> float:
 
 def extract_python_code(text: str) -> str:
     """Extract python code from markdown or raw text."""
-    m = re.search(r"```(?:python)?\s*(.*?)\s*```", text, re.DOTALL)
+    fence = re.escape(chr(96) * 3)
+    m = re.search(fence + r"(?:python)?\s*(.*?)\s*" + fence, text, re.DOTALL)
     if m:
         return m.group(1)
-    m = re.search(r"(def\s+.*)", text, re.DOTALL)
+    m = re.search(
+        r"(?m)^\s*(?=(?:import\b|from\b|async\s+def\b|def\b|class\b))",
+        text,
+    )
     if m:
-        return m.group(1)
-    return text
+        text = text[m.start():]
+    return re.split(r"(?m)^\s*#\s*Tests\b", text, maxsplit=1)[0].rstrip()
+
+
+def _mbpp_safety_error(tree: ast.AST) -> Optional[str]:
+    forbidden_names = {
+        "open", "exec", "eval", "compile", "input", "breakpoint", "globals", "locals",
+        "vars", "dir", "getattr", "setattr", "delattr", "help", "exit", "quit",
+    }
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name):
+            if node.id.startswith("__"):
+                return f"dunder identifier {node.id!r} is disallowed"
+            if node.id in forbidden_names:
+                return f"builtin {node.id!r} is disallowed"
+        elif isinstance(node, ast.Attribute):
+            if node.attr.startswith("__"):
+                return f"dunder attribute {node.attr!r} is disallowed"
+            if node.attr in {"format", "format_map"}:
+                return f"dynamic string formatter {node.attr!r} is disallowed"
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name.split(".", 1)[0] not in MBPP_ALLOWED_IMPORTS:
+                    return f"import {alias.name!r} is not allowed"
+        elif isinstance(node, ast.ImportFrom):
+            if (
+                node.level != 0
+                or not node.module
+                or node.module.split(".", 1)[0] not in MBPP_ALLOWED_IMPORTS
+            ):
+                return f"import from {node.module!r} is not allowed"
+    return None
+
+
+def _run_restricted_mbpp(code: str, assert_statements: List[str], timeout_s: float) -> dict[str, Any]:
+    payload = json.dumps(
+        {"code": code, "assert_statements": assert_statements},
+        ensure_ascii=True,
+    ).encode("utf-8")
+    safe_env = {
+        key: os.environ[key]
+        for key in ("PATH", "SYSTEMROOT", "WINDIR")
+        if key in os.environ
+    }
+    with tempfile.TemporaryDirectory(prefix="tokens-mbpp-") as temp_dir:
+        safe_env["TEMP"] = temp_dir
+        safe_env["TMP"] = temp_dir
+        process = subprocess.Popen(
+            [
+                sys.executable,
+                "-I",
+                "-c",
+                _MBPP_RUNNER.replace(
+                    "__SAFE_BUILTIN_NAMES__", json.dumps(MBPP_SAFE_BUILTINS)
+                ),
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            cwd=temp_dir,
+            env=safe_env,
+        )
+        assert process.stdin is not None
+        try:
+            process.stdin.write(payload)
+            process.stdin.close()
+        except BrokenPipeError:
+            process.wait(timeout=1)
+
+        started = time.monotonic()
+        memory_exceeded = False
+        timed_out = False
+        child = psutil.Process(process.pid) if process.poll() is None else None
+        while process.poll() is None:
+            if time.monotonic() - started > timeout_s:
+                timed_out = True
+                process.kill()
+                break
+            try:
+                if child is not None and child.memory_info().rss > MBPP_MEMORY_LIMIT_BYTES:
+                    memory_exceeded = True
+                    process.kill()
+                    break
+            except psutil.NoSuchProcess:
+                break
+            time.sleep(0.02)
+        process.wait(timeout=2)
+        return {
+            "return_code": process.returncode,
+            "timeout": timed_out,
+            "memory_exceeded": memory_exceeded,
+            "elapsed_s": round(time.monotonic() - started, 4),
+        }
 
 
 def evaluate_mbpp_code(code_str: str, assert_statements: List[str], timeout_s: float = 5.0) -> Dict[str, Any]:
-    """Test python code against MBPP assert statements in an isolated subprocess."""
+    """Evaluate MBPP with a restricted, time- and memory-bounded subprocess.
+
+    This is a defense-in-depth harness for benchmark code, not a hardened OS
+    sandbox for actively malicious programs.
+    """
     code = extract_python_code(code_str)
     try:
-        ast.parse(code)
+        module = ast.parse(code)
         syntax_valid = True
         syntax_error = None
     except SyntaxError as e:
@@ -230,21 +392,74 @@ def evaluate_mbpp_code(code_str: str, assert_statements: List[str], timeout_s: f
             "problem_pass": False,
             "runtime_error": None,
             "timeout": False,
+            "memory_limit_exceeded": False,
+            "safety_rejected": False,
             "clean_code": code,
         }
 
-    # Standard imports commonly needed across MBPP problems
-    harness_header = "import math, re, sys, collections, heapq, itertools, bisect\n\n"
-    test_script = harness_header + code + "\n\n# Tests\n" + "\n".join(assert_statements)
+    if not assert_statements:
+        return {
+            "syntax_valid": True,
+            "syntax_error": None,
+            "tests_available": 0,
+            "tests_passed": 0,
+            "problem_pass": False,
+            "runtime_error": "No reference assertions supplied",
+            "timeout": False,
+            "memory_limit_exceeded": False,
+            "safety_rejected": False,
+            "clean_code": code,
+        }
+
+    code_safety_error = _mbpp_safety_error(module)
+    if code_safety_error:
+        return {
+            "syntax_valid": True,
+            "syntax_error": None,
+            "tests_available": len(assert_statements),
+            "tests_passed": 0,
+            "problem_pass": False,
+            "runtime_error": code_safety_error,
+            "timeout": False,
+            "memory_limit_exceeded": False,
+            "safety_rejected": True,
+            "clean_code": code,
+        }
+
+    for statement in assert_statements:
+        try:
+            test_tree = ast.parse(statement)
+        except SyntaxError as exc:
+            return {
+                "syntax_valid": True,
+                "syntax_error": None,
+                "tests_available": len(assert_statements),
+                "tests_passed": 0,
+                "problem_pass": False,
+                "runtime_error": f"Invalid reference assertion: {exc.msg}",
+                "timeout": False,
+                "memory_limit_exceeded": False,
+                "safety_rejected": True,
+                "clean_code": code,
+            }
+        test_safety_error = _mbpp_safety_error(test_tree)
+        if test_safety_error:
+            return {
+                "syntax_valid": True,
+                "syntax_error": None,
+                "tests_available": len(assert_statements),
+                "tests_passed": 0,
+                "problem_pass": False,
+                "runtime_error": f"Unsafe reference assertion: {test_safety_error}",
+                "timeout": False,
+                "memory_limit_exceeded": False,
+                "safety_rejected": True,
+                "clean_code": code,
+            }
 
     try:
-        res = subprocess.run(
-            [sys.executable, "-c", test_script],
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-        )
-        if res.returncode == 0:
+        result = _run_restricted_mbpp(code, assert_statements, timeout_s)
+        if result["return_code"] == 0:
             return {
                 "syntax_valid": True,
                 "syntax_error": None,
@@ -252,29 +467,42 @@ def evaluate_mbpp_code(code_str: str, assert_statements: List[str], timeout_s: f
                 "tests_passed": len(assert_statements),
                 "problem_pass": True,
                 "runtime_error": None,
-                "timeout": False,
+                "timeout": result["timeout"],
+                "memory_limit_exceeded": result["memory_exceeded"],
+                "safety_rejected": False,
+                "evaluation_runtime_s": result["elapsed_s"],
                 "clean_code": code,
             }
-        else:
-            return {
-                "syntax_valid": True,
-                "syntax_error": None,
-                "tests_available": len(assert_statements),
-                "tests_passed": 0,
-                "problem_pass": False,
-                "runtime_error": res.stderr.strip()[:300],
-                "timeout": False,
-                "clean_code": code,
-            }
-    except subprocess.TimeoutExpired:
         return {
             "syntax_valid": True,
             "syntax_error": None,
             "tests_available": len(assert_statements),
             "tests_passed": 0,
             "problem_pass": False,
-            "runtime_error": "TimeoutExpired",
-            "timeout": True,
+            "runtime_error": (
+                "Memory limit exceeded"
+                if result["memory_exceeded"]
+                else "TimeoutExpired"
+                if result["timeout"]
+                else f"Restricted evaluator exit status {result['return_code']}"
+            ),
+            "timeout": result["timeout"],
+            "memory_limit_exceeded": result["memory_exceeded"],
+            "safety_rejected": False,
+            "evaluation_runtime_s": result["elapsed_s"],
+            "clean_code": code,
+        }
+    except (OSError, subprocess.SubprocessError, psutil.Error) as exc:
+        return {
+            "syntax_valid": True,
+            "syntax_error": None,
+            "tests_available": len(assert_statements),
+            "tests_passed": 0,
+            "problem_pass": False,
+            "runtime_error": f"Restricted evaluator failed: {type(exc).__name__}",
+            "timeout": False,
+            "memory_limit_exceeded": False,
+            "safety_rejected": False,
             "clean_code": code,
         }
 
@@ -330,46 +558,80 @@ def evaluate_gsm8k_reasoning(output_text: str, ground_truth_text: str) -> Dict[s
     }
 
 
-def evaluate_alpaca_instruction(output_text: str, eos_reached: bool) -> Dict[str, Any]:
-    """Deterministic automatic checks on Alpaca instruction answers."""
+def severe_repetition_metrics(output_text: str) -> dict[str, Any]:
+    """Whitespace-token trigram repetition diagnostic; not a semantic score."""
+    words = output_text.casefold().split()
+    trigrams = [tuple(words[i : i + 3]) for i in range(max(0, len(words) - 2))]
+    counts = Counter(trigrams)
+    max_count = max(counts.values(), default=0)
+    return {
+        "severe_repetition_detected": max_count >= 4,
+        "max_trigram_repetitions": max_count,
+    }
+
+
+def evaluate_alpaca_instruction(output_text: str, eos_reached: bool = False) -> Dict[str, Any]:
+    """Mechanical failure checks only; does not estimate semantic adherence."""
     text_stripped = output_text.strip()
     words = text_stripped.split()
 
     empty_output = len(text_stripped) == 0
     very_short = len(words) < 5
-
-    # Check trigram repetition (any trigram >= 4 times)
-    trigram_repetition = False
-    if len(words) >= 6:
-        trigrams = [tuple(words[i : i + 3]) for i in range(len(words) - 2)]
-        counts = collections.Counter(trigrams)
-        if counts and max(counts.values()) >= 4:
-            trigram_repetition = True
+    repetition = severe_repetition_metrics(text_stripped)
+    trigram_repetition = repetition["severe_repetition_detected"]
 
     # Malformed unicode (>30% non-ascii)
     non_ascii_count = sum(1 for c in text_stripped if ord(c) > 127)
     malformed = (non_ascii_count / max(len(text_stripped), 1)) > 0.30
 
-    instruction_failure = empty_output or very_short or trigram_repetition or malformed
+    reasons = []
+    if empty_output:
+        reasons.append("empty_output")
+    if very_short:
+        reasons.append("very_short")
+    if trigram_repetition:
+        reasons.append("severe_repetition")
+    if malformed:
+        reasons.append("malformed_unicode")
+    mechanical_failure = bool(reasons)
 
     return {
         "empty_output": empty_output,
         "very_short": very_short,
-        "repetition_detected": trigram_repetition,
+        **repetition,
         "malformed": malformed,
-        "instruction_failure": instruction_failure,
+        "mechanical_instruction_failure": mechanical_failure,
+        "mechanical_instruction_pass": not mechanical_failure,
+        "mechanical_instruction_failure_reasons": reasons,
         "word_count": len(words),
         "char_count": len(text_stripped),
     }
 
-
-import collections
 
 def sequence_reached_eos(generated_ids: List[int], eos_token_id: Optional[int]) -> bool:
     """True only when the last generated token is the tokenizer EOS id."""
     if not generated_ids or eos_token_id is None:
         return False
     return generated_ids[-1] == eos_token_id
+
+
+def generation_health_fields(
+    output_text: str,
+    generated_ids: List[int],
+    eos_token_id: Optional[int],
+    max_new_tokens: int,
+    response_length_base_tokens: int,
+) -> dict[str, Any]:
+    eos_reached = sequence_reached_eos(generated_ids, eos_token_id)
+    hit_max_length = max_new_tokens > 0 and len(generated_ids) >= max_new_tokens
+    return {
+        "eos_reached": eos_reached,
+        "hit_max_length": hit_max_length,
+        "truncated": hit_max_length and not eos_reached,
+        **severe_repetition_metrics(output_text),
+        "response_length_base_tokens": int(response_length_base_tokens),
+        "response_length_chars": len(output_text),
+    }
 
 
 def prepare_prompt_input_ids(
@@ -489,6 +751,11 @@ def run_condition_original_phi(
             "output_text": output_text,
             "process_rss_gb": get_process_rss_gb(),
         }
+        rec.update(
+            generation_health_fields(
+                output_text, gen_ids, tok.eos_token_id, max_new_tokens, expanded_output_tokens
+            )
+        )
 
         # Domain quality evaluation
         dom = s["domain"]
@@ -512,7 +779,7 @@ def run_condition_original_phi(
         print(
             f"[{idx:2d}/{len(samples)}] {prompt_id:10s} | {dom:11s} | Dec: {decode_steps:3d} steps | "
             f"Time: {rec['wall_time_s']:5.2f}s | TTFT: {rec['ttft_s']:4.2f}s | "
-            f"Pass/Acc: {rec.get('problem_pass', rec.get('exact_correct', not rec.get('instruction_failure')))}",
+            f"Pass/Acc: {rec.get('problem_pass', rec.get('exact_correct', rec.get('mechanical_instruction_pass')))}",
             flush=True,
         )
 
@@ -650,6 +917,11 @@ def run_condition_official_zip2zip(
             "output_text": output_text,
             "process_rss_gb": get_process_rss_gb(),
         }
+        rec.update(
+            generation_health_fields(
+                output_text, gen_ids, tok.eos_token_id, max_new_tokens, expanded_output_tokens
+            )
+        )
 
         dom = s["domain"]
         if dom == "code":
@@ -672,7 +944,7 @@ def run_condition_official_zip2zip(
         print(
             f"[{idx:2d}/{len(samples)}] {prompt_id:10s} | {dom:11s} | Dec: {decode_steps:3d} -> Exp: {expanded_output_tokens:3d} "
             f"(Saved: {tokens_saved:2d}) | Time: {rec['wall_time_s']:5.2f}s | "
-            f"Pass/Acc: {rec.get('problem_pass', rec.get('exact_correct', not rec.get('instruction_failure')))}",
+            f"Pass/Acc: {rec.get('problem_pass', rec.get('exact_correct', rec.get('mechanical_instruction_pass')))}",
             flush=True,
         )
 
@@ -852,6 +1124,11 @@ def run_condition_predictive(
             "output_text": output_text,
             "process_rss_gb": get_process_rss_gb(),
         }
+        rec.update(
+            generation_health_fields(
+                output_text, gen_ids, tok.eos_token_id, max_new_tokens, expanded_output_tokens
+            )
+        )
 
         dom = s["domain"]
         if dom == "code":
@@ -874,7 +1151,7 @@ def run_condition_predictive(
         print(
             f"[{idx:2d}/{len(samples)}] {prompt_id:10s} | {dom:11s} | Dec: {decode_steps:3d} -> Exp: {expanded_output_tokens:3d} "
             f"(Saved: {tokens_saved:2d}, Hypers: {len(hypertokens_emitted):2d}) | Time: {rec['wall_time_s']:5.2f}s | "
-            f"Pass/Acc: {rec.get('problem_pass', rec.get('exact_correct', not rec.get('instruction_failure')))}",
+            f"Pass/Acc: {rec.get('problem_pass', rec.get('exact_correct', rec.get('mechanical_instruction_pass')))}",
             flush=True,
         )
 
@@ -894,6 +1171,18 @@ def generate_full_benchmark_analytics(output_dir: str, raw_results_path: str):
 
     with open(raw_results_path, "r", encoding="utf-8") as f:
         records = [json.loads(line) for line in f]
+    stale = [
+        record.get("prompt_id", "<unknown>")
+        for record in records
+        if record.get("record_schema") != GENERATION_RECORD_SCHEMA
+        or record.get("evaluator_version") != EVALUATOR_VERSION
+        or record.get("prompt_formatter_version") != PROMPT_FORMATTER_VERSION
+    ]
+    if stale:
+        raise ValueError(
+            "Raw results contain records from a different evaluator or formatter version; "
+            f"refusing to mix them (first mismatched prompt: {stale[0]})."
+        )
 
     conditions = ["original_phi", "official_zip2zip", "predictive_step_100", "predictive_step_150"]
     domains = ["code", "reasoning", "instruction"]
@@ -928,7 +1217,9 @@ def generate_full_benchmark_analytics(output_dir: str, raw_results_path: str):
 
         # Alpaca Failure Rate
         alp_recs = by_cond_dom[c]["instruction"]
-        alp_failed = sum(1 for r in alp_recs if r.get("instruction_failure", False))
+        alp_failed = sum(
+            1 for r in alp_recs if r.get("mechanical_instruction_failure", False)
+        )
 
         # Performance & Economics
         tot_decode_steps = sum(r["decode_steps"] for r in all_recs)
@@ -949,8 +1240,9 @@ def generate_full_benchmark_analytics(output_dir: str, raw_results_path: str):
             "code_syntax_valid_rate": round(code_syntax / max(len(code_recs), 1), 4),
             "gsm8k_accuracy": round(gsm_correct / max(len(gsm_recs), 1), 4),
             "gsm8k_correct_count": f"{gsm_correct}/{len(gsm_recs)}",
-            "alpaca_failure_rate": round(alp_failed / max(len(alp_recs), 1), 4),
-            "alpaca_failure_count": f"{alp_failed}/{len(alp_recs)}",
+            "alpaca_mechanical_failure_rate": round(alp_failed / max(len(alp_recs), 1), 4),
+            "alpaca_mechanical_failure_count": f"{alp_failed}/{len(alp_recs)}",
+            "semantic_instruction_adherence_available": False,
             "total_decode_steps": tot_decode_steps,
             "total_expanded_tokens": tot_expanded_tokens,
             "total_tokens_saved": tot_tokens_saved,
@@ -963,8 +1255,20 @@ def generate_full_benchmark_analytics(output_dir: str, raw_results_path: str):
             "mean_throughput_tok_per_s": round(sum(throughputs) / max(len(throughputs), 1), 2),
             "total_hypertokens_emitted": sum(hypers_emitted),
             "mean_hypertokens_per_output": round(sum(hypers_emitted) / max(len(hypers_emitted), 1), 2),
-            "truncation_count": sum(1 for r in all_recs if r.get("hit_max_length", False)),
-            "repetition_count": sum(1 for r in all_recs if r.get("repetition_detected", False)),
+            "eos_count": sum(1 for r in all_recs if r.get("eos_reached", False)),
+            "hit_generation_cap_count": sum(1 for r in all_recs if r.get("hit_max_length", False)),
+            "truncation_count": sum(1 for r in all_recs if r.get("truncated", False)),
+            "repetition_count": sum(1 for r in all_recs if r.get("severe_repetition_detected", False)),
+            "mean_response_length_base_tokens": round(
+                sum(r.get("response_length_base_tokens", 0) for r in all_recs)
+                / max(len(all_recs), 1),
+                2,
+            ),
+            "mean_response_length_chars": round(
+                sum(r.get("response_length_chars", 0) for r in all_recs)
+                / max(len(all_recs), 1),
+                1,
+            ),
         }
 
     with open(os.path.join(output_dir, "aggregate_results.json"), "w", encoding="utf-8") as f:
@@ -1137,10 +1441,10 @@ def write_benchmark_markdown_report(
     p100_gsm = p100.get("gsm8k_accuracy", 0)
     p150_gsm = p150.get("gsm8k_accuracy", 0)
 
-    orig_alp = orig.get("alpaca_failure_rate", 0)
-    off_alp = off.get("alpaca_failure_rate", 0)
-    p100_alp = p100.get("alpaca_failure_rate", 0)
-    p150_alp = p150.get("alpaca_failure_rate", 0)
+    orig_alp = orig.get("alpaca_mechanical_failure_rate", 0)
+    off_alp = off.get("alpaca_mechanical_failure_rate", 0)
+    p100_alp = p100.get("alpaca_mechanical_failure_rate", 0)
+    p150_alp = p150.get("alpaca_mechanical_failure_rate", 0)
 
     lines = [
         "# Quality & Compute Economics Benchmark Report",
@@ -1155,7 +1459,7 @@ def write_benchmark_markdown_report(
         "| :--- | :---: | :---: | :---: | :---: |",
         f"| **MBPP Code Pass@1** | **{pct_str(orig_code)}** ({orig.get('code_pass_count')}) | {pct_str(off_code)} ({off.get('code_pass_count')}) | {pct_str(p100_code)} ({p100.get('code_pass_count')}) | {pct_str(p150_code)} ({p150.get('code_pass_count')}) |",
         f"| **GSM8K Accuracy** | **{pct_str(orig_gsm)}** ({orig.get('gsm8k_correct_count')}) | {pct_str(off_gsm)} ({off.get('gsm8k_correct_count')}) | {pct_str(p100_gsm)} ({p100.get('gsm8k_correct_count')}) | {pct_str(p150_gsm)} ({p150.get('gsm8k_correct_count')}) |",
-        f"| **Alpaca Failure Rate** | **{pct_str(orig_alp)}** ({orig.get('alpaca_failure_count')}) | {pct_str(off_alp)} ({off.get('alpaca_failure_count')}) | {pct_str(p100_alp)} ({p100.get('alpaca_failure_count')}) | {pct_str(p150_alp)} ({p150.get('alpaca_failure_count')}) |",
+        f"| **Alpaca Mechanical Failure Rate** | **{pct_str(orig_alp)}** ({orig.get('alpaca_mechanical_failure_count')}) | {pct_str(off_alp)} ({off.get('alpaca_mechanical_failure_count')}) | {pct_str(p100_alp)} ({p100.get('alpaca_mechanical_failure_count')}) | {pct_str(p150_alp)} ({p150.get('alpaca_mechanical_failure_count')}) |",
         f"| **Micro Decode Reduction** | 0.0% | {num_str(off.get('micro_decode_reduction_pct'))}% | {num_str(p100.get('micro_decode_reduction_pct'))}% | {num_str(p150.get('micro_decode_reduction_pct'))}% |",
         f"| **Macro Decode Reduction** | 0.0% | {num_str(off.get('macro_decode_reduction_pct'))}% | {num_str(p100.get('macro_decode_reduction_pct'))}% | {num_str(p150.get('macro_decode_reduction_pct'))}% |",
         f"| **Total Hypertokens Emitted** | 0 | {off.get('total_hypertokens_emitted', 0)} | {p100.get('total_hypertokens_emitted', 0)} | {p150.get('total_hypertokens_emitted', 0)} |",
@@ -1176,7 +1480,7 @@ def write_benchmark_markdown_report(
         "| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |",
         f"| **MBPP Code** | Pass@1 | {pct_str(orig_code)} | {pct_str(off_code)} | {(off_code - orig_code)*100:+.1f}pp | {pct_str(p100_code)} | {(p100_code - off_code)*100:+.1f}pp | {pct_str(p150_code)} | {(p150_code - off_code)*100:+.1f}pp |",
         f"| **GSM8K Math** | Accuracy | {pct_str(orig_gsm)} | {pct_str(off_gsm)} | {(off_gsm - orig_gsm)*100:+.1f}pp | {pct_str(p100_gsm)} | {(p100_gsm - off_gsm)*100:+.1f}pp | {pct_str(p150_gsm)} | {(p150_gsm - off_gsm)*100:+.1f}pp |",
-        f"| **Alpaca** | Failure Rate | {pct_str(orig_alp)} | {pct_str(off_alp)} | {(off_alp - orig_alp)*100:+.1f}pp | {pct_str(p100_alp)} | {(p100_alp - off_alp)*100:+.1f}pp | {pct_str(p150_alp)} | {(p150_alp - off_alp)*100:+.1f}pp |",
+        f"| **Alpaca** | Mechanical failure rate | {pct_str(orig_alp)} | {pct_str(off_alp)} | {(off_alp - orig_alp)*100:+.1f}pp | {pct_str(p100_alp)} | {(p100_alp - off_alp)*100:+.1f}pp | {pct_str(p150_alp)} | {(p150_alp - off_alp)*100:+.1f}pp |",
         "",
         "---",
         "",
@@ -1190,7 +1494,9 @@ def write_benchmark_markdown_report(
         f"| **Total Expanded Output Tokens** | {orig.get('total_expanded_tokens', 0)} | {off.get('total_expanded_tokens', 0)} | {p100.get('total_expanded_tokens', 0)} | {p150.get('total_expanded_tokens', 0)} |",
         f"| **Net Decode Steps Saved** | 0 | {off.get('total_tokens_saved', 0)} | {p100.get('total_tokens_saved', 0)} | {p150.get('total_tokens_saved', 0)} |",
         f"| **Micro Decode Step Reduction** | 0.0% | {num_str(off.get('micro_decode_reduction_pct'))}% | {num_str(p100.get('micro_decode_reduction_pct'))}% | {num_str(p150.get('micro_decode_reduction_pct'))}% |",
-        f"| **Truncation Count (Hit Cap)** | {orig.get('truncation_count', 0)} | {off.get('truncation_count', 0)} | {p100.get('truncation_count', 0)} | {p150.get('truncation_count', 0)} |",
+        f"| **EOS Count** | {orig.get('eos_count', 0)} | {off.get('eos_count', 0)} | {p100.get('eos_count', 0)} | {p150.get('eos_count', 0)} |",
+        f"| **Generation Cap Reached** | {orig.get('hit_generation_cap_count', 0)} | {off.get('hit_generation_cap_count', 0)} | {p100.get('hit_generation_cap_count', 0)} | {p150.get('hit_generation_cap_count', 0)} |",
+        f"| **True Truncations (Cap Without EOS)** | {orig.get('truncation_count', 0)} | {off.get('truncation_count', 0)} | {p100.get('truncation_count', 0)} | {p150.get('truncation_count', 0)} |",
         f"| **Severe Repetition Count** | {orig.get('repetition_count', 0)} | {off.get('repetition_count', 0)} | {p100.get('repetition_count', 0)} | {p150.get('repetition_count', 0)} |",
         "",
         "---",
@@ -1278,8 +1584,17 @@ def main():
                 if line.strip():
                     try:
                         r = json.loads(line)
+                        if (
+                            r.get("record_schema") != GENERATION_RECORD_SCHEMA
+                            or r.get("evaluator_version") != EVALUATOR_VERSION
+                            or r.get("prompt_formatter_version") != PROMPT_FORMATTER_VERSION
+                        ):
+                            raise ValueError(
+                                "Existing raw results are from a different evaluator contract. "
+                                "Use a fresh output directory; legacy records are not reused."
+                            )
                         completed_keys.add((r["prompt_id"], r["condition"]))
-                    except Exception:
+                    except json.JSONDecodeError:
                         pass
         print(f"Loaded {len(completed_keys)} previously completed generations from {raw_results_path}")
 

@@ -79,18 +79,18 @@ def test_run_manifest_is_resumable_only_for_identical_identity(tmp_path):
 
     sweep_path = tmp_path / "sweep_manifest.json"
     create_or_verify_run_manifest(
-        sweep_path, identity, schema="tokens_k_sweep_manifest_v1"
+        sweep_path, identity, schema="tokens_k_sweep_manifest_v2"
     )
     with pytest.raises(ValueError, match="does not match"):
         create_or_verify_run_manifest(sweep_path, identity)
 
 
 def test_generation_cache_record_requires_exact_key_and_schema():
-    row = {"record_schema": "phi_generation_record_v1", "generation_cache_key": "abc"}
+    row = {"record_schema": "phi_generation_record_v2", "generation_cache_key": "abc"}
     assert validate_generation_cache_record(row, "abc")
-    assert validate_generation_cache_record(row, "abc", "phi_generation_record_v1")
-    assert not validate_generation_cache_record(row, "abc", "k_sweep_generation_v2")
-    sweep_row = {"record_schema": "k_sweep_generation_v2", "generation_cache_key": "abc"}
-    assert validate_generation_cache_record(sweep_row, "abc", "k_sweep_generation_v2")
+    assert validate_generation_cache_record(row, "abc", "phi_generation_record_v2")
+    assert not validate_generation_cache_record(row, "abc", "k_sweep_generation_v3")
+    sweep_row = {"record_schema": "k_sweep_generation_v3", "generation_cache_key": "abc"}
+    assert validate_generation_cache_record(sweep_row, "abc", "k_sweep_generation_v3")
     assert not validate_generation_cache_record(row, "different")
     assert not validate_generation_cache_record({"generation_cache_key": "abc"}, "abc")

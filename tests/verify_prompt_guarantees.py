@@ -26,7 +26,7 @@ from zip2zip.config import Zip2ZipConfig
 
 def verify_all_guarantees(
     test_path: str = "data/corpus_stage3_test.jsonl",
-    predictor_cache: str = "experiments/checkpoints/cached_predictor.pkl",
+    predictor_cache: str = "experiments/checkpoints/oracle_guided_predictor.pkl",
     n_test_samples: int = 1000,
 ):
     print("=" * 75)

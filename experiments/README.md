@@ -8,6 +8,10 @@ The current research direction is joint predictive-hypertoken training. The
 first gate is continuation correctness after a predicted hypertoken, not a
 large compression percentage or a giant validation sweep.
 
+The active quality-evaluation definitions, safety limits, score semantics,
+generation-health fields, and cache/version rules are documented in
+[QUALITY_BENCHMARK_METHODOLOGY.md](QUALITY_BENCHMARK_METHODOLOGY.md).
+
 ## Current Execution Order
 
 Do not launch a large training job automatically. The required order is:

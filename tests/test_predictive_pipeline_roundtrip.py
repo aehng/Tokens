@@ -8,7 +8,6 @@ Verifies:
 """
 
 import unittest
-import pickle
 import os
 import sys
 
@@ -19,16 +18,16 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 
 from zip2zip.predictor_policy import CappedPredictorPolicy
 from zip2zip.predictive_pipeline import PredictivePipeline
+from experiments.load_oracle_predictor import load_oracle_predictor
 
-PREDICTOR_PATH = "experiments/checkpoints/cached_predictor.pkl"
+PREDICTOR_PATH = "experiments/checkpoints/oracle_guided_predictor.pkl"
 
 
 class TestPredictivePipelineRoundTrip(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tokenizer = AutoTokenizer.from_pretrained("microsoft/Phi-3.5-mini-instruct")
-        with open(PREDICTOR_PATH, "rb") as f:
-            raw_predictor = pickle.load(f)
+        raw_predictor = load_oracle_predictor(PREDICTOR_PATH)
         p_index = getattr(raw_predictor, "index", raw_predictor)
         cls.policy = CappedPredictorPolicy(
             p_index, cls.tokenizer, budget=32, max_structural_slots=8

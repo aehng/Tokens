@@ -9,7 +9,6 @@ import inspect
 import json
 import math
 import os
-import pickle
 import platform
 import subprocess
 import sys
@@ -38,6 +37,7 @@ from experiments.benchmark_provenance import (  # noqa: E402
 )
 from experiments.load_joint_checkpoint import CHECKPOINT_LOADER_ID, load_joint_checkpoint  # noqa: E402
 from experiments.mbpp_prompt import build_mbpp_prompt  # noqa: E402
+from experiments.load_oracle_predictor import load_oracle_predictor  # noqa: E402
 from experiments.run_quality_benchmark import (  # noqa: E402
     INITIAL_VOCAB,
     MAX_NEW_TOKENS,
@@ -45,7 +45,10 @@ from experiments.run_quality_benchmark import (  # noqa: E402
     ZIP2ZIP_MODEL_ID,
     DEFAULT_PHI_REVISION,
     DEFAULT_ZIP2ZIP_REVISION,
+    EVALUATOR_VERSION,
+    PROMPT_FORMATTER_VERSION,
     TimingLogitsProcessor,
+    generation_health_fields,
     _load_zip2zip_model,
     evaluate_alpaca_instruction,
     evaluate_gsm8k_reasoning,
@@ -63,8 +66,8 @@ DEFAULT_CHECKPOINT = (
     REPO_ROOT / "experiments" / "checkpoints" / "predictive_joint_pilot" / "checkpoint_step_100.pt"
 )
 EXPECTED_DOMAINS = {"code": 4, "reasoning": 4, "instruction": 4}
-MANIFEST_SCHEMA = "tokens_k_sweep_manifest_v1"
-RECORD_SCHEMA = "k_sweep_generation_v2"
+MANIFEST_SCHEMA = "tokens_k_sweep_manifest_v2"
+RECORD_SCHEMA = "k_sweep_generation_v3"
 
 
 def codebook_hash(codebook_dict: Dict[Tuple[int, ...], int]) -> str:
@@ -83,8 +86,29 @@ def is_correct(record: Dict[str, Any]) -> bool:
     if domain == "reasoning":
         return bool(record.get("exact_correct", False))
     if domain == "instruction":
-        return not bool(record.get("instruction_failure", False))
+        return bool(record.get("mechanical_instruction_pass", False))
     return False
+
+
+def domain_scoring_summary(records: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """Keep task correctness and instruction mechanical diagnostics separate."""
+    specs = {
+        "code": ("MBPP pass@1", "problem_pass"),
+        "reasoning": ("GSM8K exact answer", "exact_correct"),
+        "instruction": ("Alpaca mechanical checks", "mechanical_instruction_pass"),
+    }
+    summary: Dict[str, Dict[str, Any]] = {}
+    for domain, (measurement, field) in specs.items():
+        rows = [record for record in records if record.get("domain") == domain]
+        passed = sum(bool(record.get(field, False)) for record in rows)
+        summary[domain] = {
+            "measurement": measurement,
+            "passed": passed,
+            "count": len(rows),
+            "rate_pct": round(100.0 * passed / len(rows), 1) if rows else None,
+            "semantic_adherence_available": False if domain == "instruction" else None,
+        }
+    return summary
 
 
 def _runtime_identity(device: str) -> dict[str, Any]:
@@ -131,6 +155,7 @@ def _source_identity() -> tuple[dict[str, str], str]:
         REPO_ROOT / "experiments" / "run_quality_benchmark.py",
         REPO_ROOT / "experiments" / "mbpp_prompt.py",
         REPO_ROOT / "experiments" / "load_joint_checkpoint.py",
+        REPO_ROOT / "experiments" / "load_oracle_predictor.py",
         REPO_ROOT / "experiments" / "benchmark_provenance.py",
         REPO_ROOT / "src" / "zip2zip" / "evidence_selector.py",
         REPO_ROOT / "src" / "zip2zip" / "model.py",
@@ -148,6 +173,7 @@ def _source_identity() -> tuple[dict[str, str], str]:
             ("evaluate_gsm8k_reasoning", evaluate_gsm8k_reasoning),
             ("evaluate_alpaca_instruction", evaluate_alpaca_instruction),
             ("sequence_reached_eos", sequence_reached_eos),
+            ("generation_health_fields", generation_health_fields),
         )
     }
     return hashes, canonical_sha256(evaluator)
@@ -179,13 +205,19 @@ def _append_report(out_md: Path, configs: Mapping[str, Mapping[str, Any]], ident
         "",
         "Fixed-K settings and optional adaptive thresholds are computed from this run only. Historical narrative claims are not carried forward as findings.",
         "",
-        "| Configuration | Budget / threshold | Score | Micro decode reduction | Mean wall time |",
-        "|---|---:|---:|---:|---:|",
+        "| Configuration | Budget / threshold | MBPP pass@1 | GSM8K exact | Alpaca mechanical pass | Micro decode reduction | Mean wall time |",
+        "|---|---:|---:|---:|---:|---:|---:|",
     ]
     for name, result in configs.items():
         setting = f"K={result['target_k']}" if result["min_tau"] is None else f"tau={result['min_tau']}"
         lines.append(
-            f"| {name} | {setting} | {result['total_correct']} ({result['accuracy_pct']}%) | "
+            f"| {name} | {setting} | "
+            f"{result['domain_scores']['code']['passed']}/{result['domain_scores']['code']['count']} "
+            f"({result['domain_scores']['code']['rate_pct']}%) | "
+            f"{result['domain_scores']['reasoning']['passed']}/{result['domain_scores']['reasoning']['count']} "
+            f"({result['domain_scores']['reasoning']['rate_pct']}%) | "
+            f"{result['domain_scores']['instruction']['passed']}/{result['domain_scores']['instruction']['count']} "
+            f"({result['domain_scores']['instruction']['rate_pct']}%) | "
             f"{result['micro_reduction_pct']}% | {result['mean_wall_time_s']}s |"
         )
     out_md.parent.mkdir(parents=True, exist_ok=True)
@@ -252,8 +284,7 @@ def run_sweep(
 
     tokenizer_kwargs = {"revision": base_revision} if base_revision else {}
     tokenizer = AutoTokenizer.from_pretrained(PHI_MODEL_ID, **tokenizer_kwargs)
-    with predictor_file.open("rb") as source:
-        raw_predictor = pickle.load(source)
+    raw_predictor = load_oracle_predictor(predictor_file)
     predictor_index = getattr(raw_predictor, "index", raw_predictor)
     selector = EvidenceAwareSelector(
         predictor_index=predictor_index,
@@ -271,6 +302,8 @@ def run_sweep(
         "do_sample": False,
         "dtype": "float16",
         "eos_rule": "last_generated_token_equals_tokenizer_eos_id",
+        "evaluator_version": EVALUATOR_VERSION,
+        "prompt_formatter_version": PROMPT_FORMATTER_VERSION,
     }
     checkpoint_sha = file_sha256(checkpoint_file)
     predictor_sha = file_sha256(predictor_file)
@@ -297,6 +330,8 @@ def run_sweep(
             cb_hash = codebook_hash(codebook)
             condition = {
                 "policy": "EvidenceAwareSelector",
+                "evaluator_version": EVALUATOR_VERSION,
+                "prompt_formatter_version": PROMPT_FORMATTER_VERSION,
                 "tested_commit": commit,
                 "config": config_name,
                 "target_k": target_k,
@@ -353,7 +388,7 @@ def run_sweep(
         for sample in samples
     ]
     identity = {
-        "schema": "tokens_k_sweep_identity_v2",
+        "schema": "tokens_k_sweep_identity_v3",
         "tested_commit": commit,
         "prompt_ids_file_sha256": file_sha256(prompts_file),
         "validation_data_sha256": file_sha256(validation_file),
@@ -506,6 +541,8 @@ def run_sweep(
                 eos_reached = sequence_reached_eos(generated_ids, tokenizer.eos_token_id)
                 record: dict[str, Any] = {
                     "record_schema": RECORD_SCHEMA,
+                    "evaluator_version": EVALUATOR_VERSION,
+                    "prompt_formatter_version": PROMPT_FORMATTER_VERSION,
                     "generation_cache_key": plan["cache_key"],
                     "generated_from_commit": commit,
                     "checkpoint_loader": CHECKPOINT_LOADER_ID,
@@ -539,6 +576,15 @@ def run_sweep(
                     "hit_max_length": decode_count >= max_new_tokens,
                     "output_text": output_text,
                 }
+                record.update(
+                    generation_health_fields(
+                        output_text,
+                        generated_ids,
+                        tokenizer.eos_token_id,
+                        max_new_tokens,
+                        expanded_count,
+                    )
+                )
                 used_slots = record["used_slots"]
                 record["utilization_pct"] = round(
                     used_slots / len(codebook) * 100, 1
@@ -575,15 +621,13 @@ def run_sweep(
             ]
             total_steps = sum(record["decode_steps"] for record in records)
             total_expanded = sum(record["expanded_output_tokens"] for record in records)
-            correct_count = sum(is_correct(record) for record in records)
             total_slots = sum(record["codebook_size"] for record in records)
             used_slots = sum(record["used_slots"] for record in records)
             configs_results[config_name] = {
                 "config": config_name,
                 "target_k": target_k,
                 "min_tau": min_tau,
-                "total_correct": f"{correct_count}/{len(records)}",
-                "accuracy_pct": round(100.0 * correct_count / len(records), 1),
+                "domain_scores": domain_scoring_summary(records),
                 "micro_reduction_pct": round(
                     100.0 * (1 - total_steps / max(total_expanded, 1)), 2
                 ),
@@ -606,7 +650,7 @@ def run_sweep(
             }
 
         final_output = {
-            "schema": "tokens_k_sweep_results_v2",
+            "schema": "tokens_k_sweep_results_v3",
             "run_identity_sha256": identity_sha,
             "tested_commit": commit,
             "summary_table": {

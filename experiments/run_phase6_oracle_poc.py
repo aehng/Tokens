@@ -11,13 +11,12 @@ Conditions:
 5. NEW Oracle-Guided Predictor (K=8)
 
 Generates:
-- experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_mbpp_signature_v1.json
-- experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_mbpp_signature_v1.md
+- experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_mbpp_signature_v2.json
+- experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_mbpp_signature_v2.md
 """
 
 import json
 import os
-import pickle
 import re
 import sys
 import time
@@ -41,6 +40,7 @@ from experiments.load_joint_checkpoint import (
 from experiments.mbpp_prompt import build_mbpp_prompt
 from zip2zip.predictor_policy import CappedPredictorPolicy
 from experiments.train_oracle_guided_predictor import OracleGuidedPredictor
+from experiments.load_oracle_predictor import load_oracle_predictor
 from experiments.run_quality_benchmark import (
     evaluate_mbpp_code,
     evaluate_gsm8k_reasoning,
@@ -55,11 +55,11 @@ from experiments.run_quality_benchmark import (
 MODEL_NAME = "epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1"
 POC_IDS_PATH = "experiments/checkpoints/quality_benchmark/poc_12_prompt_ids.json"
 VAL_DATA_PATH = "data/cached_pure_pred_val_60.json"
-POC_PREV_RESULTS_PATH = "experiments/checkpoints/quality_benchmark/poc_selector_results_mbpp_signature_v1.json"
+POC_PREV_RESULTS_PATH = "experiments/checkpoints/quality_benchmark/poc_selector_results_mbpp_signature_v2.json"
 ORACLE_PRED_PATH = "experiments/checkpoints/oracle_guided_predictor.pkl"
 CKPT_STEP100_PATH = "experiments/checkpoints/predictive_joint_pilot/checkpoint_step_100.pt"
-OUT_JSON = "experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_mbpp_signature_v1.json"
-OUT_MD = "experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_mbpp_signature_v1.md"
+OUT_JSON = "experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_mbpp_signature_v2.json"
+OUT_MD = "experiments/checkpoints/quality_benchmark/poc_oracle_predictor_results_mbpp_signature_v2.md"
 
 
 def is_correct(r: Dict[str, Any]) -> bool:
@@ -69,7 +69,7 @@ def is_correct(r: Dict[str, Any]) -> bool:
     elif dom == "reasoning":
         return r.get("exact_correct", False)
     elif dom == "instruction":
-        return not r.get("instruction_failure", False)
+        return bool(r.get("mechanical_instruction_pass", False))
     return False
 
 
@@ -104,7 +104,7 @@ def main():
 
     print(f"Loading trained OracleGuidedPredictor from {ORACLE_PRED_PATH}...", flush=True)
     with open(ORACLE_PRED_PATH, "rb") as f:
-        predictor_model: OracleGuidedPredictor = pickle.load(f)
+        predictor_model: OracleGuidedPredictor = load_oracle_predictor(f)
 
     print("Loading Zip2Zip Step-100 model...", flush=True)
     t0_load = time.time()
@@ -268,7 +268,7 @@ def main():
             elif dom == "reasoning":
                 corr = eval_res.get("exact_correct", False)
             elif dom == "instruction":
-                corr = not eval_res.get("instruction_failure", False)
+                corr = bool(eval_res.get("mechanical_instruction_pass", False))
 
             rec = stamp_generation_record({
                 "prompt_id": pid,

@@ -23,14 +23,14 @@ from zip2zip.training_objectives import (
     configure_joint_training_parameters,
     DifferentiableTrainingManager,
 )
+from experiments.load_oracle_predictor import load_oracle_predictor
 
-PREDICTOR_PATH = "experiments/checkpoints/cached_predictor.pkl"
+PREDICTOR_PATH = "experiments/checkpoints/oracle_guided_predictor.pkl"
 
 
 class TestJointTrainingSmoke(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        import pickle
         cls.model_id = "epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1"
         cls.tokenizer = AutoTokenizer.from_pretrained("microsoft/Phi-3.5-mini-instruct")
         cls.model = Zip2ZipModel.from_pretrained(
@@ -42,8 +42,7 @@ class TestJointTrainingSmoke(unittest.TestCase):
         cls.model.input_encoder.to(torch.float32)
         cls.model.output_encoder.to(torch.float32)
 
-        with open(PREDICTOR_PATH, "rb") as f:
-            raw_predictor = pickle.load(f)
+        raw_predictor = load_oracle_predictor(PREDICTOR_PATH)
         p_index = getattr(raw_predictor, "index", raw_predictor)
         cls.policy = CappedPredictorPolicy(p_index, cls.tokenizer, budget=32, max_structural_slots=8)
         cls.pipeline = PredictivePipeline(cls.policy, cls.tokenizer, max_codebook_size=32)

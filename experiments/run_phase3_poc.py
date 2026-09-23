@@ -8,7 +8,6 @@ Compares 3 conditions using frozen Step-100 weights:
 
 import json
 import os
-import pickle
 import sys
 import time
 from collections import Counter
@@ -29,6 +28,7 @@ from experiments.load_joint_checkpoint import (
     accept_cached_generation,
 )
 from experiments.mbpp_prompt import build_mbpp_prompt
+from experiments.load_oracle_predictor import load_oracle_predictor
 from experiments.run_quality_benchmark import (
     evaluate_mbpp_code,
     evaluate_gsm8k_reasoning,
@@ -47,8 +47,8 @@ VAL_DATA_PATH = "data/cached_pure_pred_val_60.json"
 RAW_RESULTS_PATH = "experiments/checkpoints/quality_benchmark/raw_results.jsonl"
 PREDICTOR_PATH = "experiments/checkpoints/oracle_guided_predictor.pkl"
 CKPT_STEP100_PATH = "experiments/checkpoints/predictive_joint_pilot/checkpoint_step_100.pt"
-OUT_JSON = "experiments/checkpoints/quality_benchmark/poc_selector_results_mbpp_signature_v1.json"
-OUT_MD = "experiments/checkpoints/quality_benchmark/poc_selector_results_mbpp_signature_v1.md"
+OUT_JSON = "experiments/checkpoints/quality_benchmark/poc_selector_results_mbpp_signature_v2.json"
+OUT_MD = "experiments/checkpoints/quality_benchmark/poc_selector_results_mbpp_signature_v2.md"
 
 
 def main():
@@ -85,8 +85,7 @@ def main():
     # 3. Load Model and Predictor Index
     print("\nLoading tokenizer and predictor index...", flush=True)
     tokenizer = AutoTokenizer.from_pretrained("microsoft/Phi-3.5-mini-instruct")
-    with open(PREDICTOR_PATH, "rb") as f:
-        raw_pred = pickle.load(f)
+    raw_pred = load_oracle_predictor(PREDICTOR_PATH)
     p_index = getattr(raw_pred, "index", raw_pred)
 
     ev_selector = EvidenceAwareSelector(
@@ -291,7 +290,7 @@ def main():
         elif dom == "reasoning":
             return r.get("exact_correct", False)
         elif dom == "instruction":
-            return not r.get("instruction_failure", False)
+            return bool(r.get("mechanical_instruction_pass", False))
         return False
 
     def aggregate(recs: List[Dict[str, Any]]) -> Dict[str, Any]:

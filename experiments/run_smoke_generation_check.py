@@ -13,7 +13,6 @@ Measures:
 
 import json
 import os
-import pickle
 import sys
 import torch
 from transformers import AutoTokenizer
@@ -24,6 +23,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 from zip2zip import Zip2ZipModel, StaticCodebookManager
 from zip2zip.predictor_policy import CappedPredictorPolicy
 from experiments.load_joint_checkpoint import load_joint_checkpoint
+from experiments.load_oracle_predictor import load_oracle_predictor
 
 PROMPTS = [
     {
@@ -46,7 +46,7 @@ PROMPTS = [
     },
 ]
 
-PREDICTOR_PATH = "experiments/checkpoints/cached_predictor.pkl"
+PREDICTOR_PATH = "experiments/checkpoints/oracle_guided_predictor.pkl"
 CHECKPOINT_PATH = "experiments/checkpoints/predictive_joint_pilot/probe_final_step_5.pt"
 
 
@@ -120,8 +120,7 @@ def main():
     out_file = args.output
 
     tokenizer = AutoTokenizer.from_pretrained("microsoft/Phi-3.5-mini-instruct")
-    with open(PREDICTOR_PATH, "rb") as f:
-        raw_predictor = pickle.load(f)
+    raw_predictor = load_oracle_predictor(PREDICTOR_PATH)
     p_index = getattr(raw_predictor, "index", raw_predictor)
 
     policy = CappedPredictorPolicy(

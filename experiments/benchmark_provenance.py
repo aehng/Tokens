@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 
-TIER1_MANIFEST_SCHEMA = "phi_tier1_manifest_v1"
+TIER1_MANIFEST_SCHEMA = "phi_tier1_manifest_v2"
 
 
 def canonical_sha256(value: Any) -> str:
@@ -106,7 +106,7 @@ def build_generation_cache_key(
     """Return an exact per-prompt/config key; K and prompt representation belong in condition."""
     return canonical_sha256(
         {
-            "schema": "generation_cache_key_v1",
+            "schema": "generation_cache_key_v2",
             "condition": dict(condition),
             "prompt_id": prompt_id,
             "prompt_sha256": hashlib.sha256(prompt_text.encode("utf-8")).hexdigest(),
@@ -173,7 +173,7 @@ def create_or_verify_run_manifest(
 def validate_generation_cache_record(
     record: Any,
     expected_key: str,
-    record_schema: str = "phi_generation_record_v1",
+    record_schema: str = "phi_generation_record_v2",
 ) -> bool:
     return (
         isinstance(record, dict)
