@@ -1,0 +1,23 @@
+prompts_complete=2 records=15 elapsed_min=8.5
+condition                           n  quality decode_red   hypers  latency_s
+base                                5    60.0%      0.00%     0.00       48.2
+reactive_zip2zip                    3    33.3%      6.10%    13.00       52.5
+zero_shot_pred_k32                  3    33.3%      0.98%     1.33       53.6
+calibrated_pred_k32_step50          2    50.0%      2.00%     0.50       15.7
+calibrated_pred_k32_step100         2    50.0%      2.00%     0.50       12.2
+[code]
+  base                           n=3   q=67% red=0.00% hyp=0.00
+  reactive_zip2zip               n=1   q=0% red=6.10% hyp=13.00
+  zero_shot_pred_k32             n=1   q=0% red=0.00% hyp=0.00
+  calibrated_pred_k32_step50     n=1   q=0% red=2.78% hyp=1.00
+  calibrated_pred_k32_step100    n=1   q=0% red=2.78% hyp=1.00
+[instruction]
+  base                           n=1   q=100% red=0.00% hyp=0.00
+  reactive_zip2zip               n=1   q=100% red=0.50% hyp=1.00
+  zero_shot_pred_k32             n=1   q=100% red=0.00% hyp=0.00
+  calibrated_pred_k32_step50     n=1   q=100% red=0.00% hyp=0.00
+  calibrated_pred_k32_step100    n=1   q=100% red=0.00% hyp=0.00
+[reasoning]
+  base                           n=1   q=0% red=0.00% hyp=0.00
+  reactive_zip2zip               n=1   q=0% red=11.11% hyp=25.00
+  zero_shot_pred_k32             n=1   q=0% red=1.96% hyp=4.00
