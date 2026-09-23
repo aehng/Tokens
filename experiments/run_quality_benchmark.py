@@ -39,18 +39,24 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, LogitsProcessor, L
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
-from zip2zip import Zip2ZipModel, Zip2ZipTokenizer, StaticCodebookManager
+from zip2zip import Zip2ZipModel, Zip2ZipTokenizer, StaticCodebookManager, ContextualEmissionGate
 from zip2zip.predictor_policy import CappedPredictorPolicy
 from experiments.mbpp_prompt import build_mbpp_prompt
 from experiments.load_joint_checkpoint import load_joint_checkpoint
 from experiments.load_oracle_predictor import load_oracle_predictor
 from experiments.benchmark_provenance import write_json_atomic
+from experiments.runtime_diagnostics import (
+    add_runtime_derived_metrics,
+    first_deterministic_answer_position,
+    first_repeated_trigram_position,
+    make_hypertoken_event,
+)
 
 VAL_DATA_PATH = "data/cached_pure_pred_val_60.json"
 PREDICTOR_PATH = "experiments/checkpoints/oracle_guided_predictor.pkl"
 CKPT_100_PATH = "experiments/checkpoints/predictive_joint_pilot/checkpoint_step_100.pt"
 CKPT_150_PATH = "experiments/checkpoints/predictive_joint_pilot/checkpoint_step_150.pt"
-OUTPUT_DIR = "experiments/checkpoints/quality_benchmark/mbpp_signature_v2"
+OUTPUT_DIR = "experiments/checkpoints/quality_benchmark/mbpp_signature_v3"
 MAX_NEW_TOKENS = 300
 INITIAL_VOCAB = 32011
 PHI_MODEL_ID = "microsoft/Phi-3.5-mini-instruct"
@@ -59,7 +65,7 @@ DEFAULT_PHI_REVISION = "2fe192450127e6a83f7441aef6e3ca586c338b77"
 DEFAULT_ZIP2ZIP_REVISION = "11c461733a79d2a5de6b814585c3361ca2aacbe7"
 EVALUATOR_VERSION = "phi_quality_evaluator_v2"
 PROMPT_FORMATTER_VERSION = "mbpp_task_signature_v2"
-GENERATION_RECORD_SCHEMA = "phi_generation_record_v2"
+GENERATION_RECORD_SCHEMA = "phi_generation_record_v3"
 
 MBPP_ALLOWED_IMPORTS = frozenset(
     {"math", "re", "collections", "heapq", "itertools", "bisect", "string", "functools", "operator"}
@@ -127,12 +133,19 @@ class TimingLogitsProcessor(LogitsProcessor):
         self.static_mgr = static_mgr
         self.ttft: Optional[float] = None
         self.step_count = 0
+        self.decode_step_intervals_s: List[float] = []
+        self._last_callback_time: Optional[float] = None
 
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
+        callback_time = time.perf_counter()
         if self.ttft is None:
             if scores.is_cuda:
                 torch.cuda.synchronize(scores.device)
-            self.ttft = time.perf_counter() - self.t_start
+                callback_time = time.perf_counter()
+            self.ttft = callback_time - self.t_start
+        elif not scores.is_cuda and self._last_callback_time is not None:
+            self.decode_step_intervals_s.append(callback_time - self._last_callback_time)
+        self._last_callback_time = callback_time
         self.step_count += 1
         if self.static_mgr is not None:
             scores = self.static_mgr.mask_unused_logits(scores)
@@ -147,6 +160,28 @@ def synchronize_device(device: torch.device) -> None:
 
 def _revision_kwargs(revision: Optional[str]) -> Dict[str, str]:
     return {"revision": revision} if revision else {}
+
+
+def _answer_trace_positions(
+    generated_ids: List[int],
+    tokenizer: Any,
+    domain: str,
+    expansion_map: Optional[Mapping[int, List[int]]] = None,
+) -> tuple[Optional[int], Optional[int]]:
+    """Locate only explicit final-answer markers; return null when ambiguous."""
+    if domain != "reasoning":
+        return None, None
+    expanded: List[int] = []
+    prefix_texts: List[str] = []
+    expanded_last_positions: List[int] = []
+    for token_id in generated_ids:
+        expanded.extend((expansion_map or {}).get(token_id, [token_id]))
+        expanded_last_positions.append(len(expanded) - 1)
+        prefix_texts.append(tokenizer.decode(expanded, skip_special_tokens=True))
+    decode_position = first_deterministic_answer_position(prefix_texts)
+    if decode_position is None:
+        return None, None
+    return decode_position, expanded_last_positions[decode_position]
 
 
 def _load_zip2zip_model(
@@ -238,6 +273,66 @@ def _write_generation_record(
     cache_root: Optional[str],
     tested_commit: Optional[str],
 ) -> None:
+    events = record.get("hypertokens_emitted", []) or []
+    gate_active = record.get("emission_gate_top_n") is not None
+    record["hypertoken_events"] = [
+        {
+            **make_hypertoken_event(
+                position=int(event.get("position", event.get("pos", -1))),
+                token_id=int(event.get("token_id", event.get("id", -1))),
+                phrase_token_ids=event.get("phrase_token_ids", event.get("subtokens", [])),
+                phrase_text=str(event.get("phrase_text", event.get("phrase", ""))),
+            ),
+            "first_constituent_rank": None,
+            "gate_allowed": True if gate_active else None,
+            "gate_threshold_top_n": record.get("emission_gate_top_n"),
+        }
+        for event in events
+    ]
+    record.update(
+        {
+            "runtime_diagnostics_schema": "phi_runtime_diagnostics_v1",
+            "original_prompt_base_token_length": record.get("base_prompt_tokens"),
+            "compressed_prompt_position_count": record.get("model_prefill_tokens"),
+            "transformer_decode_iterations": record.get("decode_steps"),
+            "expanded_base_equivalent_output_tokens": record.get("expanded_output_tokens"),
+            "predictor_latency_s": record.get("predictor_time_s"),
+            "codebook_construction_latency_s": record.get("hyper_setup_time_s"),
+            "hyper_weight_synthesis_setup_latency_s": None,
+            "request_setup_time_s": record.get("codebook_time_s"),
+            "prompt_prefill_ttft_s": record.get("ttft_s"),
+            "decode_wall_time_s": record.get("decode_time_s"),
+            "total_generation_wall_time_s": record.get("generation_wall_time_s", record.get("wall_time_s")),
+            "total_request_wall_time_s": record.get("wall_time_s"),
+            "hit_max_new_tokens": record.get("hit_max_length"),
+            "first_constituent_rank_per_emission": None,
+        }
+    )
+    gate = record.get("emission_gate_stats") or {}
+    record["emission_gate_diagnostics"] = {
+        "threshold_top_n": record.get("emission_gate_top_n", gate.get("top_n")),
+        "candidates_considered": gate.get("total_candidates_considered"),
+        "masked_count": gate.get("total_candidates_gated_out"),
+        "allowed_count": gate.get("total_candidates_permitted"),
+        "emitted_count": len(events),
+        "mean_first_constituent_rank": gate.get("mean_first_token_rank"),
+    } if gate or record.get("emission_gate_top_n") is not None else None
+    quality_pass = (
+        record.get("problem_pass")
+        if record.get("domain") == "code"
+        else record.get("exact_correct")
+        if record.get("domain") == "reasoning"
+        else record.get("mechanical_instruction_pass")
+        if record.get("domain") == "instruction"
+        else None
+    )
+    record["quality_gate_pass"] = quality_pass if isinstance(quality_pass, bool) else None
+    record.update(
+        add_runtime_derived_metrics(
+            record,
+            quality_pass=quality_pass if isinstance(quality_pass, bool) else None,
+        )
+    )
     record["record_schema"] = GENERATION_RECORD_SCHEMA
     record["evaluator_version"] = EVALUATOR_VERSION
     record["prompt_formatter_version"] = PROMPT_FORMATTER_VERSION
@@ -720,6 +815,9 @@ def run_condition_original_phi(
         hit_max_length = decode_steps >= max_new_tokens
 
         output_text = tok.decode(gen_ids, skip_special_tokens=True)
+        answer_decode_pos, answer_expanded_pos = _answer_trace_positions(
+            gen_ids, tok, s["domain"]
+        )
         ttft = timing_proc.ttft or 0.0
         decode_time = max(0.0, t_total - ttft)
 
@@ -738,6 +836,11 @@ def run_condition_original_phi(
             "ttft_s": round(ttft, 3),
             "prefill_time_s": round(ttft, 3),
             "decode_time_s": round(decode_time, 3),
+            "generation_wall_time_s": round(t_total, 3),
+            "decode_step_intervals_s": timing_proc.decode_step_intervals_s,
+            "first_answer_decode_position": answer_decode_pos,
+            "first_answer_expanded_position": answer_expanded_pos,
+            "first_repeated_trigram_position": first_repeated_trigram_position(gen_ids),
             "predictor_time_s": 0.0,
             "codebook_time_s": 0.0,
             "hyper_setup_time_s": 0.0,
@@ -869,6 +972,10 @@ def run_condition_official_zip2zip(
             expanded_base_ids = base_tok.encode(output_text, add_special_tokens=False)
             expanded_output_tokens = len(expanded_base_ids)
 
+        answer_decode_pos, _ = _answer_trace_positions(
+            gen_ids, tok, s["domain"]
+        )
+
         tokens_saved = max(0, expanded_output_tokens - decode_steps)
         decode_reduction_pct = round((1.0 - decode_steps / max(expanded_output_tokens, 1)) * 100, 2) if expanded_output_tokens > decode_steps else 0.0
 
@@ -904,6 +1011,11 @@ def run_condition_official_zip2zip(
             "ttft_s": round(ttft, 3),
             "prefill_time_s": round(ttft, 3),
             "decode_time_s": round(decode_time, 3),
+            "generation_wall_time_s": round(t_total, 3),
+            "decode_step_intervals_s": timing_proc.decode_step_intervals_s,
+            "first_answer_decode_position": answer_decode_pos,
+            "first_answer_expanded_position": None,
+            "first_repeated_trigram_position": first_repeated_trigram_position(gen_ids),
             "predictor_time_s": 0.0,
             "codebook_time_s": 0.0,
             "hyper_setup_time_s": 0.0,
@@ -970,6 +1082,7 @@ def run_condition_predictive(
     tested_commit: Optional[str] = None,
     compress_prompt: bool = False,
     model_bundle: Optional[Mapping[str, Any]] = None,
+    emission_gate_top_n: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     device = torch.device(device)
     print(f"\n{'='*80}\nRUNNING CONDITION {condition_name.upper()} ({checkpoint_path})\n{'='*80}")
@@ -1044,7 +1157,16 @@ def run_condition_predictive(
         synchronize_device(device)
         t_gen_start = time.perf_counter()
         timing_proc = TimingLogitsProcessor(t_gen_start, static_mgr=static_mgr)
-        proc_list = LogitsProcessorList([timing_proc])
+        procs = [timing_proc]
+        emission_gate = None
+        if emission_gate_top_n is not None and emission_gate_top_n > 0:
+            emission_gate = ContextualEmissionGate(
+                static_mgr=static_mgr,
+                top_n=emission_gate_top_n,
+                enabled=True,
+            )
+            procs.append(emission_gate)
+        proc_list = LogitsProcessorList(procs)
 
         with torch.no_grad():
             out = model.generate(
@@ -1076,6 +1198,10 @@ def run_condition_predictive(
                 expanded_tokens.extend(hyper_to_tokens[tid])
             else:
                 expanded_tokens.append(tid)
+
+        answer_decode_pos, answer_expanded_pos = _answer_trace_positions(
+            gen_ids, tok, s["domain"], expansion_map=hyper_to_tokens
+        )
 
         output_text = tok.decode(expanded_tokens, skip_special_tokens=True)
         expanded_output_tokens = len(expanded_tokens)
@@ -1111,6 +1237,11 @@ def run_condition_predictive(
             "ttft_s": round(ttft, 3),
             "prefill_time_s": round(ttft, 3),
             "decode_time_s": round(decode_time, 3),
+            "generation_wall_time_s": round(t_gen, 3),
+            "decode_step_intervals_s": timing_proc.decode_step_intervals_s,
+            "first_answer_decode_position": answer_decode_pos,
+            "first_answer_expanded_position": answer_expanded_pos,
+            "first_repeated_trigram_position": first_repeated_trigram_position(gen_ids),
             "predictor_time_s": round(predictor_time_s, 4),
             "codebook_time_s": round(codebook_time_s, 4),
             "hyper_setup_time_s": round(hyper_setup_time_s, 4),
@@ -1123,6 +1254,8 @@ def run_condition_predictive(
             "codebook_size": len(codebook_dict),
             "output_text": output_text,
             "process_rss_gb": get_process_rss_gb(),
+            "emission_gate_top_n": emission_gate_top_n,
+            "emission_gate_stats": emission_gate.get_stats() if emission_gate is not None else None,
         }
         rec.update(
             generation_health_fields(
@@ -1270,6 +1403,22 @@ def generate_full_benchmark_analytics(output_dir: str, raw_results_path: str):
                 1,
             ),
         }
+
+    vanilla_by_prompt = {
+        prompt_id: conditions_for_prompt.get("original_phi")
+        for prompt_id, conditions_for_prompt in by_prompt_cond.items()
+    }
+    for condition in conditions:
+        runtime_rows = [
+            add_runtime_derived_metrics(
+                record,
+                vanilla_record=vanilla_by_prompt.get(record.get("prompt_id")),
+                quality_pass=record.get("quality_gate_pass"),
+            )
+            for record in records
+            if record.get("condition") == condition
+        ]
+        aggregates[condition]["runtime_diagnostics"] = aggregate_runtime_metrics(runtime_rows)
 
     with open(os.path.join(output_dir, "aggregate_results.json"), "w", encoding="utf-8") as f:
         json.dump(aggregates, f, indent=2)
@@ -1467,6 +1616,27 @@ def write_benchmark_markdown_report(
         f"| **Mean Wall Time / Req** | {num_str(orig.get('mean_wall_time_s'))}s | {num_str(off.get('mean_wall_time_s'))}s | {num_str(p100.get('mean_wall_time_s'))}s | {num_str(p150.get('mean_wall_time_s'))}s |",
         f"| **Mean TTFT (Prefill)** | {num_str(orig.get('mean_ttft_s'))}s | {num_str(off.get('mean_ttft_s'))}s | {num_str(p100.get('mean_ttft_s'))}s | {num_str(p150.get('mean_ttft_s'))}s |",
         f"| **Mean Throughput (tok/s)**| {num_str(orig.get('mean_throughput_tok_per_s'))} | {num_str(off.get('mean_throughput_tok_per_s'))} | {num_str(p100.get('mean_throughput_tok_per_s'))} | {num_str(p150.get('mean_throughput_tok_per_s'))} |",
+        "",
+        "## Runtime Decomposition",
+        "",
+        "Rates use pooled decode wall time. Paired ratios use matching prompt IDs; missing pairs remain unavailable.",
+        "",
+        "| Metric | Vanilla | Official | Predictive 100 | Predictive 150 |",
+        "| :--- | ---: | ---: | ---: | ---: |",
+        *[
+            f"| **{label}** | {num_str(orig.get('runtime_diagnostics', {}).get(key), decimals)} | {num_str(off.get('runtime_diagnostics', {}).get(key), decimals)} | {num_str(p100.get('runtime_diagnostics', {}).get(key), decimals)} | {num_str(p150.get('runtime_diagnostics', {}).get(key), decimals)} |"
+            for label, key, decimals in (
+                ("Raw decode reduction", "raw_decode_reduction", 4),
+                ("Quality-preserved decode reduction", "quality_preserved_decode_reduction", 4),
+                ("Transformer steps / second", "transformer_steps_per_second", 3),
+                ("Expanded tokens / second", "expanded_tokens_per_second", 3),
+                ("Wall seconds / decode step", "wall_time_per_decode_step_s", 5),
+                ("Mean decode-step interval (s)", "mean_decode_step_time_s", 5),
+                ("Mean output-length ratio vs Vanilla", "paired_output_length_ratio_mean", 3),
+                ("Mean latency ratio vs Vanilla", "paired_latency_ratio_mean", 3),
+                ("Mean post-answer decode tail", "mean_post_answer_decode_iterations", 2),
+            )
+        ],
         "",
         "---",
         "",

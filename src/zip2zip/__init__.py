@@ -1,5 +1,6 @@
 from .codebook import CodebookManager
 from .static_codebook import StaticCodebookManager
+from .emission_gate import ContextualEmissionGate
 from .segmenter import DynamicSegmenter, segment_tokens_with_dictionary
 from .model import Zip2ZipModel
 from .tokenizer import Zip2ZipTokenizer
@@ -20,6 +21,7 @@ __all__ = [
     "TransformerEncoderConfig",
     "CodebookManager",
     "StaticCodebookManager",
+    "ContextualEmissionGate",
     "DynamicSegmenter",
     "segment_tokens_with_dictionary",
 ]

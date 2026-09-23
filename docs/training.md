@@ -1,5 +1,21 @@
 # Training a `zip2zip` model
 
+> **Scope note:** The TRL example below is an upstream Zip2Zip-style finetuning example. It is not the project's prompt-only predictive training pipeline and is not an instruction to full-finetune the customer model. The planned Qwen/vLLM work is documented in [`QWEN3_VLLM_PRODUCTION_VALIDATION.md`](QWEN3_VLLM_PRODUCTION_VALIDATION.md).
+
+## Project predictive-training data contract
+
+For the project's predictive path (as distinct from the upstream example below):
+
+- The predictor sees the prompt only. Response content may be used to construct training targets or determine whether already-selected phrases occur, but must not leak into prediction features.
+- Training input uses the prompt representation intended for inference. If a compressed prompt is used for calibration, serving must provide that same representation; verify this with a raw-versus-compressed A/B.
+- Targets are the compressed response **followed by EOS**. Assert that EOS is present in the labels and evaluate normal stopping, not just loss or decoded text.
+- Verify exact response expansion and continuation equivalence, including KL/top-k/next-token agreement and coherent multi-token continuation after a hypertoken.
+- Keep training, policy-tuning validation, and fresh holdout data separate. Do not tune against the final holdout.
+
+## Planned Qwen port constraints
+
+Retokenize with the pinned Qwen tokenizer and use task-valid formatting with a meaningful, balanced set of code, reasoning, and instruction/general examples. Do not judge the architecture from roughly 100 examples. Each training sequence uses the compressed prompt as context followed by compressed response and EOS; mask prompt labels as appropriate, and ensure response content never enters predictor features. Prefer a frozen Qwen base with small PEFT/LoRA and hypermodules plus short calibration; do not full-finetune Qwen3-8B for this validation. Before scaling, gate on forward/backward, gradient flow, checkpoint save/reload, unchanged base hashes, compressed-prompt use, EOS, at least one emitted predictive hypertoken, and coherent continuation. Do not assume Phi modules or representations transfer. The vLLM integration and benchmark remain planned, not verified; follow the current production-validation roadmap.
+
 ## Finetuning using [TRL](https://github.com/huggingface/trl)
 
 ```python

@@ -3,6 +3,7 @@
 > See `../docs/product.md` for the commercial goal.
 > See `../RESEARCH_LOG.md` for historical results and current status.
 > See `../PREDICTIVE_HYPERTOKEN_STUDY.md` for the primary implementation plan.
+> See [`../docs/QWEN3_VLLM_PRODUCTION_VALIDATION.md`](../docs/QWEN3_VLLM_PRODUCTION_VALIDATION.md) for the active near-term roadmap; it supersedes the older execution order below.
 
 The current research direction is joint predictive-hypertoken training. The
 first gate is continuation correctness after a predicted hypertoken, not a
@@ -16,14 +17,14 @@ generation-health fields, and cache/version rules are documented in
 
 Do not launch a large training job automatically. The required order is:
 
-1. Formalize the official reactive Zip2Zip regression.
-2. Implement continuation-equivalence measurement.
-3. Build and verify the prompt-only predictive training-data pipeline.
-4. Implement joint input/output hyperencoder + LoRA training with CE and
-   reconstruction losses.
-5. Run a tiny CPU/unit smoke test and estimate GPU resources.
-6. Run the small GPU pilot with fixed 12-prompt validation.
-7. Run the frozen 60-prompt evaluation only after the 12-prompt gates pass.
+1. Audit nested Step-100 checkpoint loading and affected Phase 3/K-sweep/Phase 6/7 results.
+2. Correct the small Phi evaluation issues and freeze the bounded reference; do not continue Phi policy optimization.
+3. Verify official Qwen3-8B/vLLM/EAGLE3 compatibility and run vanilla and EAGLE3 baselines.
+4. Test Tokens prefill, then predictive decode only after its correctness gates pass.
+
+The historical pilot configuration and validation notes below remain references for the predictive training pipeline; they do not override the current roadmap or authorize a large training run.
+
+For Phi quality regressions, follow the [tiered 3-way benchmark policy](../docs/PHI_CONTINUOUS_REGRESSION_BENCHMARK.md). Run meaningful-change benchmarks asynchronously from an immutable checkout pinned to the exact tested commit; continue independent work while they run, and wait only at tier-promotion or other result-dependent gates. Store each result keyed by the full tested commit SHA.
 
 ## Existing and Historical Scripts
 

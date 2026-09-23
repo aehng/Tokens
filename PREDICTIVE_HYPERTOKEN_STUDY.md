@@ -217,6 +217,9 @@ to observed learning speed.
 
 ## Phase 8 — Fixed 12-Prompt Validation
 
+Routine three-way regression, tier escalation, cache validity, and asynchronous
+commit-pinned execution are defined in [`docs/PHI_CONTINUOUS_REGRESSION_BENCHMARK.md`](docs/PHI_CONTINUOUS_REGRESSION_BENCHMARK.md).
+
 Use four code, four reasoning/math, and four instruction/general prompts at every
 important checkpoint. Measure:
 
@@ -279,7 +282,7 @@ If hypertoken emission rises while continuation divergence worsens, stop.
 
 ## Phase 11 — 60-Prompt Validation
 
-Only after the 12-prompt gates pass, compare the frozen 60-prompt set across:
+This is Tier 3 in the [continuous regression policy](docs/PHI_CONTINUOUS_REGRESSION_BENCHMARK.md): run it only at a milestone after cheaper gates pass, not after every change. The existing 60 prompts are development validation, not a clean final holdout if they have informed tuning. Compare the frozen 60-prompt set across:
 
 1. Vanilla Phi-3.5;
 2. official reactive Zip2Zip;
@@ -386,6 +389,8 @@ duration, and the exact launch command.
 
 ## Empirical Results — Cumulative Pilot (Steps 0 → 200)
 
+> **Evidence-status note (2026-09-22):** The figures below are preserved as historical measurements. A fresh audit found that the Phase 3/K-sweep runners may not load the nested Step-100 sub-state dictionaries, and identified prompt-representation, EOS, MBPP, instruction-scoring, and validation-reuse issues. In particular, do not treat the old K ranking as authoritative until the corrected loader and evaluation gates are rerun. The original 60-prompt set remains historical validation evidence, not a fresh holdout. See the [current Qwen/vLLM validation roadmap](docs/QWEN3_VLLM_PRODUCTION_VALIDATION.md) and the dated entry in [`RESEARCH_LOG.md`](RESEARCH_LOG.md). Historical values below are not deleted or silently replaced.
+
 The cumulative joint pilot successfully trained on CPU from Step 0 to Step 200 with exact checkpoint resumption and parameter verification:
 
 - **Backbone Frozen**: Phi-3.5 3.82B parameters in fp16, verified 100% byte-identical via SHA256 hashes across 19 base tensors.
@@ -452,7 +457,133 @@ We benchmarked 4 distinct conditions across 60 held-out prompts (`data/cached_pu
 - Adaptive-K: $\tau=20.0$ and $\tau=25.0$ achieved **41.7% accuracy** with **5.1–5.5% micro compression**, cutting dead slots by up to 70% ($K=12.3$ mean allocated slots).
 - Key takeaway: Codebook capacity must be restricted to high-confidence evidence-grounded phrases to avoid token distortion. $K=8$ is the optimal fixed budget; $\tau=20.0$ is the optimal adaptive threshold.
 
+## Roadmap Update — Corrected Phi Audit, Then Qwen/vLLM (2026-09-22)
+
+This update preserves the Phi research plan and its historical measurements, but supersedes the old Phase 3/K-sweep recommendation until the correctness audit is complete. The current K-sweep and related Phase 6/7 results are provisional because the runners may pass the outer nested checkpoint mapping to `load_state_dict(..., strict=False)` instead of explicitly loading the LoRA, input-encoder, and output-encoder states. Verify loaded tensor hashes/values and frozen Phi base hashes, then rerun only K = 4, 8, 16, 24, 32 on the fixed 12-prompt set. Correct the MBPP interface, strengthen instruction scoring, compare raw and training-consistent compressed prompts, and keep a new holdout untouched. Do not scale-retrain Phi for the EOS correction; freeze Phi after this bounded audit.
+
+All predictive training targets must include the **compressed response plus EOS**, with EOS label presence and normal termination checked. Predictor inputs remain prompt-only, and training/serving prompt representations must match. Continuation equivalence remains a quality gate because one hypertoken does not reproduce the multiple transformer/KV states of its expanded base tokens.
+
+The next product-validation target is Qwen3-8B in vLLM, with vanilla and compatible EAGLE3 baselines first. Then test Tokens prefill and its additive value over EAGLE3; predictive decode is a separate, higher-risk port, and joint EAGLE3 + predictive decode is stretch work unless actually validated. Verify current official serving interfaces and exact version compatibility before making implementation or performance claims.
+
+Test contextual emission gating as a bounded experiment: for example, allow a phrase only when its first base token is plausible under the current base logits, using a cheap top-N, probability, or consistency threshold. Measure quality, emissions, decode savings, and overhead; use validation only to choose thresholds and do not bake the gate into the architecture without evidence. The full milestone, metrics, stop conditions, and results-report template are in [`docs/QWEN3_VLLM_PRODUCTION_VALIDATION.md`](docs/QWEN3_VLLM_PRODUCTION_VALIDATION.md).
+
 ---
 
 *Last updated: 2026-09-22. Maintained by Antigravity (Google DeepMind) coding assistant.*
 
+## Current Predictive-Hypertoken Plan — Authoritative Tier-1 and Runtime Diagnosis (2026-09-23)
+
+This dated plan supersedes earlier Phi phase ordering and K recommendations
+above. Historical result tables remain historical; the corrected Tier-1 report
+and its exact manifest are authoritative. Phase 5 (Contextual Hypertoken
+Emission Gate) is currently running as three conditions: no gate, top-16, and
+top-32 first-constituent plausibility. Do not restart, replace, or invalidate
+that run if it cannot collect the new diagnostics. Apply the upgraded contract
+to every subsequent live run.
+
+### Corrected Tier-1 findings and canonical representation
+
+The fixed suite is 12 prompts (4 MBPP, 4 GSM8K, 4 Alpaca). The corrected
+benchmark verified the centralized nested checkpoint loader, all 298 trained
+tensors active, unchanged frozen Phi backbone hashes, corrected MBPP
+callable/signature contract, evaluator versioning, EOS accounting, and exact
+run-manifest/cache provenance. See the [authoritative report](experiments/checkpoints/quality_benchmark/tier1_authoritative.md).
+
+Vanilla Phi scored MBPP 1/4 (syntax 3/4), GSM8K 3/4, and Alpaca mechanical
+pass 2/4; mean wall 50.59s, TTFT 1.103s, 5.80 effective tokens/s, EOS 2/12,
+truncation 10/12, severe repetition 4/12. Official Zip2Zip scored 0/4 MBPP
+(syntax 3/4), 2/4 GSM8K, and 2/4 Alpaca; 31.68% raw micro decode reduction
+but 7.03% quality-preserved reduction; mean wall 71.88s, TTFT 18.584s,
+4.64 tokens/s, EOS 0/12, truncation 7/12, repetition 2/12.
+
+Predictive Step-100 with raw prompts scored 0/4 MBPP (syntax 1/4), 2/4
+GSM8K, and 2/4 Alpaca; 9.25% raw and 2.04% quality-preserved reduction;
+mean wall 253.47s, TTFT 4.510s, predictor ~70.05ms, codebook/setup ~78.61ms,
+1.21 tokens/s. With compressed prompts it scored 0/4 MBPP (syntax 1/4), 2/4
+GSM8K, and 3/4 Alpaca; 10.68% raw and 2.59% quality-preserved reduction;
+mean wall 124.96s, TTFT 1.624s, predictor ~45.72ms, codebook/setup ~48.43ms,
+2.09 tokens/s, EOS 0/12, truncation 7/12, repetition 6/12. The small suite is
+not proof of quality parity: aggregate task passes are 6/12 for Vanilla and
+5/12 for predictive compressed.
+
+**Canonical predictive prompt:** `compressed_prompt`, represented as
+`predictive_codebook_dp_segmented`, for every future predictive test. It
+matches training, compresses the prompt by about 21.8%, lowers TTFT from
+4.51s to 1.62s and CPU wall from 253.47s to 124.96s, and modestly improves
+decode reduction and Alpaca mechanical pass. These results do not establish
+that the overall predictive runtime is fast enough.
+
+### Scientific priority and latency interpretation
+
+Optimize, in order: (1) task quality close to Vanilla Phi; (2)
+quality-preserved decode reduction; (3) correct continuation and termination;
+(4) end-to-end latency/throughput; and (5) raw compression only when the
+preceding measures remain healthy. Never trade task quality for raw savings.
+
+Predictive compressed inference has about 45.7ms predictor plus 48.4ms
+codebook/setup time, far below its roughly 125s mean request wall. That setup
+does not explain the observed gap. Test—not assume—whether it comes from
+longer generation trajectories, per-decode-step hypertoken overhead, bad
+stopping/long tails, or CPU/cache/scheduling artifacts. Do not blame vocabulary
+size without evidence. Every report must distinguish request setup (predictor,
+codebook, hyper-weight synthesis), prefill/TTFT, decode iterations and cost per
+iteration, and generation trajectory (output length, EOS, repetition, and
+post-answer continuation). H-emission correlations are associations, not
+causation.
+
+The v3 future-run contract is specified in
+[`experiments/QUALITY_BENCHMARK_METHODOLOGY.md`](experiments/QUALITY_BENCHMARK_METHODOLOGY.md).
+It must collect the runtime and trajectory metrics during the same generation
+used for quality evaluation; no duplicate expensive timing suite. The
+authoritative Tier-1 report remains historical and must not be backfilled with
+measurements it did not collect.
+
+### Execution after the in-flight Phase 5
+
+1. **Phase 5 — Contextual Hypertoken Emission Gate (in flight):** compare
+   canonical compressed prompt with no gate, top-16, and top-32 first-token
+   plausibility. Primary metric is quality-preserved realized decode
+   reduction. Also report quality, raw reduction, gate overhead and
+   allowed/rejected/emitted counts, EOS, truncation, repetition, and any new
+   runtime diagnostics available to this already-started run. Do not restart
+   if the new contract arrived too late.
+2. **Phase 6 — Recalibrate K:** use verified Step-100, Oracle-Guided
+   Predictor, canonical compressed prompt, and winning gate (or no gate).
+   Compare K=4, 8, 16, 24, 32 in the same live benchmark. Determine whether K
+   changes per-step cost, trajectory, or quality; whether latency is
+   monotonic; and which setting gives the best quality-preserved
+   speed/compression frontier. Never choose by raw compression alone.
+3. **Phase 7 — Empirical continuation safety:** on a manageable stratified
+   subset compare base-constituent and hypertoken paths using next-token KL,
+   hidden cosine, top-1 agreement, top-k overlap, and short continuation
+   agreement. Keep it cheap; do not probe every candidate.
+4. **Phase 8 — Predictor refit only if justified:** refit only when empirical
+   continuation labels show useful signal. Do not spend time shaving
+   milliseconds from the ~46ms predictor to explain a ~75s wall-time gap.
+5. **Phase 9 — Tier-1 checkpoint:** compare Vanilla, Official Zip2Zip,
+   previous best predictive, and current predictive. Reuse cached Vanilla or
+   Official results only when the full run manifest matches. Resolve quality,
+   quality-preserved compression, latency cause, output length, step cost, and
+   termination.
+6. **Phase 10 — Short EOS-correct retraining:** warm-start Step-100 with
+   canonical compressed prompts, new predictor, recommended K/gate, and EOS
+   appended to targets. Run +10 steps then Tier-1. Continue to +25 only if
+   clearly improving; +50 additional steps is a hard maximum and requires
+   continued improvement. Judge quality, quality-preserved compression, EOS,
+   truncation, repetition, continuation, and runtime—not loss alone.
+7. **Phase 11 — Continuation consistency only if needed:** if drift remains,
+   compare existing objective against existing objective plus next-token KL;
+   hidden-state matching is optional only if cheap. The target is near-Vanilla
+   quality, higher quality-preserved compression, normal termination, and
+   reasonable latency—not merely lower KL.
+8. **Phase 12 — Tier 2 (30 prompts):** only if Tier-1 improves; stratify as
+   10 code, 10 reasoning, 10 instruction.
+9. **Phase 13 — Tier 3 (60 prompts):** only if Tier-2 succeeds; this becomes
+   the next CPU-authoritative benchmark.
+
+All future live benchmark tiers automatically collect the same runtime and
+trajectory diagnostics. Do not double benchmark by default; add a separate
+microbenchmark only if integrated measurements remain ambiguous. Independent
+analysis and implementation may proceed while asynchronous tests run, but each
+result must stay linked to its exact tested commit and manifest; wait at
+decision gates that depend on the result.

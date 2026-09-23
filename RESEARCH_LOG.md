@@ -570,6 +570,58 @@ Executed the commit-pinned Tier-1 12-prompt matrix (`experiments/run_phi_tier1.p
    - **Code:** Code generation remains the primary weakness (0/4 Pass@1, 1/4 syntax valid) due to ungrounded numeric and syntax token interference.
    - Generated authoritative artifacts: `experiments/checkpoints/quality_benchmark/tier1_authoritative.json` and `tier1_authoritative.md`.
 
+### Phase 5: Contextual Emission Gate Benchmark Results (2026-09-23)
+
+Run ID 3de046a1b858dc7a completed 36 generations across the 12 Tier-1 prompts comparing:
+1. predictive_step_100_compressed_prompt (No Gate)
+2. predictive_step_100_compressed_prompt_gated_top16 (Top-16 Gate)
+3. predictive_step_100_compressed_prompt_gated_top32 (Top-32 Gate)
+
+#### 1. Performance & Compute Comparison Table:
+| Condition | MBPP Pass@1 (Syntax) | GSM8K Exact | Alpaca Mech Pass | Decode Steps | Micro Saved % | Mean Wall Time | Mean TTFT | Gate Rate % |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **No Gate (Baseline)** | 0/4 (1/4 valid) | 2/4 (50.0%) | 3/4 (75.0%) | 2,794 | 10.68% (334 saved) | **156.54s** | 2.073s | 0.0% |
+| **Gated Top-16** | 0/4 (1/4 valid) | 2/4 (50.0%) | 3/4 (75.0%) | 2,794 | 10.68% (334 saved) | 190.08s (+21.4%) | **2.035s** | **74.8%** |
+| **Gated Top-32** | 0/4 (1/4 valid) | 2/4 (50.0%) | 3/4 (75.0%) | 2,794 | 10.68% (334 saved) | 216.46s (+38.3%) | 2.819s | **67.1%** |
+
+#### 2. Key Findings & Architectural Verdict:
+1. **Zero Quality Degradation**: Task correctness is 100% identical across all 12 prompts. Top-16 and Top-32 gating never suppressed a legitimate, answer-critical hypertoken.
+2. **High Candidate Rejection Rate**: The gate actively filtered out **74.8% (Top-16)** and **67.1% (Top-32)** of candidate hypertoken slots at decode positions where their first constituent base token was not among the top base logits.
+3. **Generation Trajectory Invariance**: Under greedy decoding (do_sample=False), the emitted sequence remained byte-identical to the baseline, confirming that the trained hyperlinear layer already placed virtually all out-of-context hypertokens below the argmax threshold.
+4. **Wall-Clock Latency Overhead**: On CPU, executing the topk/scatter and tensor filtering in Python inside the HuggingFace LogitsProcessor adds 21% to 38% latency overhead (156.5s -> 190.1s / 216.5s).
+5. **Phase 5 Architectural Decision**: Keep ContextualEmissionGate available behind a switchable config flag for safety/constrained serving and future sampling-mode exploration, but **standardize Phase 6 K-recalibration on No Gate** to avoid adding CPU latency overhead.
+
+### Current execution plan and runtime diagnostic contract (2026-09-23)
+
+The corrected Tier-1 benchmark above is authoritative. The canonical predictive
+prompt is `compressed_prompt` / `predictive_codebook_dp_segmented`; future
+predictive testing uses it. Quality is the primary objective, then
+quality-preserved decode reduction, continuation/termination, effective
+runtime, and raw compression. Do not interpret fewer decode steps as faster
+inference without separating request setup, prefill/TTFT, per-step decode cost,
+and generation trajectory. Predictor plus codebook/setup (~94ms combined)
+cannot alone explain the ~125s compressed-prompt mean wall time.
+
+Phase 5 contextual emission gating (no gate, top-16, top-32 first-constituent
+plausibility) is in flight; it must not be restarted to add instrumentation.
+After it finishes: Phase 6 K=4/8/16/24/32 under the winning gate or no gate;
+Phase 7 cheap stratified continuation-safety comparisons; Phase 8 predictor
+refit only if continuation labels justify it; Phase 9 Tier-1 comparison;
+Phase 10 short EOS-correct retraining only while Tier-1 improves; Phase 11
+next-token-KL consistency only if drift remains; Phase 12 30 prompts only if
+Tier-1 improves; Phase 13 60 prompts only if Tier-2 succeeds. Detailed
+conditions and gates are in the [current study plan](PREDICTIVE_HYPERTOKEN_STUDY.md).
+
+Every future live benchmark must collect the v3 runtime/trajectory record
+during the same generation as quality scoring, including prompt/output lengths,
+H events, timing decomposition, termination/repetition, deterministic answer
+tails when available, and paired ratios/derived rates. Do not run a duplicate
+large timing suite. The [benchmark methodology](experiments/QUALITY_BENCHMARK_METHODOLOGY.md)
+defines the contract. Older reports remain historical and must not be
+backfilled with unmeasured fields. Independent asynchronous runs remain pinned
+to exact commits and manifests; work can proceed in parallel until a
+result-dependent decision gate.
+
 ---
 
 *Last updated: 2026-09-23. Maintained by Antigravity (Google DeepMind) coding assistant.*

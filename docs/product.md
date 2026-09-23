@@ -2,6 +2,8 @@
 
 This project is building a **commercial inference product**, not only a research result.
 
+**First-class v1 serving target: vLLM.** The product should integrate as a runtime/plugin and small sidecar, not replace a customer's serving engine. The Qwen3-8B + vLLM work is a planned validation target; compatibility and performance are not yet established. See the [production validation plan](QWEN3_VLLM_PRODUCTION_VALIDATION.md).
+
 Research experiments (Phi-3.5, Zip2Zip, calibration ladders, local CPU/XPU) exist to find the smallest adapter that works. The **end product** is something a datacenter operator can load onto serving stacks they already run, with the simplest possible changeover.
 
 ## What we are shipping toward
@@ -21,10 +23,14 @@ LoRA (or a similarly small adapter) is an acceptable changeover cost. Full retra
 |---|---|
 | Base model weights | Unchanged (hash-verified). Customer keeps their checkpoint. |
 | What we install | Runtime + codebook/predictor + trained sidecar (encoders and/or LoRA). |
-| Serving integration | Hugging Face / vLLM-class generate path, or a thin wrapper around it. |
+| Serving integration | vLLM first-class v1 target, through a runtime/plugin or thin supported integration; retain the customer's serving engine. |
 | Rollout | Adapter on/off at runtime; original quality when off. |
 | Models we have never trained on | First-class: attach to a new family with calibration (LoRA / encoder fit), not a full custom train. |
 | Operator effort | As close to plug-and-play as we can get. Per-model LoRA or a short calibration job is OK. Asking them to replace the model is not. |
+
+The base model stays unchanged. A small per-model adapter (hypermodules and/or LoRA) is acceptable; full retraining of an 8B customer model is not the desired product path. Preserve quantization, KV caching, batching, and EAGLE/speculative decoding wherever compatibility testing shows they can coexist. Do not claim compatibility in advance of testing the exact model and serving versions.
+
+Production value is judged on measured **GPU-seconds per request, TTFT, TPOT, end-to-end latency, throughput, and task quality**. Position count or token reduction by itself is not a production result.
 
 Ideal install shape:
 

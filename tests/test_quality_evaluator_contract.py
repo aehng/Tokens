@@ -15,7 +15,7 @@ from experiments.run_quality_benchmark import (
 def test_evaluator_contract_versions_are_explicit():
     assert EVALUATOR_VERSION == "phi_quality_evaluator_v2"
     assert PROMPT_FORMATTER_VERSION == "mbpp_task_signature_v2"
-    assert GENERATION_RECORD_SCHEMA == "phi_generation_record_v2"
+    assert GENERATION_RECORD_SCHEMA == "phi_generation_record_v3"
 
 
 def test_mbpp_restricted_runner_executes_safe_reference_and_assertions():

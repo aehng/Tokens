@@ -31,6 +31,10 @@ from experiments.benchmark_provenance import (  # noqa: E402
     validate_generation_cache_record,
     write_json_atomic,
 )
+from experiments.runtime_diagnostics import (  # noqa: E402
+    add_runtime_derived_metrics,
+    aggregate_runtime_metrics,
+)
 
 
 DEFAULT_DATA = REPO_ROOT / "data" / "cached_pure_pred_val_60.json"
@@ -46,6 +50,8 @@ CONDITIONS = (
     "official_zip2zip",
     "predictive_step_100",
     "predictive_step_100_compressed_prompt",
+    "predictive_step_100_compressed_prompt_gated_top16",
+    "predictive_step_100_compressed_prompt_gated_top32",
     "predictive_step_150",
     "predictive_step_150_compressed_prompt",
 )
@@ -145,15 +151,23 @@ def _condition_config(
         },
         "prompt_representation": (
             "predictive_codebook_dp_segmented"
-            if condition.endswith("compressed_prompt")
+            if ("compressed_prompt" in condition)
             else "raw_base_token_ids"
+        ),
+        "emission_gate_top_n": (
+            16 if "gated_top16" in condition
+            else 32 if "gated_top32" in condition
+            else None
         ),
     }
 
 
 def _source_identity() -> tuple[dict[str, str], str]:
     source_paths = (
+        REPO_ROOT / "experiments" / "run_phi_tier1.py",
         REPO_ROOT / "experiments" / "run_quality_benchmark.py",
+        REPO_ROOT / "experiments" / "benchmark_provenance.py",
+        REPO_ROOT / "experiments" / "runtime_diagnostics.py",
         REPO_ROOT / "experiments" / "mbpp_prompt.py",
         REPO_ROOT / "experiments" / "load_joint_checkpoint.py",
         REPO_ROOT / "experiments" / "load_oracle_predictor.py",
@@ -161,6 +175,7 @@ def _source_identity() -> tuple[dict[str, str], str]:
         REPO_ROOT / "src" / "zip2zip" / "tokenizer.py",
         REPO_ROOT / "src" / "zip2zip" / "static_codebook.py",
         REPO_ROOT / "src" / "zip2zip" / "predictor_policy.py",
+        REPO_ROOT / "src" / "zip2zip" / "emission_gate.py",
     )
     hashes = {path.relative_to(REPO_ROOT).as_posix(): file_sha256(path) for path in source_paths}
     evaluator_source = {
@@ -171,6 +186,7 @@ def _source_identity() -> tuple[dict[str, str], str]:
             "evaluate_alpaca_instruction",
             "severe_repetition_metrics",
             "generation_health_fields",
+            "_answer_trace_positions",
             "TimingLogitsProcessor",
             "synchronize_device",
         )
@@ -223,7 +239,8 @@ def _build_identity(
             )
 
     identity = {
-        "schema": "phi_tier1_run_identity_v2",
+        "schema": "phi_tier1_run_identity_v3",
+        "runtime_diagnostics_schema": "phi_runtime_diagnostics_v1",
         "tested_commit": tested_commit,
         "tier": "phi_tier1_12",
         "prompt_ids_file_sha256": file_sha256(args.prompt_ids_file),
@@ -437,6 +454,35 @@ def _write_tier1_summary(
                 ),
             },
         }
+
+    vanilla_by_id = {
+        record["prompt_id"]: record
+        for record in records
+        if record.get("condition") == "original_phi"
+    }
+    for condition in conditions:
+        paired_rows = [
+            add_runtime_derived_metrics(
+                record,
+                vanilla_record=vanilla_by_id.get(record.get("prompt_id")),
+                quality_pass=record.get("quality_gate_pass"),
+            )
+            for record in records
+            if record.get("condition") == condition
+        ]
+        summary["conditions"][condition]["runtime_diagnostics"] = aggregate_runtime_metrics(
+            paired_rows
+        )
+        summary["conditions"][condition]["runtime_diagnostics"]["paired_prompt_ratios"] = [
+            {
+                "prompt_id": record.get("prompt_id"),
+                "output_length_ratio_vs_vanilla": record.get("output_length_ratio_vs_vanilla"),
+                "latency_ratio_vs_vanilla": record.get("latency_ratio_vs_vanilla"),
+                "first_answer_decode_position": record.get("first_answer_decode_position"),
+                "post_answer_decode_iterations": record.get("post_answer_decode_iterations"),
+            }
+            for record in paired_rows
+        ]
 
     raw_condition = "predictive_step_100"
     compressed_condition = "predictive_step_100_compressed_prompt"
@@ -654,6 +700,7 @@ def run(args: argparse.Namespace) -> Path:
                     tested_commit=tested_commit,
                 )
             elif condition.startswith("predictive_step_100"):
+                gate_n = condition_configs[condition].get("emission_gate_top_n")
                 benchmark.run_condition_predictive(
                     str(checkpoint_path),
                     condition,
@@ -667,8 +714,9 @@ def run(args: argparse.Namespace) -> Path:
                     generation_cache_keys=cache_keys,
                     cache_root=str(cache_root),
                     tested_commit=tested_commit,
-                    compress_prompt=condition.endswith("compressed_prompt"),
+                    compress_prompt="compressed_prompt" in condition,
                     model_bundle=predictive_bundles.get("100"),
+                    emission_gate_top_n=gate_n,
                 )
             elif condition.startswith("predictive_step_150"):
                 checkpoint_150 = checkpoint_path.with_name("checkpoint_step_150.pt")

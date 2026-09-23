@@ -86,9 +86,12 @@ def test_run_manifest_is_resumable_only_for_identical_identity(tmp_path):
 
 
 def test_generation_cache_record_requires_exact_key_and_schema():
-    row = {"record_schema": "phi_generation_record_v2", "generation_cache_key": "abc"}
+    row = {"record_schema": "phi_generation_record_v3", "generation_cache_key": "abc"}
     assert validate_generation_cache_record(row, "abc")
-    assert validate_generation_cache_record(row, "abc", "phi_generation_record_v2")
+    assert validate_generation_cache_record(row, "abc", "phi_generation_record_v3")
+    assert not validate_generation_cache_record(
+        {**row, "record_schema": "phi_generation_record_v2"}, "abc"
+    )
     assert not validate_generation_cache_record(row, "abc", "k_sweep_generation_v3")
     sweep_row = {"record_schema": "k_sweep_generation_v3", "generation_cache_key": "abc"}
     assert validate_generation_cache_record(sweep_row, "abc", "k_sweep_generation_v3")

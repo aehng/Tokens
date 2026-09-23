@@ -22,7 +22,7 @@ def test_tier1_cache_index_uses_the_expected_prompt_ids(tmp_path):
     }
     for prompt_id, key in (("prompt_a", "cache-a"), ("prompt_b", "cache-b")):
         row = {
-            "record_schema": "phi_generation_record_v2",
+            "record_schema": "phi_generation_record_v3",
             "generation_cache_key": key,
             "prompt_id": prompt_id,
             "condition": "original_phi",

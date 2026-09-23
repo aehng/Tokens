@@ -69,3 +69,13 @@ A strict, matched paired comparison was performed across all 12 prompts using th
 | `alpaca_1992`| Instruction| Fail (0 save) | Fail (249 save) | Fail (18 save) | **Pass** (0 save) | Compressed prompt stops cleanly |
 | `alpaca_55`  | Instruction| Fail (0 save) | **Pass** (75 save) | **Pass** (14 save) | **Pass** (4 save) | Correct explanation; stops cleanly |
 | `alpaca_183` | Instruction| **Pass** (0 save) | **Pass** (9 save) | **Pass** (5 save) | **Pass** (10 save) | Clean short biographical answer |
+
+## Future-run instrumentation note
+
+This is the authoritative historical Tier-1 result, not a runtime-diagnostic
+v3 run. It does not contain every required per-step, answer-tail, or
+hypertoken-continuation field in the upgraded
+[benchmark contract](../../QUALITY_BENCHMARK_METHODOLOGY.md); those fields must
+not be retroactively inferred. Subsequent live generations must collect the
+new diagnostics in the same run as task quality scoring. This caveat does not
+change the reported measurements or canonical compressed-prompt decision.
