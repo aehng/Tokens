@@ -10,7 +10,8 @@
   "enable_internet": "true",
   "machine_shape": "NvidiaTeslaT4",
   "dataset_sources": [
-    "elikearl/tokens-step100-gpu-smoke"
+    "elikearl/tokens-step100-gpu-smoke",
+    "elikearl/tokens-source-ae78085"
   ],
   "competition_sources": [],
   "kernel_sources": [],

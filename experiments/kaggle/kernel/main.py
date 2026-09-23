@@ -28,6 +28,8 @@ OUTPUT_ROOT = Path("/kaggle/working/tokens-kaggle-output")
 REPO_ROOT = Path("/kaggle/working/tokens-source")
 PACKAGE_REPO = "https://github.com/aehng/Tokens.git"
 PACKAGE_BRANCH = "codex/kaggle-gpu-enablement"
+LAUNCHER_COMMIT = "e38018521d86dc1d873322b069fb8922bbc0202a"
+LAUNCHER_VERSION = "v7-smoke-only"
 EXPECTED_CONDITIONS = ["original_phi", "predictive_step_100_compressed_prompt"]
 MAJOR_TEXT_DIVERGENCE_THRESHOLD = 0.55
 
@@ -138,25 +140,42 @@ EXPECTED_SOURCE_COMMIT = "ae780855ef764e7aa37eadb77e2eb92ad13e3182"
 
 
 def unpack_source(repo_commit: str) -> None:
+    if repo_commit != EXPECTED_SOURCE_COMMIT:
+        raise ValueError(
+            f"Provenance mismatch: repo_commit={repo_commit} does not match "
+            f"EXPECTED_SOURCE_COMMIT={EXPECTED_SOURCE_COMMIT}"
+        )
+
     if REPO_ROOT.exists():
         shutil.rmtree(REPO_ROOT)
     REPO_ROOT.mkdir(parents=True, exist_ok=True)
 
-    # Locate bundled archive in current dir or script dir
-    script_dir = Path(__file__).resolve().parent
-    archive_candidates = [
-        script_dir / "source.tar.gz",
-        Path.cwd() / "source.tar.gz",
-        Path("/kaggle/working/source.tar.gz"),
-        Path("/kaggle/src/source.tar.gz"),
-    ]
-    archive_path = next((p for p in archive_candidates if p.is_file()), None)
-    if archive_path is None:
-        raise FileNotFoundError(f"Bundled source archive not found. Looked in: {archive_candidates}")
+    # Primary exact mounted source dataset path
+    primary_archive = Path("/kaggle/input/tokens-source-ae78085/source.tar.gz")
+    if primary_archive.is_file():
+        archive_path = primary_archive
+    else:
+        # Fallback candidates logged explicitly
+        script_dir = Path(__file__).resolve().parent
+        archive_candidates = [
+            script_dir / "source.tar.gz",
+            Path.cwd() / "source.tar.gz",
+            Path("/kaggle/working/source.tar.gz"),
+            Path("/kaggle/src/source.tar.gz"),
+        ]
+        archive_path = next((p for p in archive_candidates if p.is_file()), None)
+        if archive_path is None:
+            raise FileNotFoundError(
+                f"Bundled source archive not found. Primary: {primary_archive}. "
+                f"Looked in fallbacks: {archive_candidates}"
+            )
+        print(f"[Provenance] Primary source archive not found; using fallback: {archive_path}")
 
     actual_hash = sha256(archive_path)
     if actual_hash != EXPECTED_SOURCE_ARCHIVE_SHA256:
-        raise RuntimeError(f"Source archive SHA256 mismatch: expected {EXPECTED_SOURCE_ARCHIVE_SHA256}, got {actual_hash}")
+        raise RuntimeError(
+            f"Source archive SHA256 mismatch: expected {EXPECTED_SOURCE_ARCHIVE_SHA256}, got {actual_hash}"
+        )
 
     import tarfile
     with tarfile.open(archive_path, "r:gz") as tar:
@@ -589,76 +608,11 @@ def main() -> None:
         (OUTPUT_ROOT / "smoke_results.md").write_text("\n".join(smoke_lines) + "\n", encoding="utf-8")
 
         if smoke_result["status"] != "pass":
-            raise StopAfterSmoke("Smoke gates failed; later GPU experiments were skipped")
+            raise StopAfterSmoke("Smoke gates failed; stopping as requested")
 
-        phase_status["timing"] = "running"
-        cpu_refs = json.loads((DATASET_ROOT / "cpu_reference_selected.json").read_text(encoding="utf-8"))
-        timing_dirs = []
-        for repeat in (1, 2):
-            repeat_dir = OUTPUT_ROOT / f"timing_repeat_{repeat}"
-            run_tier1(repeat_dir, artifact_manifest, checkpoint_path, conditions=EXPECTED_CONDITIONS)
-            timing_dirs.append(repeat_dir)
-        timing = timing_summaries(timing_dirs, cpu_refs)
-        timing_result = {
-            "schema": "tokens_gpu_timing_sanity_v1",
-            "device": "cuda:0",
-            "gpu_name": environment["gpus"][0]["name"],
-            "smoke_run_used_as_condition_warmup": True,
-            "timing_repeats_per_prompt_condition": 2,
-            "conditions": timing["conditions"],
-            "records": timing["records"],
-            "comparison_note": "CPU records are prior CPU runs; timing here excludes model-load time and includes predictive setup per request.",
-        }
-        write_json(OUTPUT_ROOT / "timing_sanity.json", timing_result)
-        timing_lines = [
-            "# Single-T4 timing sanity",
-            "",
-            f"The three-prompt smoke generated once per condition as warm-up; two repeats per prompt and condition followed on {timing_result['gpu_name']}.",
-            "",
-            "| Condition | Mean request s | Mean steps/request | Mean seconds/step | Steps/s | Expanded tok/s | GPU/CPU request ratio | EOS | Truncated |",
-            "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
-        ]
-        for condition, row in timing_result["conditions"].items():
-            timing_lines.append(
-                f"| {condition} | {row['mean_gpu_request_wall_time_s']:.3f} | {row['mean_decode_steps']:.1f} | {row['mean_seconds_per_transformer_step']:.4f} | {row['mean_transformer_steps_per_second']:.2f} | {row['mean_effective_expanded_tokens_per_second']:.2f} | {row['gpu_to_cpu_mean_request_wall_ratio']:.3f} | {row['eos_count']}/{row['n']} | {row['truncation_count']}/{row['n']} |"
-            )
-        timing_lines.extend(["", "The seconds/step column isolates iteration cost from trajectory length. Predictive effective throughput includes setup; Vanilla has no predictor setup."])
-        (OUTPUT_ROOT / "timing_sanity.md").write_text("\n".join(timing_lines) + "\n", encoding="utf-8")
-        if any(row["gpu_to_cpu_mean_request_wall_ratio"] >= 1.0 for row in timing_result["conditions"].values()):
-            phase_status["timing"] = "stop"
-            raise StopAfterSmoke("Repeated GPU timing was not faster than the paired CPU reference")
-        phase_status["timing"] = "pass"
-
-        phase_status["funnel"] = "running"
-        phase5_dir = REPO_ROOT / "experiments/checkpoints/quality_benchmark/tier1_runs/3de046a1b858dc7a"
-        run_command(
-            [sys.executable, "-m", "experiments.kaggle.run_predictor_oracle_funnel",
-             "--live-results", str(phase5_dir / "raw_results.jsonl"),
-             "--phase5-manifest", str(phase5_dir / "run_manifest.json"),
-             "--output-dir", str(OUTPUT_ROOT)],
-            cwd=REPO_ROOT,
-            log_path=OUTPUT_ROOT / "logs" / "predictor_oracle_funnel.log",
-        )
-        phase_status["funnel"] = "complete"
-
-        phase_status["continuation"] = "running"
-        env = dict(os.environ)
-        env["CUDA_VISIBLE_DEVICES"] = "0"
-        run_command(
-            [sys.executable, "-m", "experiments.kaggle.run_continuation_safety_gpu",
-             "--checkpoint", str(checkpoint_path),
-             "--predictor", "experiments/checkpoints/oracle_guided_predictor.pkl",
-             "--expected-predictor-sha256", artifact_manifest["predictor"]["sha256"],
-             "--probe-selection", str(OUTPUT_ROOT / "continuation_probe_selection.json"),
-             "--funnel-json", str(OUTPUT_ROOT / "predictor_oracle_funnel.json"),
-             "--output", str(OUTPUT_ROOT / "continuation_safety_gpu.json"),
-             "--tested-commit", artifact_manifest["repo_commit"],
-             "--expected-gpu-name", environment["gpus"][0]["name"]],
-            cwd=REPO_ROOT,
-            env=env,
-            log_path=OUTPUT_ROOT / "logs" / "continuation_safety.log",
-        )
-        phase_status["continuation"] = "complete"
+        # Stop here for Version 7 as explicitly instructed.
+        # Do not run timing repeats, funnel, or continuation probes.
+        print("[Version 7] Smoke test completed successfully. Stopping execution per plan.", flush=True)
 
     except StopAfterSmoke as error:
         if smoke_result is not None:
@@ -744,6 +698,9 @@ def main() -> None:
         manifest = {
             "schema": "tokens_kaggle_gpu_environment_v1",
             "repo": "aehng/Tokens",
+            "source_commit": EXPECTED_SOURCE_COMMIT,
+            "launcher_commit": LAUNCHER_COMMIT,
+            "launcher_version": LAUNCHER_VERSION,
             "repo_commit": artifact_manifest["repo_commit"] if "artifact_manifest" in locals() else None,
             "repo_branch": PACKAGE_BRANCH,
             "model_id": "microsoft/Phi-3.5-mini-instruct",
