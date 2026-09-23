@@ -591,6 +591,34 @@ Run ID 3de046a1b858dc7a completed 36 generations across the 12 Tier-1 prompts co
 4. **Wall-Clock Latency Overhead**: On CPU, executing the topk/scatter and tensor filtering in Python inside the HuggingFace LogitsProcessor adds 21% to 38% latency overhead (156.5s -> 190.1s / 216.5s).
 5. **Phase 5 Architectural Decision**: Keep ContextualEmissionGate available behind a switchable config flag for safety/constrained serving and future sampling-mode exploration, but **standardize Phase 6 K-recalibration on No Gate** to avoid adding CPU latency overhead.
 
+### Phase 5: Retroactive Runtime & Generation-Trajectory Decomposition (2026-09-23)
+
+Detailed decomposition of Run ID `3de046a1b858dc7a` artifacts (`raw_results.jsonl`, `summary.json`) across the 12 Tier-1 prompts:
+
+1. **Complete Trajectory Invariance (A Natural Experiment):**
+   - Greedy generation produced 100% byte-identical text, 2,794 decode iterations, and 3,128 expanded tokens across No Gate, Top-16 Gate, and Top-32 Gate.
+   - Decode step savings remained identical at 334 steps (10.68% micro decode reduction, 239 total hypertokens emitted representing 573 base token positions).
+   - Because trajectory lengths and tokens are invariant, the measured latency differences represent pure per-step computational overhead of the `ContextualEmissionGate` logits processor on CPU.
+
+2. **Throughput & Latency Decomposition (Canonical No-Gate Baseline):**
+   - **Decode Iterations / sec:** 1.51 it/s (663.2 ms / decode step).
+   - **Expanded Output Tokens / sec:** 1.69 tok/s (592.3 ms / expanded token).
+   - **Decoded Words / sec:** 1.00 words/s.
+   - **Domain Breakdown:** Code = 1.85 it/s (540.0 ms/step), Reasoning = 1.90 it/s (525.2 ms/step), Instruction = 0.82 it/s (1,223.9 ms/step, dragged down by prompt `alpaca_1337`).
+
+3. **Gate Overhead Mechanics (CPU PyTorch Top-K):**
+   - **Top-16 Gate:** +144.2 ms / decode step (+21.7% decode time), filtering out 79.4% (71,008 / 89,408) of candidate slots.
+   - **Top-32 Gate:** +254.1 ms / decode step (+38.3% decode time), filtering out 69.8% (62,429 / 89,408) of candidate slots.
+   - Under greedy decoding, candidate filtering provides 0 quality or trajectory benefit because out-of-context speculative candidates were already below the argmax logit.
+
+4. **Stopping & Post-Answer Tail Pathology:**
+   - **0 / 12 prompts emitted an EOS token** in Phase 5. 7 prompts hit `max_new_tokens = 300`.
+   - **GSM8K Post-Answer Waste:** All 4 GSM8K prompts produced their final numerical answers between step 41 and step 183, but continued decoding until the 300-step cap. **578 out of 1,200 decode steps (48.2%)** were wasted on unprompted follow-up problems (`gsm_6613`: 259 tail steps [86.3% of trajectory]; `gsm_2956`: 204 tail steps [68.0% of trajectory]).
+
+5. **Diagnostic Artifacts Generated:**
+   - Full machine-readable breakdown: `experiments/checkpoints/quality_benchmark/tier1_runs/3de046a1b858dc7a/phase5_runtime_diagnostics.json`
+   - Comprehensive markdown report: `experiments/checkpoints/quality_benchmark/tier1_runs/3de046a1b858dc7a/phase5_runtime_diagnostics.md`
+
 ### Current execution plan and runtime diagnostic contract (2026-09-23)
 
 The corrected Tier-1 benchmark above is authoritative. The canonical predictive

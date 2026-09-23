@@ -1,0 +1,116 @@
+{
+  "status": "complete",
+  "tested_commit": "e6b8e4250a7a22e58360556dd08d1f1fb3a8942c",
+  "prompt_ids": [
+    "mbpp_740",
+    "mbpp_969",
+    "mbpp_542",
+    "mbpp_769",
+    "gsm_3022",
+    "gsm_6613",
+    "gsm_2956",
+    "gsm_8674",
+    "alpaca_1337",
+    "alpaca_1992",
+    "alpaca_55",
+    "alpaca_183"
+  ],
+  "instruction_semantics": "manual_blind_review_pending",
+  "conditions": {
+    "predictive_step_100_compressed_prompt": {
+      "code": {
+        "pass_count": 0,
+        "count": 4,
+        "syntax_valid_count": 1
+      },
+      "reasoning": {
+        "exact_correct_count": 2,
+        "count": 4
+      },
+      "instruction": {
+        "mechanical_issue_count": 1,
+        "count": 4,
+        "eos_count": 0,
+        "hit_generation_cap_count": 1,
+        "truncated_count": 1,
+        "severe_repetition_count": 1,
+        "semantic_score": null
+      },
+      "compute": {
+        "decode_steps": 2794,
+        "expanded_output_tokens": 3128,
+        "micro_decode_reduction_pct": 10.68,
+        "mean_wall_time_s": 156.538,
+        "mean_ttft_s": 2.073,
+        "mean_model_prefill_tokens": 42.67,
+        "mean_prompt_compression_pct": 21.81
+      }
+    },
+    "predictive_step_100_compressed_prompt_gated_top16": {
+      "code": {
+        "pass_count": 0,
+        "count": 4,
+        "syntax_valid_count": 1
+      },
+      "reasoning": {
+        "exact_correct_count": 2,
+        "count": 4
+      },
+      "instruction": {
+        "mechanical_issue_count": 1,
+        "count": 4,
+        "eos_count": 0,
+        "hit_generation_cap_count": 1,
+        "truncated_count": 1,
+        "severe_repetition_count": 1,
+        "semantic_score": null
+      },
+      "compute": {
+        "decode_steps": 2794,
+        "expanded_output_tokens": 3128,
+        "micro_decode_reduction_pct": 10.68,
+        "mean_wall_time_s": 190.084,
+        "mean_ttft_s": 2.035,
+        "mean_model_prefill_tokens": 42.67,
+        "mean_prompt_compression_pct": 21.81
+      }
+    },
+    "predictive_step_100_compressed_prompt_gated_top32": {
+      "code": {
+        "pass_count": 0,
+        "count": 4,
+        "syntax_valid_count": 1
+      },
+      "reasoning": {
+        "exact_correct_count": 2,
+        "count": 4
+      },
+      "instruction": {
+        "mechanical_issue_count": 1,
+        "count": 4,
+        "eos_count": 0,
+        "hit_generation_cap_count": 1,
+        "truncated_count": 1,
+        "severe_repetition_count": 1,
+        "semantic_score": null
+      },
+      "compute": {
+        "decode_steps": 2794,
+        "expanded_output_tokens": 3128,
+        "micro_decode_reduction_pct": 10.68,
+        "mean_wall_time_s": 216.455,
+        "mean_ttft_s": 2.819,
+        "mean_model_prefill_tokens": 42.67,
+        "mean_prompt_compression_pct": 21.81
+      }
+    }
+  },
+  "matched_prompt_representation": {
+    "raw_condition": "predictive_step_100",
+    "compressed_condition": "predictive_step_100_compressed_prompt",
+    "same_checkpoint_and_predictor_policy": false,
+    "pair_count": 0,
+    "all_codebooks_match": null,
+    "per_prompt": []
+  }
+}
