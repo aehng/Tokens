@@ -50,9 +50,8 @@ Branch: `codex/predictive-fast-inference`
   merge, and no `aten::any`/Python tensor decision in the trusted prepared
   position path. The duplicate `greedy_fixture()` definition was removed.
 - Setup instrumentation reports H synthesis, input/output effective-table
-  construction, and total prepare time. The gated GPU harness is prepared to
-  record CUDA-event decode timing, setup VRAM, table bytes, and the one-prompt
-  legacy/fast agreement report.
+  construction, and total prepare time. The gated GPU harness now separates
+  behavioral `generate()` output from the true fixed-KV one-token microbenchmark.
 - Shape-only estimate for Phi-3.5 Mini at 32,064 × 3,072, fp16, K=32: **188.06
   MiB per effective table / 376.13 MiB for both complete effective tables**.
   This is the full copied tables in addition to base weights, not just the
@@ -94,3 +93,47 @@ Branch: `codex/predictive-fast-inference`
   legacy, and predictive merged fast remains gated on explicit user review and
   approval; the exact proposed command and protocol are documented in
   `docs/predictive_fast_inference_plan.md`.
+
+## Fixed-KV measurement correction (2026-09-23)
+
+- The `generate()` path uses `cache_implementation="static"` and capacity
+  256, but the actual KV sequence grows as tokens are generated. It is now
+  labeled **behavioral smoke** in the JSON schema and is not described as or
+  compared directly with a fixed-KV=256 timing result.
+- A separate fixed-context section prefills exactly 256 physical positions for
+  Vanilla, predictive legacy, and predictive fast. It runs 20 warmups and 100
+  measured single-token cached forwards per condition.
+- The installed Transformers 5.17.0 `DynamicCache` has no cache-copy method and
+  mutates in place on one-token update. The harness probes a copied instance,
+  then deep-copies and validates independent KV tensor storage for each
+  warmup/measured sample outside the timed interval. For a representation that
+  passes the probe as immutable, it reuses the unchanged reference object
+  instead. CPU tests cover both this mutable cache behavior and an immutable
+  legacy tuple representation; copy checks include object/storage identity,
+  sequence length, layer count, shape, dtype, and device. Every sample's input
+  cache length is asserted to be 256, and the reference cache is asserted to
+  remain at 256 before/after the mutation probe and full timing loop.
+- Warmups are 20 and measured forwards are 100, tracked separately. Copy and
+  cache-prefill cost are outside the timed forward. CUDA timing is prepared
+  with Events and synchronization only at batch boundaries. The JSON and
+  human-readable Markdown output keep `behavioral_generation_smoke` separate
+  from `fixed_kv_microbenchmark`; the latter reports next-position metadata,
+  mean/median/p95/stddev/min/max, steps per second, request setup and VRAM
+  metadata, plus legacy-vs-Vanilla, fast-vs-Vanilla and fast-vs-legacy derived
+  comparisons. Predictive conditions use one predictor call, one serialized
+  K=32 codebook SHA, identical raw prompt IDs and identical compressed IDs.
+  Each gets a fresh manager attached to the same merged model object; restored
+  model/embedding/output manager bindings are checked after detach. Vanilla is
+  run first and released before loading the predictive model.
+- Behavioral generation also gets two unmeasured warmup tokens before the
+  recorded request; predictive warmup masks unseeded H IDs and resets manager
+  position state afterward.
+- Historical V16 references only (not assertions): about 58 ms/step Vanilla,
+  100 ms/step predictive legacy, and roughly 66 ms/step break-even at the
+  earlier 12% decode-call reduction. The harness does not require current data
+  to match these values.
+- CPU-only validation for this correction: `tests/test_predictive_fast_inference_harness.py`
+  passed **14 tests**; Python compilation and the non-loading dry run passed.
+  The dry run shows both protocols, reports behavioral static-cache capacity
+  256 versus true active KV length 256, and loaded no model/checkpoint or CUDA
+  context. No GPU, Kaggle, or remote compute was used.

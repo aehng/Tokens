@@ -195,7 +195,10 @@ The detailed machine-readable and Markdown measurements are in
   `vanilla`, `predictive_legacy_merged`, and `predictive_fast_merged`. Its
   default is a non-loading dry run. Real model execution is gated by all of
   `--execute --device cuda[:N] --allow-gpu`; the harness also enforces batch
-  size 1 and a 256-token static KV-cache limit.
+  size 1. Its `generate()` run is explicitly a **behavioral smoke test**:
+  `cache_implementation="static"` with capacity 256 is only a preallocation
+  limit; the used context grows with the prompt and each generated token. Do
+  not interpret those per-step timings as fixed-context measurements.
 - Predictive B/C share a single codebook selected once from the same raw prompt
   token IDs. The harness checks prompt/tokenizer/decoding-setting identity and
   codebook identity before reporting the smoke comparison. The predictor keeps
@@ -220,10 +223,32 @@ The detailed machine-readable and Markdown measurements are in
 - Table setup reports H-vector synthesis, effective input-table construction,
   effective output-table construction, and total preparation time. CUDA event
   timers synchronize only at the setup boundary, not per decode step. The
-  future harness also records TTFT, end-to-end and decode wall time, mean /
-  median / p95 cached-forward timing, VRAM before/after/peak during preparation,
-  table bytes, output IDs, expanded IDs, H emissions, and B/C divergence/logit
-  agreement diagnostics.
+  behavioral smoke gets a separate two-token unmeasured warmup; manager request
+  position state resets before the recorded generation, and unseeded H IDs are
+  masked during warmup. The recorded smoke captures TTFT, end-to-end and decode wall time, output IDs,
+  expanded IDs, H emissions, and B/C divergence/logit agreement diagnostics.
+  The separate **true fixed-KV microbenchmark** prefills an actual 256-position
+  cache, then measures one-token cached forwards from that same context length.
+  It uses at least 20 warmups and exactly 100 measured iterations for Vanilla,
+  predictive legacy, and predictive fast, in that order. A mutation probe runs
+  against a copy: if one-token forward mutates the cache, every warmup and
+  measured sample receives a fresh independently stored copy; otherwise the
+  reference is reused only after the probe confirms it remains unchanged. Any
+  copying/reconstruction occurs outside the timed interval. The harness records
+  the cache class, layer/tensor metadata, mutation result, input sequence length
+  for every sample, and asserts the reference cache is 256 positions before
+  and after probing and timing. The installed Transformers 5.17.0
+  `DynamicCache` is mutable and has no cache-copy method, so the harness uses
+  validated `copy.deepcopy()` for it; CPU tests also cover legacy tuple caches.
+  It reports mean / median / p95 / standard deviation / min / max forward time
+  and steps per second, while excluding prefill and cache-copy work. The JSON
+  and Markdown reports keep behavioral generation and fixed-KV measurements in
+  separate sections. Derived comparisons include predictive overhead versus
+  Vanilla, fast speedup versus legacy, and fast-minus-Vanilla residual
+  per-step overhead. Historical V16 values—about 58 ms Vanilla, 100 ms legacy,
+  and an approximate 66 ms break-even at the prior 12% decode-call reduction—
+  are context only, never assertions or expected results. VRAM before/after/
+  peak during fast table preparation and table bytes remain recorded separately.
 - Shape/dtype-only estimate for the pinned Phi-3.5 Mini dimensions
   (32,064 rows by 3,072 hidden, fp16, K=32) is **188.06 MiB per effective
   table**, **376.13 MiB total for the two full effective tables** held alongside
@@ -233,20 +258,45 @@ The detailed machine-readable and Markdown measurements are in
   model's tensor shapes/dtypes before a future approved run. Persistent extended
   buffers that update only H rows remain a possible later optimization, not part
   of this change.
-- Current bounded CPU validation: **62 focused tests passed** and the CPU-only
-  harness passed all **15 synthetic checks**. Its refreshed component timings
-  are directional CPU fixture results only. No real-Phi inference, GPU/CUDA,
-  Kaggle, or remote-compute validation has been performed for the prepared path.
+- Previous fast-path integration CPU validation: **62 focused tests passed**
+  and the CPU-only harness passed all **15 synthetic checks**. Its refreshed
+  component timings are directional CPU fixture results only. No real-Phi
+  inference, GPU/CUDA, Kaggle, or remote-compute validation has been performed
+  for the prepared path.
+
+- Fixed-KV harness correction CPU validation: **14 tests passed** in
+  `tests/test_predictive_fast_inference_harness.py`; the harness compiled and
+  `--dry-run` displayed both separate protocols without loading a model,
+  checkpoint, or CUDA context. **No GPU work was performed.**
 
 ## Future GPU review gate (documented, not authorized to run)
 
 The first GPU test remains blocked on the user's review and explicit approval.
 After approval, use one T4, fp16, batch size 1, real Step-100, the canonical
-predictor K=32 codebook, compressed prompt, no emission gate, merged LoRA, and
-fixed static KV cache length 256. Use `gsm_2956` and approximately 100 cached
-decode-forward calls (101 generated-token cap includes the first prefill
-prediction; EOS may stop earlier). Run three conditions, in this order for
-reporting:
+predictor K=32 codebook, compressed prompt, no emission gate, and merged LoRA.
+Use `gsm_2956`. Keep two distinct measurements, each covering vanilla,
+predictive legacy, and predictive fast:
+
+1. Behavioral smoke generation using a static cache with **capacity 256**.
+   Its used KV context grows during generation; collect output, EOS, wall-time,
+   TTFT, and legacy/fast equivalence diagnostics. These timings are not fixed-
+   KV results and must not be directly compared with historical true-fixed-KV
+   V16 figures.
+2. True fixed-context microbenchmark: prefill exactly 256 physical KV
+   positions, then run at least 20 warmup and exactly 100 measured one-token
+   forwards. Probe mutation using a copy; if the cache is mutable, create an
+   independently stored cache copy for every warmup and measured sample outside
+   the timed interval. If it is proven immutable, reuse the untouched reference
+   cache. Never feed a previous sample's returned cache into the next sample.
+   Assert each sample starts at 256 and the reference cache remains at 256
+   before and after probing and the full timing loop. Report cache class,
+   layer/tensor metadata, mutation and copy strategy, and each sample's input
+   sequence length. Use CUDA Events for the measured forward only; synchronize
+   before the batch and after recording all events, not inside each sample.
+   Report mean, median, p95, standard deviation, min/max, steps per second,
+   warmup count, and measured count. Prefill and cache-copy time are excluded.
+
+Run three conditions in the same order for both measurement sections:
 
 1. Vanilla Phi.
 2. Predictive Step-100, merged, legacy runtime.
@@ -256,15 +306,17 @@ The legacy and fast conditions must reuse the exact same codebook and original
 prompt IDs. Compare one B/C smoke generation and save raw decode IDs, expanded
 base IDs, text, H emissions, first divergence, top-1 agreement, top-5 overlap,
 and finite-value max/mean logit differences. FP16 logits need not be bitwise
-identical. Use CUDA Events for decode forwards; the first full-prompt forward is
-prefill and is excluded from cached decode-step summaries. Run Vanilla
-separately after the predictive pair is released so two full Phi models do not
-need to remain resident together.
+identical. Use CUDA Events for fixed-KV one-token forwards. Run Vanilla first
+and release it before loading the predictive model, so two full Phi models do
+not need to remain resident together. The two predictive conditions use one
+merged model sequentially but each receives a fresh manager; after each
+condition, assert the previous model and embedding/output manager bindings are
+restored before continuing.
 
 Proposed command (not run):
 
 ```powershell
-python experiments/validate_predictive_fast_path.py --execute --device cuda:0 --allow-gpu --conditions vanilla predictive_legacy_merged predictive_fast_merged --prompt-id gsm_2956 --batch-size 1 --max-new-tokens 101 --kv-cache-length 256
+python experiments/validate_predictive_fast_path.py --execute --device cuda:0 --allow-gpu --conditions vanilla predictive_legacy_merged predictive_fast_merged --prompt-id gsm_2956 --batch-size 1 --max-new-tokens 101 --static-cache-capacity 256
 ```
 
 Do not start with the 12-prompt benchmark, run a Kaggle job, or schedule any
