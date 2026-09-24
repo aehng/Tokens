@@ -1,9 +1,13 @@
 import random
+import inspect
+import textwrap
+from types import SimpleNamespace
 
 import pytest
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.profiler import ProfilerActivity, profile
 from peft import LoraConfig, get_peft_model
 from transformers import LlamaConfig, LlamaForCausalLM
 
@@ -18,6 +22,7 @@ from zip2zip.codebook import CodebookManager
 from zip2zip.nn.encoders.config import ResLatentAttnConfig
 from zip2zip.nn.embedding import HyperEmbedding
 from zip2zip.nn.linear import HyperLinear
+from zip2zip.static_codebook import estimate_effective_table_memory
 
 
 class MeanTokenEncoder:
@@ -229,11 +234,12 @@ def test_legacy_positions_match_python_reference_for_random_mixed_chunks():
 
 def test_trusted_fast_positions_match_legacy_across_masked_chunks():
     legacy = make_manager()
-    fast = make_manager()
+    fast_managers = [make_manager(), make_manager()]
     # Request setup will set this only after validating the codebook and
     # preparing the inference tables. Set it directly here to isolate the
     # branchless position calculation.
-    fast.fast_inference_ready = True
+    for fast in fast_managers:
+        fast.fast_inference_ready = True
     rng = random.Random(9917)
 
     for length in range(1, 13):
@@ -244,9 +250,32 @@ def test_trusted_fast_positions_match_legacy_across_masked_chunks():
             [[rng.randrange(2) for _ in range(length)] for _ in range(2)]
         )
         legacy_positions = legacy.prepare_input_ids(ids, attention_mask=mask)
-        fast_positions = fast.prepare_input_ids(ids, attention_mask=mask)
-        assert torch.equal(fast_positions, legacy_positions)
-        assert torch.equal(fast.base_position_offset, legacy.base_position_offset)
+        for row, fast in enumerate(fast_managers):
+            fast_positions = fast.prepare_input_ids(
+                ids[row : row + 1], attention_mask=mask[row : row + 1]
+            )
+            assert torch.equal(fast_positions, legacy_positions[row : row + 1])
+            assert torch.equal(
+                fast.base_position_offset, legacy.base_position_offset[row : row + 1]
+            )
+
+
+def test_prepared_position_path_has_no_any_or_python_tensor_branch():
+    manager = make_manager()
+    manager.fast_inference_ready = True
+    ids = torch.tensor([[1, 12, 7, 13]])
+    with profile(activities=[ProfilerActivity.CPU]) as prof:
+        manager.prepare_input_ids(ids)
+    operator_counts = {event.key: event.count for event in prof.key_averages()}
+    assert operator_counts.get("aten::any", 0) == 0
+
+    source = textwrap.dedent(inspect.getsource(StaticCodebookManager.prepare_input_ids))
+    fast_branch = source.split("if self.fast_inference_ready:", 1)[1].split(
+        "elif is_hyper.any():", 1
+    )[0]
+    assert ".item(" not in fast_branch
+    assert "bool(" not in fast_branch
+    assert "elif is_hyper.any():" in source
 
 
 def test_seeded_codebook_validation_rejects_invalid_or_sparse_ids_atomically():
@@ -288,6 +317,112 @@ def test_new_codebook_invalidates_fast_inference_readiness_and_vectors():
     assert manager.hyper_linear_weight_cache is None
 
 
+def test_prepared_inference_rejects_batches_before_mutating_state():
+    manager = make_manager()
+    embedding = make_embedding(manager)
+    head = make_linear(manager)
+    model = TinyPredictiveModel(manager, embedding, head).eval()
+    manager.attach_to_model(model)
+    initial = (
+        manager.inference_tables_build_count,
+        manager.inference_tables_version,
+        manager.input_encoder_calls,
+        manager.output_encoder_calls,
+        manager.effective_embedding_weight_cache,
+        manager.effective_linear_weight_cache,
+        manager.base_position_offset,
+    )
+
+    for kwargs in (
+        {"batch_size": 2},
+        {"batch_size": 1, "dummy_input_ids": torch.zeros((2, 3), dtype=torch.long)},
+    ):
+        with pytest.raises(NotImplementedError, match="batch_size=1"):
+            manager.prepare_inference_tables(model, **kwargs)
+        assert (
+            manager.inference_tables_build_count,
+            manager.inference_tables_version,
+            manager.input_encoder_calls,
+            manager.output_encoder_calls,
+            manager.effective_embedding_weight_cache,
+            manager.effective_linear_weight_cache,
+            manager.base_position_offset,
+        ) == initial
+
+    manager.prepare_inference_tables(model, batch_size=1)
+    assert manager.fast_inference_ready
+    assert manager.inference_tables_build_count == 1
+    spans_before = manager.hyper_token_spans.clone()
+    runtime_batch_before = manager.runtime_batch_size
+    with pytest.raises(NotImplementedError, match="batch_size=1"):
+        manager.prepare_input_ids(torch.zeros((2, 2), dtype=torch.long))
+    assert manager.runtime_batch_size == runtime_batch_before
+    assert torch.equal(manager.hyper_token_spans, spans_before)
+
+
+@pytest.mark.parametrize(
+    "generation_config,model_config,expected_error",
+    [
+        (SimpleNamespace(eos_token_id=11, pad_token_id=0), None, None),
+        (SimpleNamespace(eos_token_id=12, pad_token_id=0), None, "eos_token_id"),
+        (SimpleNamespace(eos_token_id=11, pad_token_id=15), None, "pad_token_id"),
+        (SimpleNamespace(eos_token_id=None, pad_token_id=None), SimpleNamespace(eos_token_id=None), None),
+        (SimpleNamespace(eos_token_id=[11, 12], pad_token_id=None), None, "eos_token_id"),
+    ],
+)
+def test_generation_special_token_space_guard(
+    generation_config, model_config, expected_error
+):
+    manager = make_manager()
+    embedding = make_embedding(manager)
+    head = make_linear(manager)
+    model = TinyPredictiveModel(manager, embedding, head).eval()
+    model.base_model.generation_config = generation_config
+    if model_config is not None:
+        model.base_model.config = model_config
+    manager.attach_to_model(model)
+
+    if expected_error is None:
+        manager.prepare_inference_tables(model)
+        assert manager.fast_inference_ready
+    else:
+        with pytest.raises(ValueError, match=expected_error):
+            manager.prepare_inference_tables(model)
+        assert not manager.fast_inference_ready
+        assert manager.inference_tables_build_count == 0
+        assert manager.input_encoder_calls == 0
+        assert manager.output_encoder_calls == 0
+
+
+def test_fast_inference_guards_padding_index_at_hypertoken_boundary():
+    manager = make_manager()
+    embedding = make_embedding(manager)
+    embedding.padding_idx = manager.initial_vocab_size
+    model = TinyPredictiveModel(manager, embedding, make_linear(manager)).eval()
+    manager.attach_to_model(model)
+
+    with pytest.raises(ValueError, match="padding_idx"):
+        manager.prepare_inference_tables(model)
+    assert manager.inference_tables_build_count == 0
+
+
+def test_real_phi_effective_table_memory_estimator_uses_shape_and_dtype_only():
+    report = estimate_effective_table_memory(
+        (32064, 3072),
+        torch.float16,
+        (32064, 3072),
+        torch.float16,
+        codebook_size=32,
+        output_bias_shape=(32064,),
+        output_bias_dtype=torch.float16,
+    )
+    expected_embedding = (32064 + 32) * 3072 * 2
+    expected_head = (32064 + 32) * 3072 * 2 + (32064 + 32) * 2
+    assert report["effective_input_embedding_bytes"] == expected_embedding
+    assert report["effective_output_head_bytes"] == expected_head
+    assert report["additional_bytes"] == expected_embedding + expected_head
+
+
 def test_prepared_tables_match_legacy_and_cover_shifted_input_tail():
     legacy_manager = make_manager()
     legacy_embedding = make_embedding(legacy_manager)
@@ -300,12 +435,38 @@ def test_prepared_tables_match_legacy_and_cover_shifted_input_tail():
         fast_embedding.weight.copy_(legacy_embedding.weight)
         fast_head.weight.copy_(legacy_head.weight)
         fast_head.bias.copy_(legacy_head.bias)
+    original_input = fast_embedding.weight.detach().clone()
+    original_output = fast_head.weight.detach().clone()
+    original_bias = fast_head.bias.detach().clone()
 
     model = TinyPredictiveModel(fast_manager, fast_embedding, fast_head).eval()
     fast_manager.attach_to_model(model)
-    memory = fast_manager.prepare_inference_tables(model, batch_size=2)
+    memory = fast_manager.prepare_inference_tables(model, batch_size=1)
     assert fast_manager.base_position_offset is None
     assert not fast_manager._prepared_for_embedding
+
+    effective_input = fast_manager.effective_embedding_weight_cache
+    effective_output = fast_manager.effective_linear_weight_cache
+    effective_bias = fast_manager.effective_linear_bias_cache
+    vocab, codebook, original_rows = 12, 4, 15
+    assert effective_input.shape == (original_rows + codebook, 5)
+    assert effective_output.shape == (original_rows + codebook, 5)
+    assert effective_bias.shape == (original_rows + codebook,)
+    assert torch.equal(effective_input[:vocab], original_input[:vocab])
+    assert torch.equal(effective_output[:vocab], original_output[:vocab])
+    assert torch.equal(effective_bias[:vocab], original_bias[:vocab])
+    expected_input_h = torch.zeros((codebook, 5))
+    expected_output_h = torch.zeros((codebook, 5))
+    for slot, phrase in enumerate(fast_manager.hyper_to_subtokens.values()):
+        phrase_ids = torch.tensor(phrase)
+        expected_input_h[slot] = original_input[phrase_ids].mean(dim=0)
+        expected_output_h[slot] = original_output[phrase_ids].mean(dim=0)
+    assert torch.equal(effective_input[vocab : vocab + codebook], expected_input_h)
+    assert torch.equal(effective_output[vocab : vocab + codebook], expected_output_h)
+    assert torch.equal(effective_bias[vocab : vocab + codebook], torch.zeros(codebook))
+    assert torch.equal(effective_input[vocab + codebook :], original_input[vocab:])
+    assert torch.equal(effective_output[vocab + codebook :], original_output[vocab:])
+    assert torch.equal(effective_bias[vocab + codebook :], original_bias[vocab:])
 
     prompt_ids = torch.tensor([[1, 12, 7, 13]])
     legacy_embedded = legacy_embedding(prompt_ids)
@@ -391,6 +552,13 @@ def test_prepared_tables_match_legacy_and_cover_shifted_input_tail():
     assert memory["additional_cpu_ram_bytes"] == memory[
         "effective_input_embedding_bytes"
     ] + memory["effective_output_head_bytes"]
+    assert {
+        "h_vector_synthesis_ms",
+        "effective_input_table_build_ms",
+        "effective_output_table_build_ms",
+        "total_table_preparation_ms",
+    } <= fast_manager.inference_timing_report.keys()
+    assert all(value >= 0 for value in fast_manager.inference_timing_report.values())
 
     for _ in range(3):
         fast_embedding(prompt_ids)
@@ -498,13 +666,26 @@ def test_lora_merge_preserves_wrappers_outputs_and_one_position_hook(monkeypatch
     manager.set_seeded_codebook([[2, 3]])
     manager.attach_to_model(model)
     manager.prepare_inference_tables(model)
+    assert manager.fast_inference_ready
+    assert manager.inference_tables_build_count == 1
     ids = torch.tensor([[1, 2, 3]])
+    with pytest.raises(NotImplementedError, match="batch_size=1"):
+        model.generate(input_ids=ids.expand(2, -1))
+    assert manager.fast_inference_ready
+    with pytest.raises(ValueError, match="generation arguments.eos_token_id"):
+        model.generate(input_ids=ids, eos_token_id=vocab)
+    assert manager.fast_inference_ready
+    pre_merge_base = model.base_model
+    pre_merge_hook = pre_merge_base.prepare_inputs_for_generation.__func__
     with torch.no_grad():
         before = model.base_model(input_ids=ids).logits
 
     prepared = prepare_model_for_inference(model, merge_lora=True)
     assert prepared is model
+    assert model.base_model is not pre_merge_base
     assert not manager.fast_inference_ready
+    assert manager.effective_embedding_weight_cache is None
+    assert manager.effective_linear_weight_cache is None
     assert isinstance(model.base_model.get_input_embeddings(), HyperEmbedding)
     assert isinstance(model.base_model.get_output_embeddings(), HyperLinear)
     assert not model.base_model.__class__.__name__.startswith("Peft")
@@ -515,5 +696,16 @@ def test_lora_merge_preserves_wrappers_outputs_and_one_position_hook(monkeypatch
     hooked_method = model.base_model.prepare_inputs_for_generation
     hooked_func = hooked_method.__func__
     assert getattr(hooked_func, "_zip2zip_position_hook_owner", None) == id(model)
+    assert hooked_func is not pre_merge_hook
+    assert model._position_hook_base_model is model.base_model
+    manager.prepare_inference_tables(model)
+    assert manager.fast_inference_ready
+    assert manager.inference_tables_build_count == 2
+    merged_input = model.base_model.get_input_embeddings().weight
+    merged_output = model.base_model.get_output_embeddings().weight
+    assert torch.equal(manager.effective_embedding_weight_cache[:vocab], merged_input[:vocab])
+    assert torch.equal(manager.effective_linear_weight_cache[:vocab], merged_output[:vocab])
     prepare_model_for_inference(model, merge_lora=True)
     assert model.base_model.prepare_inputs_for_generation.__func__ is hooked_func
+    assert manager.fast_inference_ready
+    assert manager.inference_tables_build_count == 2

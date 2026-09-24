@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import logging
 from numbers import Integral
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+import time
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple, Union
 import torch
 from transformers import AutoTokenizer, LogitsProcessor
 
@@ -10,6 +11,81 @@ from zip2zip.config import Zip2ZipConfig
 from zip2zip.nn.encoders.base import EncoderFn
 
 logger = logging.getLogger(__name__)
+
+
+def _dtype_element_size(dtype: torch.dtype) -> int:
+    """Return dtype storage size using a tiny CPU scalar, never model weights."""
+    return torch.empty((), dtype=dtype).element_size()
+
+
+def _shape_numel(shape: Sequence[int]) -> int:
+    count = 1
+    for size in shape:
+        if size < 0:
+            raise ValueError(f"Tensor shape dimensions must be non-negative: {shape}")
+        count *= int(size)
+    return count
+
+
+def estimate_effective_table_memory(
+    input_shape: Sequence[int],
+    input_dtype: torch.dtype,
+    output_shape: Sequence[int],
+    output_dtype: torch.dtype,
+    *,
+    codebook_size: int,
+    output_bias_shape: Optional[Sequence[int]] = None,
+    output_bias_dtype: Optional[torch.dtype] = None,
+) -> Dict[str, int]:
+    """Estimate prepared-table storage from model tensor shapes and dtypes only.
+
+    Input and output weights must be matrix shapes ``(vocab_rows, hidden)``.
+    The estimate includes each full effective table, because the request cache
+    holds those copies alongside the model's original parameters.
+    """
+    if len(input_shape) != 2 or len(output_shape) != 2:
+        raise ValueError("input and output weight shapes must both be rank 2")
+    if codebook_size < 0:
+        raise ValueError("codebook_size must be non-negative")
+    input_rows, input_width = map(int, input_shape)
+    output_rows, output_width = map(int, output_shape)
+    input_el_size = _dtype_element_size(input_dtype)
+    output_el_size = _dtype_element_size(output_dtype)
+
+    base_input_bytes = _shape_numel(input_shape) * input_el_size
+    effective_input_bytes = (input_rows + codebook_size) * input_width * input_el_size
+    base_output_weight_bytes = _shape_numel(output_shape) * output_el_size
+    effective_output_weight_bytes = (
+        (output_rows + codebook_size) * output_width * output_el_size
+    )
+
+    base_bias_bytes = 0
+    effective_bias_bytes = 0
+    if output_bias_shape is not None:
+        if output_bias_dtype is None:
+            raise ValueError("output_bias_dtype is required when output_bias_shape is set")
+        if len(output_bias_shape) != 1 or int(output_bias_shape[0]) != output_rows:
+            raise ValueError("output bias shape must match the output row count")
+        bias_el_size = _dtype_element_size(output_bias_dtype)
+        base_bias_bytes = _shape_numel(output_bias_shape) * bias_el_size
+        effective_bias_bytes = (output_rows + codebook_size) * bias_el_size
+
+    base_output_bytes = base_output_weight_bytes + base_bias_bytes
+    effective_output_bytes = effective_output_weight_bytes + effective_bias_bytes
+    additional_input_bytes = effective_input_bytes - base_input_bytes
+    additional_output_bytes = effective_output_bytes - base_output_bytes
+    additional_bytes = effective_input_bytes + effective_output_bytes
+
+    return {
+        "base_input_embedding_bytes": base_input_bytes,
+        "effective_input_embedding_bytes": effective_input_bytes,
+        "additional_input_embedding_bytes": additional_input_bytes,
+        "base_output_head_bytes": base_output_bytes,
+        "effective_output_head_bytes": effective_output_bytes,
+        "additional_output_head_bytes": additional_output_bytes,
+        "additional_bytes": additional_bytes,
+        "additional_effective_table_bytes": additional_bytes,
+    }
 
 
 class StaticCodebookManager:
@@ -55,6 +131,7 @@ class StaticCodebookManager:
         self.inference_tables_build_count = 0
         self.inference_tables_version = 0
         self.inference_memory_report: Dict[str, int] = {}
+        self.inference_timing_report: Dict[str, float] = {}
 
         # Position tracking (zip2zip++ base token positions)
         self.runtime_batch_size: Optional[int] = None
@@ -236,6 +313,10 @@ class StaticCodebookManager:
             raise ValueError(f"input_ids must be rank 2, got shape {tuple(ids.shape)}")
 
         batch_size, _ = ids.shape
+        if self.fast_inference_ready and batch_size != 1:
+            raise NotImplementedError(
+                "prepared predictive fast inference currently supports batch_size=1"
+            )
         if self.runtime_batch_size is not None and self.runtime_batch_size != batch_size:
             # Batch size changed: re-expand updates and spans
             self._build_updates_tensor(batch_size, device=ids.device)
@@ -424,6 +505,134 @@ class StaticCodebookManager:
         self.effective_linear_weight_cache = None
         self.effective_linear_bias_cache = None
         self.inference_memory_report = {}
+        self.inference_timing_report: Dict[str, float] = {}
+
+    @staticmethod
+    def _token_ids_from_generation_value(value: object, field_name: str) -> List[int]:
+        if value is None:
+            return []
+        if isinstance(value, bool):
+            raise ValueError(f"Unsupported boolean generation token ID in {field_name}")
+        if isinstance(value, Integral):
+            return [int(value)]
+        if isinstance(value, (list, tuple)):
+            token_ids: List[int] = []
+            for item in value:
+                token_ids.extend(
+                    StaticCodebookManager._token_ids_from_generation_value(
+                        item, field_name
+                    )
+                )
+            return token_ids
+        raise ValueError(
+            f"Unsupported generation token ID value for {field_name}: "
+            f"{type(value).__name__}"
+        )
+
+    def validate_generation_token_space(
+        self,
+        model: torch.nn.Module,
+        input_padding_idx: Optional[int] = None,
+        generation_overrides: Optional[Mapping[str, object]] = None,
+    ) -> None:
+        """Reject generation or padding IDs that collide with inserted H rows."""
+        base = getattr(model, "base_model", model)
+        configs = [
+            ("base_model.generation_config", getattr(base, "generation_config", None)),
+            ("base_model.config", getattr(base, "config", None)),
+        ]
+        if generation_overrides is not None:
+            configs.append(("generation arguments", generation_overrides))
+        special_fields = (
+            "eos_token_id",
+            "pad_token_id",
+            "bos_token_id",
+            "decoder_start_token_id",
+            "forced_bos_token_id",
+            "forced_eos_token_id",
+            "suppress_tokens",
+            "begin_suppress_tokens",
+            "bad_words_ids",
+            "force_words_ids",
+        )
+        for config_name, config in configs:
+            if config is None:
+                continue
+            for field_name in special_fields:
+                value = (
+                    config.get(field_name)
+                    if isinstance(config, Mapping)
+                    else getattr(config, field_name, None)
+                )
+                for token_id in self._token_ids_from_generation_value(
+                    value, f"{config_name}.{field_name}"
+                ):
+                    if token_id >= self.initial_vocab_size:
+                        raise ValueError(
+                            "Fast predictive inference currently requires generation "
+                            "special token IDs to remain below the hypertoken insertion "
+                            f"point; {config_name}.{field_name} contains {token_id} "
+                            f"(V={self.initial_vocab_size})."
+                        )
+
+            forced_decoder_ids = (
+                config.get("forced_decoder_ids")
+                if isinstance(config, Mapping)
+                else getattr(config, "forced_decoder_ids", None)
+            )
+            if forced_decoder_ids is not None:
+                if not isinstance(forced_decoder_ids, (list, tuple)):
+                    raise ValueError(
+                        f"Unsupported generation token ID value for "
+                        f"{config_name}.forced_decoder_ids"
+                    )
+                for entry in forced_decoder_ids:
+                    if not isinstance(entry, (list, tuple)) or len(entry) != 2:
+                        raise ValueError(
+                            f"Malformed {config_name}.forced_decoder_ids entry: {entry!r}"
+                        )
+                    token_id = self._token_ids_from_generation_value(
+                        entry[1], f"{config_name}.forced_decoder_ids"
+                    )
+                    if any(value >= self.initial_vocab_size for value in token_id):
+                        raise ValueError(
+                            "Fast predictive inference currently requires generation "
+                            "special token IDs to remain below the hypertoken insertion "
+                            f"point; {config_name}.forced_decoder_ids contains a tail ID."
+                        )
+
+            sequence_bias = (
+                config.get("sequence_bias")
+                if isinstance(config, Mapping)
+                else getattr(config, "sequence_bias", None)
+            )
+            if sequence_bias is not None:
+                if not isinstance(sequence_bias, dict):
+                    raise ValueError(
+                        f"Unsupported generation token ID value for "
+                        f"{config_name}.sequence_bias"
+                    )
+                for sequence in sequence_bias:
+                    token_ids = self._token_ids_from_generation_value(
+                        sequence, f"{config_name}.sequence_bias"
+                    )
+                    if any(value >= self.initial_vocab_size for value in token_ids):
+                        raise ValueError(
+                            "Fast predictive inference currently requires generation "
+                            "special token IDs to remain below the hypertoken insertion "
+                            f"point; {config_name}.sequence_bias contains a tail ID."
+                        )
+
+        if input_padding_idx is not None:
+            if isinstance(input_padding_idx, bool) or not isinstance(
+                input_padding_idx, Integral
+            ):
+                raise ValueError(f"Unsupported embedding padding_idx: {input_padding_idx!r}")
+            if int(input_padding_idx) >= self.initial_vocab_size:
+                raise ValueError(
+                    "Fast predictive inference currently requires HyperEmbedding.padding_idx "
+                    "to remain below the hypertoken insertion point."
+                )
 
     def prepare_inference_tables(
         self,
@@ -433,25 +642,30 @@ class StaticCodebookManager:
     ) -> Dict[str, int]:
         """Synthesize request H vectors and build effective tables once.
 
-        A static codebook is shared across a request batch. The encoders run on
-        one copy of that codebook while the model is in eval mode, and their
-        resulting H rows are shared by each sequence in the batch.
+        Prepared predictive inference currently supports batch size one only.
+        H rows are request-shared, but table lookup/position state is not yet
+        implemented for multi-sequence batches.
         """
-        if batch_size < 1:
-            raise ValueError("batch_size must be positive")
+        if (
+            isinstance(batch_size, bool)
+            or not isinstance(batch_size, Integral)
+            or batch_size != 1
+        ):
+            raise NotImplementedError(
+                "prepared predictive fast inference currently supports batch_size=1"
+            )
+        if dummy_input_ids is not None and (
+            dummy_input_ids.ndim != 2 or dummy_input_ids.shape[0] != 1
+        ):
+            raise NotImplementedError(
+                "prepared predictive fast inference currently supports batch_size=1"
+            )
         if model.training:
             raise RuntimeError("prepare_inference_tables() requires model.eval()")
         if self.num_seeded != len(self.hyper_to_subtokens):
             raise RuntimeError("seeded codebook state is inconsistent")
         if self.updates is None or self.hyper_token_spans is None:
             raise RuntimeError("set_seeded_codebook() must run before table preparation")
-
-        if (
-            self.fast_inference_ready
-            and self.effective_embedding_weight_cache is not None
-            and self.effective_linear_weight_cache is not None
-        ):
-            return dict(self.inference_memory_report)
 
         base = getattr(model, "base_model", model)
         input_layer = base.get_input_embeddings()
@@ -474,19 +688,51 @@ class StaticCodebookManager:
             raise ValueError("input embedding width does not match the encoder width")
         if output_layer.weight.shape[1] != self.embedding_dim:
             raise ValueError("output head width does not match the encoder width")
+        self.validate_generation_token_space(
+            model, input_padding_idx=getattr(input_layer, "padding_idx", None)
+        )
+
+        if (
+            self.fast_inference_ready
+            and self.effective_embedding_weight_cache is not None
+            and self.effective_linear_weight_cache is not None
+        ):
+            return dict(self.inference_memory_report)
 
         self.clear_weight_caches()
         self.runtime_batch_size = 1
         device = input_layer.weight.device
+        cuda_stage_events = {}
+        cpu_stage_times = {}
+
+        def start_stage(name: str):
+            if device.type == "cuda":
+                start_event = torch.cuda.Event(enable_timing=True)
+                end_event = torch.cuda.Event(enable_timing=True)
+                start_event.record()
+                cuda_stage_events[name] = (start_event, end_event)
+                return end_event
+            cpu_stage_times[name] = time.perf_counter()
+            return None
+
+        def end_stage(name: str, end_event) -> None:
+            if device.type == "cuda":
+                end_event.record()
+            else:
+                cpu_stage_times[name] = time.perf_counter() - cpu_stage_times[name]
+
         if dummy_input_ids is None:
             dummy_input_ids = torch.zeros((1, 1), dtype=torch.long, device=device)
         elif dummy_input_ids.device != device:
             dummy_input_ids = dummy_input_ids.to(device)
 
         try:
+            total_end = start_stage("total_table_preparation")
+            synthesis_end = start_stage("h_vector_synthesis")
             input_h, output_h = self.synthesize_hyper_vectors(
                 model, batch_size=1, dummy_input_ids=dummy_input_ids
             )
+            end_stage("h_vector_synthesis", synthesis_end)
             with torch.no_grad():
                 input_h = input_h[0].to(
                     device=input_layer.weight.device, dtype=input_layer.weight.dtype
@@ -495,6 +741,7 @@ class StaticCodebookManager:
                     device=output_layer.weight.device, dtype=output_layer.weight.dtype
                 )
 
+                input_table_end = start_stage("effective_input_table_build")
                 effective_input = torch.cat(
                     (
                         input_layer.weight[: self.initial_vocab_size],
@@ -503,6 +750,8 @@ class StaticCodebookManager:
                     ),
                     dim=0,
                 )
+                end_stage("effective_input_table_build", input_table_end)
+                output_table_end = start_stage("effective_output_table_build")
                 effective_output = torch.cat(
                     (
                         output_layer.weight[: self.initial_vocab_size],
@@ -527,6 +776,7 @@ class StaticCodebookManager:
                         ),
                         dim=0,
                     )
+                end_stage("effective_output_table_build", output_table_end)
 
             self.effective_embedding_weight_cache = effective_input.detach()
             self.effective_linear_weight_cache = effective_output.detach()
@@ -578,6 +828,34 @@ class StaticCodebookManager:
                 ),
                 "additional_cpu_ram_bytes": cpu_table_bytes,
             }
+            self.inference_memory_report.update(
+                estimate_effective_table_memory(
+                    input_layer.weight.shape,
+                    input_layer.weight.dtype,
+                    output_layer.weight.shape,
+                    output_layer.weight.dtype,
+                    codebook_size=self.max_codebook_size,
+                    output_bias_shape=(
+                        output_layer.bias.shape if output_layer.bias is not None else None
+                    ),
+                    output_bias_dtype=(
+                        output_layer.bias.dtype if output_layer.bias is not None else None
+                    ),
+                )
+            )
+            end_stage("total_table_preparation", total_end)
+            if device.type == "cuda":
+                # Synchronize only at this setup boundary, never inside decode.
+                torch.cuda.synchronize(device)
+                self.inference_timing_report = {
+                    f"{name}_ms": float(start.elapsed_time(end))
+                    for name, (start, end) in cuda_stage_events.items()
+                }
+            else:
+                self.inference_timing_report = {
+                    f"{name}_ms": float(elapsed * 1000)
+                    for name, elapsed in cpu_stage_times.items()
+                }
             self.inference_tables_build_count += 1
             self.inference_tables_version += 1
             # The encoder cache is seeded with dummy IDs only to trigger the

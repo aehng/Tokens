@@ -405,6 +405,17 @@ class Zip2ZipModel(PushToHubMixin, nn.Module):
             )
         input_ids = kwargs["input_ids"]
         batch_size = input_ids.shape[0]
+        if (
+            getattr(self.codebook_manager, "fast_inference_ready", False)
+            and batch_size != 1
+        ):
+            raise NotImplementedError(
+                "prepared predictive fast inference currently supports batch_size=1"
+            )
+        if getattr(self.codebook_manager, "fast_inference_ready", False):
+            self.codebook_manager.validate_generation_token_space(
+                self, generation_overrides=kwargs
+            )
         # TODO, we don't need to reset this incase of multi-turn generation
         self.codebook_manager.reset()
         self.codebook_manager.init_codebooks_and_hyper_weight_cache(batch_size)
