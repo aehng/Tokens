@@ -139,10 +139,11 @@ performance; the future GPU review gate below remains unrun.
    evaluation mode, and verify both Zip2Zip wrapper modules remain available.
 6. Add a CPU-only equivalence harness, CPU operator profile, and small CPU
    timing checks for position, embedding, and projection paths. CPU timings are
-   directional only and are not evidence of GPU speedup. Do not run a separate
-   live-generation benchmark.
+   directional only and are not evidence of GPU speedup. A separate, gated
+   real-Phi comparison harness is maintained for the eventual approved check;
+   it is not run by default.
 7. Run focused and existing tests, inspect changed files and diffs, and create
-   small commits on this branch. Do not push or merge as part of this task.
+   small commits on this branch. Push only this feature branch; do not merge it.
 
 The shifted-tail asymmetry is now explicit and covered: legacy logits preserve
 tail rows, the fast input table maps shifted tail IDs to their source rows, and
@@ -184,14 +185,88 @@ The detailed machine-readable and Markdown measurements are in
 `experiments/reports/fast_inference_cpu_profile.json` and
 `experiments/reports/fast_inference_cpu_profile.md`.
 
+## Fast-inference integration and safety update (2026-09-23)
+
+- The authoritative `experiments/run_quality_benchmark.py` remains on its
+  legacy predictive path (`prepare_prompt_input_ids()` followed by
+  `model.generate()`). Do not replace that path: it is the legacy control for
+  the later A/B/C comparison.
+- The separate `experiments/validate_predictive_fast_path.py` supports
+  `vanilla`, `predictive_legacy_merged`, and `predictive_fast_merged`. Its
+  default is a non-loading dry run. Real model execution is gated by all of
+  `--execute --device cuda[:N] --allow-gpu`; the harness also enforces batch
+  size 1 and a 256-token static KV-cache limit.
+- Predictive B/C share a single codebook selected once from the same raw prompt
+  token IDs. The harness checks prompt/tokenizer/decoding-setting identity and
+  codebook identity before reporting the smoke comparison. The predictor keeps
+  `max_subtokens=3`; the static inference manager remains at 4.
+- The fast request order is explicit: merge LoRA with
+  `prepare_model_for_inference(model, merge_lora=True)`, seed/attach the static
+  manager, prepare tables, transform IDs with `prepare_input_sequence()`,
+  generate, restore H/tail IDs with `decode_sequence()`, and detach. The legacy
+  condition does not prepare the effective tables. Generation-critical IDs
+  in model/generation configs and call-time overrides, plus
+  `HyperEmbedding.padding_idx`, must remain below `V`; tail-ID remapping of HF
+  generation settings is intentionally unsupported.
+- Prepared fast inference is explicitly batch-size 1. Unsupported batch sizes
+  fail before table state changes; direct prepared-position and generation
+  paths enforce the same contract. Exact input, output, and optional output-bias
+  rows are covered by tests. The trusted prepared position branch stays free of
+  tensor-to-Python decisions (`aten::any`, `.item()`, and `bool(tensor)`), while
+  unprepared legacy validation remains defensive.
+- LoRA merge invalidates prepared tables. Tests rebuild against merged weights,
+  verify the table-build counter, and confirm exactly one idempotent generation
+  hook remains on the merged base.
+- Table setup reports H-vector synthesis, effective input-table construction,
+  effective output-table construction, and total preparation time. CUDA event
+  timers synchronize only at the setup boundary, not per decode step. The
+  future harness also records TTFT, end-to-end and decode wall time, mean /
+  median / p95 cached-forward timing, VRAM before/after/peak during preparation,
+  table bytes, output IDs, expanded IDs, H emissions, and B/C divergence/logit
+  agreement diagnostics.
+- Shape/dtype-only estimate for the pinned Phi-3.5 Mini dimensions
+  (32,064 rows by 3,072 hidden, fp16, K=32) is **188.06 MiB per effective
+  table**, **376.13 MiB total for the two full effective tables** held alongside
+  the existing model weights. The newly inserted K rows themselves account for
+  only about 0.38 MiB across both tables; copying the base rows is the dominant
+  setup-memory cost. The harness recomputes the estimate from the actual loaded
+  model's tensor shapes/dtypes before a future approved run. Persistent extended
+  buffers that update only H rows remain a possible later optimization, not part
+  of this change.
+- Current bounded CPU validation: **62 focused tests passed** and the CPU-only
+  harness passed all **15 synthetic checks**. Its refreshed component timings
+  are directional CPU fixture results only. No real-Phi inference, GPU/CUDA,
+  Kaggle, or remote-compute validation has been performed for the prepared path.
+
 ## Future GPU review gate (documented, not authorized to run)
 
-After the user has reviewed the completed CPU implementation and explicitly
-approves a GPU run, validate on one T4 with one representative real K=32
-codebook, fixed KV=256, and approximately 50–100 measured decode steps. Compare
-only (A) the merged/base Vanilla reference and (B) optimized merged Predictive,
-with a single smoke prompt for output equivalence. Do not start with a
-12-prompt suite. The historical V16 references were approximately 58 ms/step
-for Vanilla, 100 ms/step for merged Predictive, and roughly 12% decode-step
-reduction; these motivate a later decision threshold near 66 ms/step but are
-not a result for the new implementation.
+The first GPU test remains blocked on the user's review and explicit approval.
+After approval, use one T4, fp16, batch size 1, real Step-100, the canonical
+predictor K=32 codebook, compressed prompt, no emission gate, merged LoRA, and
+fixed static KV cache length 256. Use `gsm_2956` and approximately 100 cached
+decode-forward calls (101 generated-token cap includes the first prefill
+prediction; EOS may stop earlier). Run three conditions, in this order for
+reporting:
+
+1. Vanilla Phi.
+2. Predictive Step-100, merged, legacy runtime.
+3. Predictive Step-100, merged, prepared fast runtime.
+
+The legacy and fast conditions must reuse the exact same codebook and original
+prompt IDs. Compare one B/C smoke generation and save raw decode IDs, expanded
+base IDs, text, H emissions, first divergence, top-1 agreement, top-5 overlap,
+and finite-value max/mean logit differences. FP16 logits need not be bitwise
+identical. Use CUDA Events for decode forwards; the first full-prompt forward is
+prefill and is excluded from cached decode-step summaries. Run Vanilla
+separately after the predictive pair is released so two full Phi models do not
+need to remain resident together.
+
+Proposed command (not run):
+
+```powershell
+python experiments/validate_predictive_fast_path.py --execute --device cuda:0 --allow-gpu --conditions vanilla predictive_legacy_merged predictive_fast_merged --prompt-id gsm_2956 --batch-size 1 --max-new-tokens 101 --kv-cache-length 256
+```
+
+Do not start with the 12-prompt benchmark, run a Kaggle job, or schedule any
+GPU work as part of this gate. Historical V16 timings are context only and do
+not establish a performance result for this new implementation.
