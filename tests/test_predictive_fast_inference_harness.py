@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 from transformers.cache_utils import DynamicCache
+from zip2zip.predictor_policy import CappedPredictorPolicy
 
 from experiments import validate_predictive_fast_path as harness
 
@@ -628,31 +629,140 @@ def test_fixed_kv_rejects_wrong_semantic_position_vector_before_prefill():
     assert model.forward_calls == 0
 
 
-def test_predictor_result_and_codebook_are_selected_once_and_shared():
-    codebook = {32011 + index: [100 + index, 200 + index] for index in range(32)}
+def _canonical_codebook_for_test():
+    phrases = [(101, 102), (201, 202, 203)] + [
+        (100 + index, 200 + index) for index in range(2, 32)
+    ]
+    return {
+        phrases[index]: 32011 + index
+        for index in reversed(range(len(phrases)))
+    }
 
-    class Policy:
-        calls = 0
 
-        def select_codebook(self, token_ids):
-            self.calls += 1
-            assert token_ids == [11, 12, 13]
-            return codebook, {"source": "test"}
+def test_canonical_codebook_serialization_round_trips_and_hashes_deterministically():
+    codebook = _canonical_codebook_for_test()
 
-    policy = Policy()
-    selected, _, _ = harness._select_codebook_once(policy, [11, 12, 13])
-    legacy_fast = harness._predictive_condition_codebooks(
-        selected,
-        ["predictive_legacy_merged", "predictive_fast_merged"],
+    serialized, digest = harness._serialize_codebook(codebook)
+    serialized_again, digest_again = harness._serialize_codebook(
+        dict(reversed(list(codebook.items())))
     )
-    assert policy.calls == 1
-    assert legacy_fast[0][1] is legacy_fast[1][1] is selected
-    assert harness._serialize_codebook(selected) == harness._serialize_codebook(codebook)
-    serialized, digest = harness._serialize_codebook(selected)
-    assert len(serialized) == 32
+
+    assert serialized[:2] == [
+        {"hyper_id": 32011, "subtoken_ids": [101, 102]},
+        {"hyper_id": 32012, "subtoken_ids": [201, 202, 203]},
+    ]
+    reconstructed = {
+        tuple(item["subtoken_ids"]): item["hyper_id"] for item in serialized
+    }
+    assert reconstructed == codebook
+    assert serialized_again == serialized
+    assert digest_again == digest
     assert digest == hashlib.sha256(
         json.dumps(serialized, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
+
+
+@pytest.mark.parametrize(
+    ("case", "error"),
+    [
+        ("reversed_orientation", "phrase tuples"),
+        ("wrong_k", "exactly K=32"),
+        ("short_phrase", "phrase length"),
+        ("long_phrase", "phrase length"),
+        ("non_integer_phrase_id", "phrase IDs must be integers"),
+        ("tail_token_id", "outside base vocabulary"),
+        ("disabled_token_id", "disabled token ID"),
+        ("non_integer_hyper_id", "must be an integer"),
+        ("out_of_range_hyper_id", "outside the required absolute range"),
+        ("duplicate_hyper_id", "duplicate H ID"),
+    ],
+)
+def test_predictor_codebook_contract_rejects_malformed_results(case, error):
+    codebook = _canonical_codebook_for_test()
+    first_phrase = next(iter(codebook))
+    if case == "reversed_orientation":
+        codebook = {hyper_id: phrase for phrase, hyper_id in codebook.items()}
+    elif case == "wrong_k":
+        codebook.pop(first_phrase)
+    elif case == "short_phrase":
+        codebook[(10,)] = codebook.pop(first_phrase)
+    elif case == "long_phrase":
+        codebook[(10, 11, 12, 13)] = codebook.pop(first_phrase)
+    elif case == "non_integer_phrase_id":
+        codebook[(10, "11")] = codebook.pop(first_phrase)
+    elif case == "tail_token_id":
+        codebook[(10, 32011)] = codebook.pop(first_phrase)
+    elif case == "disabled_token_id":
+        codebook[(101, 102)] = 32011
+    elif case == "non_integer_hyper_id":
+        codebook[first_phrase] = "32011"
+    elif case == "out_of_range_hyper_id":
+        codebook[first_phrase] = 32043
+    elif case == "duplicate_hyper_id":
+        second_phrase = next(phrase for phrase in codebook if phrase != first_phrase)
+        codebook[first_phrase] = codebook[second_phrase]
+
+    with pytest.raises((TypeError, ValueError), match=error):
+        harness._serialize_codebook(
+            codebook,
+            disabled_ids=(101,) if case == "disabled_token_id" else (),
+        )
+
+
+def test_real_policy_orientation_flows_through_serializer_and_manager_unchanged():
+    class TinyTokenizer:
+        @staticmethod
+        def decode(token_ids):
+            return " ".join(f"piece{token_id}" for token_id in token_ids)
+
+    predictor_index = SimpleNamespace(
+        disabled_ids=[],
+        max_subtokens=3,
+        token_associations={},
+    )
+    policy = CappedPredictorPolicy(
+        predictor_index,
+        TinyTokenizer(),
+        budget=32,
+        max_structural_slots=0,
+        filter_bare_punctuation=True,
+    )
+    prompt_ids = list(range(100, 140))
+    selected, metadata = policy.select_codebook(prompt_ids)
+
+    assert metadata["total_phrases"] == 32
+    assert len(selected) == 32
+    assert all(isinstance(phrase, tuple) for phrase in selected)
+    assert all(type(hyper_id) is int for hyper_id in selected.values())
+    assert set(selected.values()) == set(range(32011, 32043))
+    serialized, digest = harness._serialize_codebook(
+        selected, disabled_ids=policy.disabled_ids
+    )
+    assert len(serialized) == 32
+    assert digest == harness._serialize_codebook(
+        selected, disabled_ids=policy.disabled_ids
+    )[1]
+
+    predictive_conditions = harness._predictive_condition_codebooks(
+        selected,
+        ["predictive_legacy_merged", "predictive_fast_merged"],
+    )
+    assert predictive_conditions[0][1] is predictive_conditions[1][1] is selected
+
+    manager = harness.StaticCodebookManager(
+        initial_vocab_size=32011,
+        max_codebook_size=32,
+        max_subtokens=4,
+        embedding_dim=8,
+        pad_token_id=0,
+        disabled_ids=policy.disabled_ids,
+    )
+    # Pass the original policy object directly; runtime orientation is not reversed.
+    manager.set_seeded_codebook(selected, batch_size=1, device=torch.device("cpu"))
+    assert manager.subtokens_to_hyper == selected
+    assert manager.hyper_to_subtokens == {
+        hyper_id: list(phrase) for phrase, hyper_id in selected.items()
+    }
 
 
 def test_fresh_manager_detaches_and_restores_all_prior_condition_bindings():

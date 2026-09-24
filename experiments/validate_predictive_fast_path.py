@@ -14,6 +14,7 @@ import hashlib
 import json
 import math
 import os
+from collections.abc import Mapping
 from pathlib import Path
 import statistics
 import sys
@@ -271,22 +272,103 @@ def _generation_tensors_to_cpu(values) -> Tuple[torch.Tensor, ...]:
     return tuple(stacked[index] for index in range(stacked.shape[0]))
 
 
-def _serialize_codebook(codebook: Dict[Any, Sequence[int]]) -> Tuple[List[Dict[str, Any]], str]:
-    """Canonical JSON representation and digest for one predictor-selected codebook."""
+def _validate_predictor_codebook(
+    codebook: Mapping[Tuple[int, ...], int],
+    *,
+    initial_vocab_size: int,
+    max_codebook_size: int,
+    max_subtokens: int,
+    disabled_ids: Sequence[int] = (),
+) -> None:
+    """Enforce CappedPredictorPolicy's phrase-tuple -> absolute-H-ID contract."""
+    if not isinstance(codebook, dict):
+        raise TypeError(
+            "canonical predictor codebook must be the policy's dict mapping "
+            "phrase tuples to absolute hypertoken IDs"
+        )
+    if len(codebook) != max_codebook_size:
+        raise ValueError(
+            f"predictor codebook must contain exactly K={max_codebook_size} entries; "
+            f"got {len(codebook)}"
+        )
+
+    expected_hyper_ids = set(
+        range(initial_vocab_size, initial_vocab_size + max_codebook_size)
+    )
+    observed_hyper_ids = set()
+    observed_phrases = set()
+    disabled = set(disabled_ids)
+    for phrase, hyper_id in codebook.items():
+        if not isinstance(phrase, tuple):
+            raise ValueError(
+                "canonical predictor codebook keys must be phrase tuples; expected "
+                "Mapping[Tuple[int, ...], int] (phrase -> absolute H ID)"
+            )
+        if not 2 <= len(phrase) <= max_subtokens:
+            raise ValueError(
+                f"predictor phrase length must be between 2 and {max_subtokens}; "
+                f"got {len(phrase)} for {phrase!r}"
+            )
+        if any(type(token_id) is not int for token_id in phrase):
+            raise ValueError(f"predictor phrase IDs must be integers: {phrase!r}")
+        if any(not 0 <= token_id < initial_vocab_size for token_id in phrase):
+            raise ValueError(
+                f"predictor phrase {phrase!r} contains an ID outside base vocabulary "
+                f"[0, {initial_vocab_size})"
+            )
+        if any(token_id in disabled for token_id in phrase):
+            raise ValueError(f"predictor phrase {phrase!r} contains a disabled token ID")
+        if type(hyper_id) is not int:
+            raise ValueError(
+                f"predictor H ID for phrase {phrase!r} must be an integer; "
+                f"got {hyper_id!r}"
+            )
+        if hyper_id not in expected_hyper_ids:
+            raise ValueError(
+                f"predictor H ID {hyper_id} is outside the required absolute range "
+                f"[{initial_vocab_size}, {initial_vocab_size + max_codebook_size})"
+            )
+        if hyper_id in observed_hyper_ids:
+            raise ValueError(f"predictor returned duplicate H ID {hyper_id}")
+        if phrase in observed_phrases:
+            raise ValueError(f"predictor returned duplicate phrase {phrase!r}")
+        observed_hyper_ids.add(hyper_id)
+        observed_phrases.add(phrase)
+
+    if observed_hyper_ids != expected_hyper_ids:
+        raise ValueError(
+            "predictor H IDs must be unique and contiguous across the required "
+            f"range [{initial_vocab_size}, {initial_vocab_size + max_codebook_size})"
+        )
+
+
+def _serialize_codebook(
+    codebook: Mapping[Tuple[int, ...], int],
+    *,
+    disabled_ids: Sequence[int] = (),
+) -> Tuple[List[Dict[str, Any]], str]:
+    """Serialize the validated canonical phrase-tuple -> absolute-H-ID mapping."""
+    _validate_predictor_codebook(
+        codebook,
+        initial_vocab_size=benchmark.INITIAL_VOCAB,
+        max_codebook_size=MAX_CODEBOOK_SIZE,
+        max_subtokens=PREDICTOR_MAX_SUBTOKENS,
+        disabled_ids=disabled_ids,
+    )
     serialized = [
         {
             "hyper_id": int(hyper_id),
-            "subtoken_ids": [int(token_id) for token_id in subtokens],
+            "subtoken_ids": [int(token_id) for token_id in phrase],
         }
-        for hyper_id, subtokens in sorted(codebook.items(), key=lambda item: int(item[0]))
+        for phrase, hyper_id in sorted(codebook.items(), key=lambda item: int(item[1]))
     ]
     canonical = json.dumps(serialized, sort_keys=True, separators=(",", ":"))
     return serialized, hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _predictive_condition_codebooks(
-    codebook: Dict[Any, Sequence[int]], selected_conditions: Sequence[str]
-) -> List[Tuple[str, Dict[Any, Sequence[int]]]]:
+    codebook: Mapping[Tuple[int, ...], int], selected_conditions: Sequence[str]
+) -> List[Tuple[str, Mapping[Tuple[int, ...], int]]]:
     """Bind both predictive conditions to the exact one-time predictor result."""
     return [
         (condition, codebook)
@@ -1109,11 +1191,11 @@ def _run_predictive_pair(
     codebook, _predictor_meta, predictor_latency_s = _select_codebook_once(
         policy, original_ids
     )
-    if len(codebook) != MAX_CODEBOOK_SIZE:
-        raise RuntimeError(
-            f"representative validation requires exactly K=32 selected entries; got {len(codebook)}"
-        )
-    serialized_codebook, codebook_sha256 = _serialize_codebook(codebook)
+    codebook_disabled_ids = set(getattr(policy, "disabled_ids", ()))
+    codebook_disabled_ids.update(bundle["disabled_ids"])
+    serialized_codebook, codebook_sha256 = _serialize_codebook(
+        codebook, disabled_ids=codebook_disabled_ids
+    )
     generation_settings = {
         "do_sample": False,
         "num_beams": 1,
