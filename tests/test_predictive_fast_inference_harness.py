@@ -1,5 +1,7 @@
 import hashlib
+import inspect
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -53,6 +55,96 @@ def test_dry_run_describes_two_separate_protocols_without_model_or_cuda(monkeypa
         "behavioral smoke: fast mode uses prepare_inference_tables -> prepare_input_sequence -> generate -> decode_sequence"
     )
     assert any("fixed-KV" in step for step in report["lifecycle"])
+
+
+def test_partial_condition_artifacts_are_atomic_and_survive_later_failure(
+    tmp_path, monkeypatch
+):
+    provenance = {"torchao_initial_version": "0.10.0", "torchao_final_state": "absent"}
+    vanilla_payload = {
+        "condition_order": ["vanilla"],
+        "behavioral_generation_smoke": {"conditions": {"vanilla": {"wall_s": 1.0}}},
+        "fixed_kv_microbenchmark": {"conditions": {"vanilla": {"median_ms": 58.0}}},
+        "environment_provenance": provenance,
+    }
+    vanilla_path, aggregate_path = harness._write_partial_condition_result(
+        output_dir=tmp_path,
+        condition="vanilla",
+        payload=vanilla_payload,
+    )
+    assert json.loads(vanilla_path.read_text(encoding="utf-8"))["partial_result"][
+        "completed_conditions"
+    ] == ["vanilla"]
+
+    legacy_payload = {
+        **vanilla_payload,
+        "condition_order": ["vanilla", "predictive_legacy_merged"],
+        "behavioral_generation_smoke": {
+            "conditions": {
+                "vanilla": {"wall_s": 1.0},
+                "predictive_legacy_merged": {"wall_s": 2.0},
+            }
+        },
+        "fixed_kv_microbenchmark": {
+            "conditions": {
+                "vanilla": {"median_ms": 58.0},
+                "predictive_legacy_merged": {"median_ms": 100.0},
+            }
+        },
+    }
+    legacy_path, aggregate_path = harness._write_partial_condition_result(
+        output_dir=tmp_path,
+        condition="predictive_legacy_merged",
+        payload=legacy_payload,
+    )
+    # Simulate a failure while publishing a later condition. The earlier
+    # aggregate remains intact and the completed Fast condition file is atomic.
+    original_writer = harness.write_json_atomic
+
+    def fail_latest_aggregate(path, payload):
+        if Path(path).name == "partial_results.json" and payload["partial_result"][
+            "completed_condition"
+        ] == "predictive_fast_merged":
+            raise OSError("simulated Fast artifact publish failure")
+        original_writer(path, payload)
+
+    fast_payload = {
+        **legacy_payload,
+        "condition_order": [
+            "vanilla",
+            "predictive_legacy_merged",
+            "predictive_fast_merged",
+        ],
+    }
+    monkeypatch.setattr(harness, "write_json_atomic", fail_latest_aggregate)
+    with pytest.raises(OSError, match="simulated Fast artifact publish failure"):
+        harness._write_partial_condition_result(
+            output_dir=tmp_path,
+            condition="predictive_fast_merged",
+            payload=fast_payload,
+        )
+
+    for path in (vanilla_path, legacy_path, aggregate_path):
+        saved = json.loads(path.read_text(encoding="utf-8"))
+        assert "behavioral_generation_smoke" in saved
+        assert "fixed_kv_microbenchmark" in saved
+        assert saved["environment_provenance"] == provenance
+    assert json.loads(aggregate_path.read_text(encoding="utf-8"))["partial_result"][
+        "completed_conditions"
+    ] == ["vanilla", "predictive_legacy_merged"]
+    assert (tmp_path / "partial_predictive_fast_merged.json").is_file()
+    assert not list(tmp_path.glob("*.tmp"))
+
+
+def test_predictive_pair_publishes_each_condition_before_continuing():
+    pair_source = inspect.getsource(harness._run_predictive_pair)
+    execute_source = inspect.getsource(harness.execute)
+    assert "on_condition_complete(" in pair_source
+    assert pair_source.index("prior_manager_bindings_restored_after_detach") < pair_source.index(
+        "on_condition_complete("
+    )
+    assert "on_condition_complete=on_predictive_condition_complete" in execute_source
+    assert "persist_partial(\n                \"vanilla\"" in execute_source
 
 
 def test_execution_and_fast_path_batch_are_explicitly_gated(monkeypatch):

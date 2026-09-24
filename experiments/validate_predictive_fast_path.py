@@ -18,7 +18,7 @@ from pathlib import Path
 import statistics
 import sys
 import time
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import torch
 
@@ -30,6 +30,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, LogitsProcessorLis
 
 from zip2zip import StaticCodebookManager, prepare_model_for_inference
 from zip2zip.static_codebook import estimate_effective_table_memory
+from experiments.benchmark_provenance import write_json_atomic
 from experiments import run_quality_benchmark as benchmark
 
 
@@ -77,6 +78,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output-dir",
         default=str(REPO_ROOT / "experiments" / "checkpoints" / "fast_inference_validation"),
+    )
+    parser.add_argument(
+        "--environment-provenance",
+        help="Optional JSON provenance file copied into each durable partial result.",
     )
     return parser
 
@@ -1071,7 +1076,14 @@ def _assert_codebook_manager_bindings(
         raise RuntimeError("predictive condition did not restore its prior manager bindings")
 
 
-def _run_predictive_pair(args: argparse.Namespace, prompt: Dict[str, Any], device: torch.device):
+def _run_predictive_pair(
+    args: argparse.Namespace,
+    prompt: Dict[str, Any],
+    device: torch.device,
+    on_condition_complete: Optional[
+        Callable[[str, Dict[str, Any], Dict[str, Any]], None]
+    ] = None,
+):
     bundle = benchmark.load_predictive_model_bundle(
         args.checkpoint,
         str(device),
@@ -1264,6 +1276,16 @@ def _run_predictive_pair(args: argparse.Namespace, prompt: Dict[str, Any], devic
         records[condition]["condition_runtime_state"][
             "prior_manager_bindings_restored_after_detach"
         ] = True
+        if on_condition_complete is not None:
+            on_condition_complete(
+                condition,
+                records[condition],
+                {
+                    "original_prompt_token_ids": list(original_ids),
+                    "serialized_codebook": serialized_codebook,
+                    "codebook_sha256": codebook_sha256,
+                },
+            )
     smoke = None
     if "predictive_legacy_merged" in records and "predictive_fast_merged" in records:
         smoke = _compare_smoke_runs(
@@ -1576,6 +1598,32 @@ def _build_validation_payload(
     }
 
 
+def _write_partial_condition_result(
+    *,
+    output_dir: str | os.PathLike[str],
+    condition: str,
+    payload: Dict[str, Any],
+) -> Tuple[Path, Path]:
+    """Durably publish a completed condition and the latest aggregate snapshot."""
+
+    directory = Path(output_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    partial = dict(payload)
+    partial["partial_result"] = {
+        "is_partial": True,
+        "completed_condition": condition,
+        "completed_conditions": list(partial.get("condition_order", [])),
+        "remaining_conditions": [
+            name for name in CONDITIONS if name not in partial.get("condition_order", [])
+        ],
+    }
+    condition_path = directory / f"partial_{condition}.json"
+    aggregate_path = directory / "partial_results.json"
+    write_json_atomic(condition_path, partial)
+    write_json_atomic(aggregate_path, partial)
+    return condition_path, aggregate_path
+
+
 def execute(args: argparse.Namespace) -> Path:
     device = torch.device(args.device)
     if not args.execute:
@@ -1591,12 +1639,56 @@ def execute(args: argparse.Namespace) -> Path:
         raise RuntimeError(f"the reviewed first GPU protocol requires one T4; selected {gpu_name!r}")
     torch.cuda.set_device(device)
     prompt = _load_prompt(args.prompt_id)
+    os.makedirs(args.output_dir, exist_ok=True)
+    environment_provenance = None
+    if args.environment_provenance:
+        provenance_path = Path(args.environment_provenance)
+        if not provenance_path.is_file():
+            raise FileNotFoundError(
+                f"requested environment provenance file is missing: {provenance_path}"
+            )
+        environment_provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
     records: Dict[str, Any] = {}
     smoke = None
     original_ids: List[int] = []
     tokenizer = None
     serialized_codebook = None
     codebook_sha256 = None
+
+    def persist_partial(
+        condition: str,
+        *,
+        current_smoke: Optional[Dict[str, Any]],
+        current_original_ids: Sequence[int],
+        current_serialized_codebook: Optional[List[Dict[str, Any]]],
+        current_codebook_sha256: Optional[str],
+    ) -> None:
+        serializable_records = {
+            name: {
+                key: value
+                for key, value in record.items()
+                if key not in {"generation_score_tensors", "generation_logit_tensors"}
+            }
+            for name, record in records.items()
+        }
+        partial_payload = _build_validation_payload(
+            args=args,
+            prompt=prompt,
+            records=serializable_records,
+            smoke=current_smoke,
+            original_ids=current_original_ids,
+            device=device,
+            gpu_name=gpu_name,
+            serialized_codebook=current_serialized_codebook,
+            codebook_sha256=current_codebook_sha256,
+        )
+        partial_payload["environment_provenance"] = environment_provenance
+        _write_partial_condition_result(
+            output_dir=args.output_dir,
+            condition=condition,
+            payload=partial_payload,
+        )
+
     # Keep execution/report order aligned with the review protocol while
     # releasing Vanilla before loading the predictive bundle.
     if "vanilla" in args.conditions:
@@ -1604,7 +1696,41 @@ def execute(args: argparse.Namespace) -> Path:
         if vanilla_record is not None:
             records["vanilla"] = vanilla_record
             original_ids = list(vanilla_record["original_prompt_token_ids"])
+            persist_partial(
+                "vanilla",
+                current_smoke=None,
+                current_original_ids=original_ids,
+                current_serialized_codebook=None,
+                current_codebook_sha256=None,
+            )
     if any(condition.startswith("predictive_") for condition in args.conditions):
+
+        def on_predictive_condition_complete(
+            condition: str, record: Dict[str, Any], context: Dict[str, Any]
+        ) -> None:
+            records[condition] = record
+            current_ids = context["original_prompt_token_ids"]
+            if original_ids and original_ids != current_ids:
+                raise RuntimeError(
+                    "Vanilla and predictive conditions tokenized different source prompt IDs"
+                )
+            current_smoke = None
+            if (
+                "predictive_legacy_merged" in records
+                and "predictive_fast_merged" in records
+            ):
+                current_smoke = _compare_smoke_runs(
+                    records["predictive_legacy_merged"],
+                    records["predictive_fast_merged"],
+                )
+            persist_partial(
+                condition,
+                current_smoke=current_smoke,
+                current_original_ids=current_ids,
+                current_serialized_codebook=context["serialized_codebook"],
+                current_codebook_sha256=context["codebook_sha256"],
+            )
+
         (
             predictive_records,
             smoke,
@@ -1612,7 +1738,12 @@ def execute(args: argparse.Namespace) -> Path:
             predictive_tokenizer,
             serialized_codebook,
             codebook_sha256,
-        ) = _run_predictive_pair(args, prompt, device)
+        ) = _run_predictive_pair(
+            args,
+            prompt,
+            device,
+            on_condition_complete=on_predictive_condition_complete,
+        )
         if original_ids and original_ids != list(predictive_original_ids):
             raise RuntimeError("Vanilla and predictive conditions tokenized different source prompt IDs")
         original_ids = list(predictive_original_ids)
@@ -1634,7 +1765,6 @@ def execute(args: argparse.Namespace) -> Path:
                 record["total_request_wall_time_s"] / vanilla["total_request_wall_time_s"]
                 if vanilla["total_request_wall_time_s"] else None
             )
-    os.makedirs(args.output_dir, exist_ok=True)
     run_name = f"{prompt['id']}_{time.strftime('%Y%m%d_%H%M%S')}"
     output_path = Path(args.output_dir) / f"{run_name}.json"
     payload = _build_validation_payload(
@@ -1648,8 +1778,8 @@ def execute(args: argparse.Namespace) -> Path:
         serialized_codebook=serialized_codebook,
         codebook_sha256=codebook_sha256,
     )
-    with output_path.open("w", encoding="utf-8") as target:
-        json.dump(payload, target, indent=2, ensure_ascii=False)
+    payload["environment_provenance"] = environment_provenance
+    write_json_atomic(output_path, payload)
     summary_path = output_path.with_suffix(".md")
     summary_path.write_text(_render_human_readable_summary(payload), encoding="utf-8")
     return output_path
