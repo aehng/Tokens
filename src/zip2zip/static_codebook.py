@@ -49,6 +49,12 @@ class StaticCodebookManager:
         self.hyper_embedding_weight_cache: Optional[torch.Tensor] = None
         self.hyper_linear_weight_cache: Optional[torch.Tensor] = None
         self.fast_inference_ready = False
+        self.effective_embedding_weight_cache: Optional[torch.Tensor] = None
+        self.effective_linear_weight_cache: Optional[torch.Tensor] = None
+        self.effective_linear_bias_cache: Optional[torch.Tensor] = None
+        self.inference_tables_build_count = 0
+        self.inference_tables_version = 0
+        self.inference_memory_report: Dict[str, int] = {}
 
         # Position tracking (zip2zip++ base token positions)
         self.runtime_batch_size: Optional[int] = None
@@ -93,6 +99,8 @@ class StaticCodebookManager:
                 f"Dictionary contains {len(items)} items, exceeding "
                 f"max_codebook_size={self.max_codebook_size}"
             )
+        if batch_size < 1:
+            raise ValueError("batch_size must be positive")
 
         new_hyper_to_subtokens: Dict[int, List[int]] = {}
         new_subtokens_to_hyper: Dict[Tuple[int, ...], int] = {}
@@ -147,8 +155,11 @@ class StaticCodebookManager:
                     raise ValueError("Subtokens contain a disabled token ID")
                 normalized_subtokens.append(token_id)
 
+            phrase = tuple(normalized_subtokens)
+            if phrase in new_subtokens_to_hyper:
+                raise ValueError(f"Duplicate hypertoken phrase {phrase}")
             new_hyper_to_subtokens[hyper_id] = normalized_subtokens
-            new_subtokens_to_hyper[tuple(normalized_subtokens)] = hyper_id
+            new_subtokens_to_hyper[phrase] = hyper_id
 
         if used_slots != set(range(len(used_slots))):
             raise ValueError(
@@ -165,9 +176,10 @@ class StaticCodebookManager:
         # Invalidate weight caches so new embeddings will be computed
         self.hyper_embedding_weight_cache = None
         self.hyper_linear_weight_cache = None
-        self.fast_inference_ready = False
+        self._invalidate_inference_tables()
         self.base_position_offset = None
         self.position_ids = None
+        self._prepared_for_embedding = False
         self._build_updates_tensor(batch_size, device=device)
 
     def _build_updates_tensor(
@@ -406,6 +418,184 @@ class StaticCodebookManager:
             w_lin = self.get_hyper_linear_weights(out_emb.weight, out_enc_fn)
         return w_emb, w_lin
 
+    def _invalidate_inference_tables(self) -> None:
+        self.fast_inference_ready = False
+        self.effective_embedding_weight_cache = None
+        self.effective_linear_weight_cache = None
+        self.effective_linear_bias_cache = None
+        self.inference_memory_report = {}
+
+    def prepare_inference_tables(
+        self,
+        model: torch.nn.Module,
+        batch_size: int = 1,
+        dummy_input_ids: Optional[torch.Tensor] = None,
+    ) -> Dict[str, int]:
+        """Synthesize request H vectors and build effective tables once.
+
+        A static codebook is shared across a request batch. The encoders run on
+        one copy of that codebook while the model is in eval mode, and their
+        resulting H rows are shared by each sequence in the batch.
+        """
+        if batch_size < 1:
+            raise ValueError("batch_size must be positive")
+        if model.training:
+            raise RuntimeError("prepare_inference_tables() requires model.eval()")
+        if self.num_seeded != len(self.hyper_to_subtokens):
+            raise RuntimeError("seeded codebook state is inconsistent")
+        if self.updates is None or self.hyper_token_spans is None:
+            raise RuntimeError("set_seeded_codebook() must run before table preparation")
+
+        if (
+            self.fast_inference_ready
+            and self.effective_embedding_weight_cache is not None
+            and self.effective_linear_weight_cache is not None
+        ):
+            return dict(self.inference_memory_report)
+
+        base = getattr(model, "base_model", model)
+        input_layer = base.get_input_embeddings()
+        output_layer = base.get_output_embeddings()
+        if input_layer is None or output_layer is None:
+            raise ValueError("Fast inference requires input embeddings and an output head")
+        if (
+            getattr(input_layer, "codebook_manager", None) is not self
+            or getattr(output_layer, "codebook_manager", None) is not self
+        ):
+            raise RuntimeError(
+                "attach_to_model() must install this manager on both hyper modules "
+                "before preparing inference tables"
+            )
+        if input_layer.weight.shape[0] < self.initial_vocab_size:
+            raise ValueError("input embedding rows are smaller than initial_vocab_size")
+        if output_layer.weight.shape[0] < self.initial_vocab_size:
+            raise ValueError("output head rows are smaller than initial_vocab_size")
+        if input_layer.weight.shape[1] != self.embedding_dim:
+            raise ValueError("input embedding width does not match the encoder width")
+        if output_layer.weight.shape[1] != self.embedding_dim:
+            raise ValueError("output head width does not match the encoder width")
+
+        self.clear_weight_caches()
+        self.runtime_batch_size = 1
+        device = input_layer.weight.device
+        if dummy_input_ids is None:
+            dummy_input_ids = torch.zeros((1, 1), dtype=torch.long, device=device)
+        elif dummy_input_ids.device != device:
+            dummy_input_ids = dummy_input_ids.to(device)
+
+        try:
+            input_h, output_h = self.synthesize_hyper_vectors(
+                model, batch_size=1, dummy_input_ids=dummy_input_ids
+            )
+            with torch.no_grad():
+                input_h = input_h[0].to(
+                    device=input_layer.weight.device, dtype=input_layer.weight.dtype
+                )
+                output_h = output_h[0].to(
+                    device=output_layer.weight.device, dtype=output_layer.weight.dtype
+                )
+
+                effective_input = torch.cat(
+                    (
+                        input_layer.weight[: self.initial_vocab_size],
+                        input_h,
+                        input_layer.weight[self.initial_vocab_size :],
+                    ),
+                    dim=0,
+                )
+                effective_output = torch.cat(
+                    (
+                        output_layer.weight[: self.initial_vocab_size],
+                        output_h,
+                        output_layer.weight[self.initial_vocab_size :],
+                    ),
+                    dim=0,
+                )
+
+                effective_bias = None
+                if output_layer.bias is not None:
+                    h_bias = torch.zeros(
+                        self.max_codebook_size,
+                        device=output_layer.bias.device,
+                        dtype=output_layer.bias.dtype,
+                    )
+                    effective_bias = torch.cat(
+                        (
+                            output_layer.bias[: self.initial_vocab_size],
+                            h_bias,
+                            output_layer.bias[self.initial_vocab_size :],
+                        ),
+                        dim=0,
+                    )
+
+            self.effective_embedding_weight_cache = effective_input.detach()
+            self.effective_linear_weight_cache = effective_output.detach()
+            self.effective_linear_bias_cache = (
+                effective_bias.detach() if effective_bias is not None else None
+            )
+            self.hyper_embedding_weight_cache = None
+            self.hyper_linear_weight_cache = None
+
+            base_input_bytes = input_layer.weight.numel() * input_layer.weight.element_size()
+            effective_input_bytes = (
+                self.effective_embedding_weight_cache.numel()
+                * self.effective_embedding_weight_cache.element_size()
+            )
+            base_output_bytes = output_layer.weight.numel() * output_layer.weight.element_size()
+            effective_output_bytes = (
+                self.effective_linear_weight_cache.numel()
+                * self.effective_linear_weight_cache.element_size()
+            )
+            base_bias_bytes = (
+                output_layer.bias.numel() * output_layer.bias.element_size()
+                if output_layer.bias is not None
+                else 0
+            )
+            effective_bias_bytes = (
+                self.effective_linear_bias_cache.numel()
+                * self.effective_linear_bias_cache.element_size()
+                if self.effective_linear_bias_cache is not None
+                else 0
+            )
+            cpu_table_bytes = sum(
+                tensor.numel() * tensor.element_size()
+                for tensor in (
+                    self.effective_embedding_weight_cache,
+                    self.effective_linear_weight_cache,
+                    self.effective_linear_bias_cache,
+                )
+                if tensor is not None and tensor.device.type == "cpu"
+            )
+            self.inference_memory_report = {
+                "base_input_embedding_bytes": base_input_bytes,
+                "effective_input_embedding_bytes": effective_input_bytes,
+                "additional_input_embedding_bytes": effective_input_bytes - base_input_bytes,
+                "base_output_head_bytes": base_output_bytes + base_bias_bytes,
+                "effective_output_head_bytes": effective_output_bytes + effective_bias_bytes,
+                "additional_output_head_bytes": (
+                    effective_output_bytes + effective_bias_bytes
+                    - base_output_bytes - base_bias_bytes
+                ),
+                "additional_cpu_ram_bytes": cpu_table_bytes,
+            }
+            self.inference_tables_build_count += 1
+            self.inference_tables_version += 1
+            # The encoder cache is seeded with dummy IDs only to trigger the
+            # existing encoder API. Do not let that synthetic setup input
+            # advance the semantic position state for the real request.
+            self.base_position_offset = None
+            self.position_ids = None
+            self._prepared_for_embedding = False
+            self.fast_inference_ready = True
+            return dict(self.inference_memory_report)
+        except Exception:
+            self.clear_weight_caches()
+            self.base_position_offset = None
+            self.position_ids = None
+            self._prepared_for_embedding = False
+            self._invalidate_inference_tables()
+            raise
+
     def attach_to_model(self, model: torch.nn.Module) -> None:
         """Attach this static codebook manager to a Zip2ZipModel."""
         if hasattr(model, "codebook_manager"):
@@ -476,27 +666,66 @@ class StaticCodebookManager:
         """Segment a batch of base token sequences using the current seeded codebook."""
         return [self.segment_sequence(seq) for seq in batch_ids]
 
+    def prepare_input_sequence(
+        self, token_ids: Sequence[int], *, compress: bool = True
+    ) -> List[int]:
+        """Map original tokenizer IDs into the prepared fast-inference space.
+
+        Original vocabulary-tail IDs (IDs at or above ``initial_vocab_size``)
+        move by ``max_codebook_size`` because the effective tables reserve all
+        H slots at the insertion point. This must happen before segmentation:
+        otherwise a raw tail ID can collide numerically with an H ID.
+
+        The legacy/training path intentionally keeps its historical behavior;
+        this mapping is only valid after effective inference tables are ready.
+        """
+        if not self.fast_inference_ready:
+            raise RuntimeError(
+                "prepare_input_sequence() requires prepared fast-inference tables"
+            )
+
+        expanded_ids: List[int] = []
+        for token_id in token_ids:
+            if isinstance(token_id, bool) or not isinstance(token_id, Integral):
+                raise ValueError(f"Token ID must be an integer, got {token_id!r}")
+            token_id = int(token_id)
+            if token_id < 0:
+                raise ValueError(f"Token ID must be non-negative, got {token_id}")
+            if token_id >= self.initial_vocab_size:
+                token_id += self.max_codebook_size
+            expanded_ids.append(token_id)
+        if not compress:
+            return expanded_ids
+
+        from zip2zip.segmenter import DynamicSegmenter
+
+        segmenter = DynamicSegmenter(
+            subtokens_to_hyper=self.subtokens_to_hyper,
+            disabled_ids=self.disabled_ids,
+            max_subtokens=self.max_subtokens,
+        )
+        return segmenter.segment(expanded_ids)
+
     def decode_hypertoken(self, token_id: int) -> List[int]:
-        """Expand a single hypertoken into its component base tokens."""
+        """Expand H IDs and restore shifted original-tail IDs to base IDs."""
         if token_id in self.hyper_to_subtokens:
             return list(self.hyper_to_subtokens[token_id])
+        if token_id >= self.initial_vocab_size + self.max_codebook_size:
+            return [token_id - self.max_codebook_size]
         return [token_id]
 
     def decode_sequence(self, token_ids: Sequence[int]) -> List[int]:
-        """Expand all hypertokens in a sequence back into base tokens."""
+        """Expand H IDs and restore original tail IDs from expanded output space."""
         result: List[int] = []
         for tid in token_ids:
-            if tid in self.hyper_to_subtokens:
-                result.extend(self.hyper_to_subtokens[tid])
-            else:
-                result.append(tid)
+            result.extend(self.decode_hypertoken(tid))
         return result
 
     def clear_weight_caches(self) -> None:
         """Clear autograd weight caches between training steps."""
         self.hyper_embedding_weight_cache = None
         self.hyper_linear_weight_cache = None
-        self.fast_inference_ready = False
+        self._invalidate_inference_tables()
         self._prepared_for_embedding = False
 
     def reset(self, clear_dictionary: bool = False, clear_caches: bool = False) -> None:
@@ -514,7 +743,7 @@ class StaticCodebookManager:
         if clear_caches or clear_dictionary:
             self.hyper_embedding_weight_cache = None
             self.hyper_linear_weight_cache = None
-            self.fast_inference_ready = False
+            self._invalidate_inference_tables()
 
         if clear_dictionary:
             self.hyper_to_subtokens.clear()

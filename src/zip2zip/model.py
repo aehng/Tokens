@@ -66,7 +66,27 @@ class Zip2ZipModel(PushToHubMixin, nn.Module):
         if not self.uses_base_token_positions:
             return
 
-        original_prepare = self.base_model.prepare_inputs_for_generation
+        base_model = self.base_model
+        current_prepare = base_model.prepare_inputs_for_generation
+        current_func = getattr(current_prepare, "__func__", current_prepare)
+        if (
+            getattr(current_func, "_zip2zip_position_hook_owner", None) == id(self)
+            and getattr(self, "_position_hook_base_model", None) is base_model
+        ):
+            return
+
+        if getattr(current_func, "_zip2zip_position_hook_owner", None) == id(self):
+            # A PEFT merge may replace the wrapped base model. If its bound
+            # method still carries our old wrapper, rebind the class's original
+            # generation method to the new model before installing one hook.
+            class_prepare = getattr(type(base_model), "prepare_inputs_for_generation", None)
+            if class_prepare is None:
+                raise RuntimeError(
+                    "merged base model has no original generation preparation method"
+                )
+            original_prepare = class_prepare.__get__(base_model, type(base_model))
+        else:
+            original_prepare = current_prepare
         model_ref = self
 
         def prepare_inputs_for_generation(base_model, *args, **kwargs):
@@ -85,9 +105,11 @@ class Zip2ZipModel(PushToHubMixin, nn.Module):
             )
             return model_inputs
 
-        self.base_model.prepare_inputs_for_generation = MethodType(
-            prepare_inputs_for_generation, self.base_model
+        prepare_inputs_for_generation._zip2zip_position_hook_owner = id(self)
+        base_model.prepare_inputs_for_generation = MethodType(
+            prepare_inputs_for_generation, base_model
         )
+        self._position_hook_base_model = base_model
 
     def set_hyper_modules(self) -> None:
         model_input_embeddings = self.base_model.get_input_embeddings()

@@ -31,6 +31,18 @@ class HyperLinear(nn.Linear):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = x.detach() if getattr(self, "detach_input", False) else x
+
+        if getattr(self.codebook_manager, "fast_inference_ready", False):
+            effective_weight = getattr(
+                self.codebook_manager, "effective_linear_weight_cache", None
+            )
+            if effective_weight is None:
+                raise RuntimeError("fast inference is ready without an output table")
+            effective_bias = getattr(
+                self.codebook_manager, "effective_linear_bias_cache", None
+            )
+            return F.linear(h, effective_weight, effective_bias)
+
         base_logits = super().forward(h)
 
         hyper_linear_weights = self.codebook_manager.get_hyper_linear_weights(

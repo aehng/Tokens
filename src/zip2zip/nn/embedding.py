@@ -31,6 +31,22 @@ class HyperEmbedding(nn.Embedding):
         self.codebook_manager = codebook_manager
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
+        if getattr(self.codebook_manager, "fast_inference_ready", False):
+            effective_weight = getattr(
+                self.codebook_manager, "effective_embedding_weight_cache", None
+            )
+            if effective_weight is None:
+                raise RuntimeError("fast inference is ready without an embedding table")
+            return F.embedding(
+                input,
+                effective_weight,
+                self.padding_idx,
+                self.max_norm,
+                self.norm_type,
+                self.scale_grad_by_freq,
+                self.sparse,
+            )
+
         base_token_mask = input < self.initial_vocab_size
         hyper_token_mask = ~base_token_mask
         base_input_ids = input * base_token_mask.long()
