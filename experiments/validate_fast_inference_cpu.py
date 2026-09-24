@@ -165,20 +165,6 @@ def greedy_fixture(embedding, output_head, manager, prompt_ids, steps):
     return torch.cat(generated, dim=-1)
 
 
-def greedy_fixture(embedding, output_head, manager, prompt_ids, steps):
-    sequence = prompt_ids.clone()
-    generated = []
-    for _ in range(steps):
-        hidden = embedding(sequence)[:, -1:, :]
-        logits = output_head(hidden)[:, -1, :].clone()
-        logits[..., VOCAB + CODEBOOK_SIZE :] = float("-inf")
-        logits = manager.mask_unused_logits(logits)
-        next_id = logits.argmax(dim=-1, keepdim=True)
-        generated.append(next_id)
-        sequence = torch.cat((sequence, next_id), dim=-1)
-    return torch.cat(generated, dim=-1)
-
-
 def main():
     torch.set_num_threads(1)
     torch.manual_seed(230923)

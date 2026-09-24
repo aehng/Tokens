@@ -24,9 +24,9 @@ The fast table matches legacy embedding/logits on the common base/H ID space, pr
 
 | Component | Legacy | Fast |
 |---|---:|---:|
-| Position | 0.0563 | 0.0309 |
-| Embedding | 0.0617 | 0.0036 |
-| Output projection | 0.0743 | 0.0421 |
+| Position | 0.0640 | 0.0325 |
+| Embedding | 0.0634 | 0.0037 |
+| Output projection | 0.0828 | 0.0503 |
 
 ## Effective-table memory (bytes)
 

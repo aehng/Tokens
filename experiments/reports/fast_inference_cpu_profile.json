@@ -44,7 +44,9 @@
     "base_output_head_bytes": 1058832,
     "effective_output_head_bytes": 1075344,
     "additional_output_head_bytes": 16512,
-    "additional_cpu_ram_bytes": 2142352
+    "additional_cpu_ram_bytes": 2142352,
+    "additional_bytes": 2142352,
+    "additional_effective_table_bytes": 2142352
   },
   "operator_counts": {
     "embedding_legacy": {
@@ -75,12 +77,12 @@
     }
   },
   "median_timing_ms": {
-    "position_legacy_ms": 0.0563,
-    "position_fast_ms": 0.0309,
-    "embedding_legacy_ms": 0.0617,
-    "embedding_fast_ms": 0.0036,
-    "output_legacy_ms": 0.0743,
-    "output_fast_ms": 0.0421
+    "position_legacy_ms": 0.064,
+    "position_fast_ms": 0.0325,
+    "embedding_legacy_ms": 0.0634,
+    "embedding_fast_ms": 0.0037,
+    "output_legacy_ms": 0.0828,
+    "output_fast_ms": 0.0503
   },
   "notes": [
     "Synthetic deterministic encoder/model only; no live Phi generation was run.",
