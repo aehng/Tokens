@@ -11,7 +11,7 @@ Work is isolated on `codex/predictive-fast-inference`; it must not be merged to
 `main` as part of this task. Step-100 checkpoints, predictor files, datasets,
 and existing V16 results are read-only.
 
-## Current behavior verified in source
+## Baseline behavior captured before implementation
 
 Let `V = initial_vocab_size` and `K = max_codebook_size`.
 
@@ -29,13 +29,11 @@ Let `V = initial_vocab_size` and `K = max_codebook_size`.
   original output rows after `V` are shifted by `K` in the expanded output ID
   space. H output rows currently have no bias; original base bias rows are
   preserved on either side of the insertion.
-- The input wrapper does not currently perform the corresponding shifted-tail
-  lookup. It interprets every ID at or above `V` as an H slot. Therefore a
-  shifted original-tail ID is not reliably handled by the legacy embedding
-  path. This is a pre-existing asymmetry, not a behavior to hide: tests must
-  capture ordinary/H legacy behavior and output-tail ordering, and separately
-  prove the fast table's intended shifted-tail mapping. Greedy equivalence
-  fixtures must make any remaining compatibility boundary explicit.
+- The legacy input wrapper does not perform the corresponding shifted-tail
+  lookup. It interprets every ID at or above `V` as an H slot, so it cannot
+  reliably handle an original-tail ID shifted by `K`. The baseline tests
+  preserve this finding; the fast table uses the output layer's verified
+  ordering and maps shifted tail IDs to the original tail rows.
 - For positions, each base ID spans one base position and each seeded H ID
   spans the number of constituent base tokens. With valid-token mask `m` and
   span `s`, positions are `offset + cumsum(s*m) - 1`, padding positions are
@@ -59,6 +57,13 @@ Let `V = initial_vocab_size` and `K = max_codebook_size`.
   Training uses the legacy wrappers and checkpoint format. The joint
   checkpoint loader installs LoRA and encoder tensors separately; this task
   does not alter it or the saved checkpoint structure.
+- At baseline, `decode_sequence()` expanded seeded H IDs but left output-tail
+  IDs shifted. The implementation now restores original tail IDs by
+  subtracting `K` only for IDs at or above `V + K`. Prepared inference inputs
+  must map original prompt tail IDs upward by `K` before optional segmentation;
+  `prepare_input_sequence(..., compress=True|False)` does this explicitly and
+  is unavailable until effective tables are ready. This avoids collisions
+  between raw tail IDs and H IDs without changing legacy/training behavior.
 
 The requested `experiments/profile_gpu_decode_overhead.py` is not present in
 this checkout. No GPU profiler or replacement GPU experiment will be run.
@@ -66,13 +71,18 @@ this checkout. No GPU profiler or replacement GPU experiment will be run.
 ## Target inference lifecycle
 
 1. Load the existing predictive checkpoint without changing its format.
-2. Optionally merge PEFT/LoRA through an explicit inference-only helper using
+2. Optionally merge PEFT/LoRA through
+   `prepare_model_for_inference(model, merge_lora=True)`, using
    `merge_and_unload(safe_merge=True)`; never merge implicitly during model
-   construction or training.
+   construction or training. If merging after table preparation, the helper
+   invalidates those tables so they cannot retain pre-merge weights.
 3. Seed and attach the request's static codebook.
 4. During request setup, synthesize input and output H vectors once, then build
    effective input and output tables once.
-5. Generate using a trusted fast position path, one embedding lookup, Phi, and
+5. Convert original tokenizer prompt IDs with
+   `static_mgr.prepare_input_sequence(base_ids, compress=...)`; this shifts
+   original tail IDs into the expanded ID space before segmentation. Generate
+   using a trusted fast position path, one embedding lookup, Phi, and
    one output projection. No encoder call or effective-table rebuild belongs
    in the decode loop.
 6. Reset request position state; invalidate prepared tables when the codebook
@@ -87,6 +97,10 @@ effective input rows  = input_base[:V] + K input-H rows + input_base[V:]
 effective output rows = output_base[:V] + K output-H rows + output_base[V:]
 ```
 
+Original prompt IDs at or above `V` are shifted by `K` before they enter this
+table; generated output IDs already use that expanded space. `decode_sequence()`
+reverses the shift for tail IDs while expanding H tokens.
+
 The corresponding effective output bias is original bias rows before `V`,
 zero-valued H rows, then original bias rows from `V` onward. The fast embedding
 uses the expanded input IDs directly, so shifted original-tail IDs address the
@@ -94,6 +108,13 @@ matching original tail row. Legacy/training behavior remains available and is
 not switched to the fast path unless request setup has completed.
 
 ## Implementation and acceptance gates
+
+The CPU implementation is recorded on the feature branch. Its reference suite,
+CPU-only profiler, directional timing, measured memory, and current validation
+status are summarized in
+`experiments/reports/fast_inference_cpu_profile.md` and its adjacent JSON.
+These synthetic measurements do not establish real-Phi correctness or GPU
+performance; the future GPU review gate below remains unrun.
 
 1. Add synthetic CPU reference tests for base/H embeddings, H2/H3 and mixed
    spans, base/H logits, output insertion order, output tail, masks, and
@@ -111,8 +132,8 @@ not switched to the fast path unless request setup has completed.
 4. Add fast HyperEmbedding and HyperLinear routes using one lookup and one
    projection respectively. Verify weights, bias, vocabulary ordering, top-1,
    and greedy fixture IDs against the captured legacy references wherever the
-   legacy path defines behavior. Keep training and unprepared inference on the
-   legacy routes.
+   legacy path defines behavior. Verify prepared prompt tail-ID mapping and
+   round-trip. Keep training and unprepared inference on the legacy routes.
 5. Add and test an explicit inference LoRA-merge helper. It must reassign the
    merged base model, install the generation-position hook exactly once, set
    evaluation mode, and verify both Zip2Zip wrapper modules remain available.
@@ -123,9 +144,45 @@ not switched to the fast path unless request setup has completed.
 7. Run focused and existing tests, inspect changed files and diffs, and create
    small commits on this branch. Do not push or merge as part of this task.
 
-Stop and report if token mapping remains ambiguous, fast-vs-reference logits
-change materially, top-1 changes unexpectedly, stale tables survive a reset,
-or correctness requires changing training semantics or checkpoint loading.
+The shifted-tail asymmetry is now explicit and covered: legacy logits preserve
+tail rows, the fast input table maps shifted tail IDs to their source rows, and
+output expansion reverses that shift. Stop and report if another token mapping
+remains ambiguous, fast-vs-reference logits change materially, top-1 changes
+unexpectedly, stale tables survive a reset, or correctness requires changing
+training semantics or checkpoint loading.
+
+## CPU implementation validation status
+
+- Focused regression set: **46 passed** across fast-inference semantics,
+  static codebook, position handling, checkpoint loading, segmentation, and
+  quality-benchmark EOS tests. A separate synthetic backward test confirms
+  unprepared HyperEmbedding/HyperLinear remain differentiable and do not select
+  the fast path.
+- CPU harness: all 15 synthetic checks passed, including identical greedy IDs,
+  H2/H3 positions, output-tail order, prepared prompt-tail shifting and
+  round-trip, second-codebook invalidation, and no encoder calls after setup.
+- CPU operator profile: embedding changed from 2 embedding ops, 2 arange, 5
+  multiply, and 1 add to 1 embedding op; output changed from 1 linear + 1 bmm
+  + 1 cat to 1 linear; the position path has 0 `aten::any` calls (legacy: 2).
+- Directional CPU medians (ms/op): positions **0.0563 → 0.0309**, embedding
+  **0.0617 → 0.0036**, output projection **0.0743 → 0.0421**. These are small
+  synthetic CPU tensors and do not predict or establish T4/GPU speedup.
+- Synthetic 2,048-row, 128-hidden, K=32 float32 tables retain **2,142,352
+  additional CPU bytes** in effective tables. Real-model memory depends on
+  vocabulary, hidden width, and dtype; no real Phi model was loaded here.
+- The full test suite was **not completed**. An exploratory broad CPU pytest
+  invocation was interrupted after inspection showed it included full
+  Phi-3.5-Mini generation and a full-model backward/optimizer smoke test. Its
+  output was silent, so I cannot establish whether that optimizer-step test
+  had begun before cancellation. No checkpoint files changed. This is not
+  represented as a passing training test; the bounded synthetic gradient test
+  above is the training-path evidence for this change.
+- No live Phi generation, retraining, GPU/CUDA work, Kaggle job, or remote
+  compute was run.
+
+The detailed machine-readable and Markdown measurements are in
+`experiments/reports/fast_inference_cpu_profile.json` and
+`experiments/reports/fast_inference_cpu_profile.md`.
 
 ## Future GPU review gate (documented, not authorized to run)
 
