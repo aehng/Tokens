@@ -26,12 +26,17 @@ class SourceDatasetError(RuntimeError):
 
 
 def expand_approved_source_sha(source: str, commit_sha: str) -> str:
-    """Replace the git placeholder with the commit that owns this bootstrap."""
+    """Replace the assignment placeholder with the commit that owns this bootstrap."""
     if len(commit_sha) != 40 or any(char not in "0123456789abcdef" for char in commit_sha):
         raise ValueError(f"commit sha {commit_sha!r} is not 40 hex characters")
-    if source.count(_SHA_PLACEHOLDER) != 1:
+    lines = source.splitlines(keepends=True)
+    hits = [index for index, line in enumerate(lines) if line.strip() == _SHA_PLACEHOLDER]
+    if len(hits) != 1:
         raise ValueError("approved source SHA placeholder is missing or repeated")
-    return source.replace(_SHA_PLACEHOLDER, f'APPROVED_SOURCE_SHA = "{commit_sha}"', 1)
+    index = hits[0]
+    ending = "\r\n" if lines[index].endswith("\r\n") else "\n" if lines[index].endswith("\n") else ""
+    lines[index] = f'APPROVED_SOURCE_SHA = "{commit_sha}"' + ending
+    return "".join(lines)
 
 
 def find_source_dataset(

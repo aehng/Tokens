@@ -26,9 +26,23 @@ def _mount(root: Path, name: Path | str, sha: str, *, archive: bool = True) -> P
 
 def test_approved_sha_placeholder_expands_to_the_commit():
     assert APPROVED_SOURCE_SHA == "$Format:%H$"
-    source = 'APPROVED_SOURCE_SHA = "$Format:%H$"\n'
+    source = (
+        'note "$Format:%H$"\n'
+        'APPROVED_SOURCE_SHA = "$Format:%H$"\n'
+        '_SHA_PLACEHOLDER = \'APPROVED_SOURCE_SHA = "$Format:%H$"\'\n'
+    )
     expanded = expand_approved_source_sha(source, SHA)
-    assert expanded == f'APPROVED_SOURCE_SHA = "{SHA}"\n'
+    assert f'APPROVED_SOURCE_SHA = "{SHA}"\n' in expanded
+    assert expanded.count(f'APPROVED_SOURCE_SHA = "{SHA}"') == 1
+    assert '_SHA_PLACEHOLDER = \'APPROVED_SOURCE_SHA = "$Format:%H$"\'' in expanded
+    bootstrap = Path("experiments/kaggle/bootstrap_kaggle.py").read_text(encoding="utf-8")
+    packed = expand_approved_source_sha(bootstrap, SHA)
+    assignments = [
+        line.strip()
+        for line in packed.splitlines()
+        if line.strip().startswith("APPROVED_SOURCE_SHA = ")
+    ]
+    assert assignments == [f'APPROVED_SOURCE_SHA = "{SHA}"']
     with pytest.raises(ValueError):
         expand_approved_source_sha(source, "not-a-sha")
 
