@@ -116,3 +116,75 @@ def test_generate_injects_base_positions_into_transformers_decoder(monkeypatch):
 
     assert seen_positions[0].tolist() == [[0, 1, 2, 3, 5]]
     assert seen_positions[1].tolist() == [[6]]
+
+
+def test_generate_multi_step_positions_across_multiple_decode_iterations(monkeypatch):
+    base = LlamaForCausalLM(
+        LlamaConfig(
+            vocab_size=10,
+            hidden_size=16,
+            intermediate_size=32,
+            num_hidden_layers=1,
+            num_attention_heads=4,
+            num_key_value_heads=2,
+            max_position_embeddings=64,
+            bos_token_id=1,
+            eos_token_id=None,
+            pad_token_id=None,
+        )
+    ).eval()
+    with torch.no_grad():
+        for parameter in base.parameters():
+            parameter.zero_()
+    config = Zip2ZipConfig(
+        format_version=2,
+        base_model_name_or_path="unused",
+        position_mode="base_token_end",
+        encoder_type="res_latent_attn",
+        encoder=ResLatentAttnConfig(
+            hidden_size=16,
+            model_hidden_size=None,
+            num_hidden_layers=1,
+            intermediate_size=32,
+            num_heads=4,
+            causal=False,
+            residual=True,
+            tie_encoders=False,
+            position_encoding=None,
+        ),
+        compression=CompressionConfig(
+            initial_vocab_size=10,
+            max_codebook_size=20,
+            max_subtokens=4,
+            disabled_ids=[0],
+        ),
+    )
+    monkeypatch.setattr(
+        CodebookManager,
+        "from_config",
+        classmethod(lambda cls, config: _manager(embedding_dim=16)),
+    )
+    model = Zip2ZipModel(config, base_model=base).eval()
+    seen_positions = []
+
+    def capture_positions(module, args, kwargs):
+        seen_positions.append(kwargs["position_ids"].detach().clone())
+
+    handle = base.register_forward_pre_hook(capture_positions, with_kwargs=True)
+    try:
+        model.generate(
+            input_ids=torch.tensor([[1, 2, 1, 2]]),
+            max_new_tokens=5,
+            min_new_tokens=5,
+            do_sample=False,
+        )
+    finally:
+        handle.remove()
+
+    # Prefill: [0, 1, 2, 3] -> decode steps advance by generated token/hypertoken spans
+    assert seen_positions[0].tolist() == [[0, 1, 2, 3]]
+    assert len(seen_positions) >= 4
+    for step_pos in seen_positions[1:]:
+        assert len(step_pos.shape) == 2
+        assert step_pos.shape[1] == 1
+

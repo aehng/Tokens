@@ -90,6 +90,8 @@ class Zip2ZipModel(PushToHubMixin, nn.Module):
         model_ref = self
 
         def prepare_inputs_for_generation(base_model, *args, **kwargs):
+            if hasattr(torch, "compiler") and hasattr(torch.compiler, "cudagraph_mark_step_begin"):
+                torch.compiler.cudagraph_mark_step_begin()
             model_inputs = original_prepare(*args, **kwargs)
             input_ids = model_inputs.get("input_ids")
             if input_ids is None:
@@ -419,6 +421,23 @@ class Zip2ZipModel(PushToHubMixin, nn.Module):
         # TODO, we don't need to reset this incase of multi-turn generation
         self.codebook_manager.reset()
         self.codebook_manager.init_codebooks_and_hyper_weight_cache(batch_size)
+
+        if not getattr(self.codebook_manager, "fast_inference_ready", False):
+            base_weight = self.base_model.get_input_embeddings().weight
+            encoder_fn = self.input_encoder.get_encoder_fn()
+            self.codebook_manager.get_hyper_embedding_weights(
+                input_ids, base_weight, encoder_fn
+            )
+            out_layer = self.base_model.get_output_embeddings()
+            if out_layer is not None:
+                out_encoder = self.output_encoder or self.input_encoder
+                self.codebook_manager.get_hyper_linear_weights(
+                    out_layer.weight, out_encoder.get_encoder_fn()
+                )
+            if self.uses_base_token_positions:
+                self.codebook_manager.base_position_offset = None
+                self.codebook_manager.position_ids = None
+                self.codebook_manager._prepared_for_embedding = False
 
         if hasattr(self.codebook_manager, "get_logits_processor"):
             from transformers import LogitsProcessorList

@@ -13,6 +13,14 @@ from zip2zip.nn.encoders.base import EncoderFn
 logger = logging.getLogger(__name__)
 
 
+if hasattr(torch, "compiler") and hasattr(torch.compiler, "disable"):
+    _compiler_disable = torch.compiler.disable
+else:
+    def _compiler_disable(fn):
+        return fn
+
+
+
 def _dtype_element_size(dtype: torch.dtype) -> int:
     """Return dtype storage size using a tiny CPU scalar, never model weights."""
     return torch.empty((), dtype=dtype).element_size()
@@ -303,6 +311,7 @@ class StaticCodebookManager:
             spans[:, entry_idx] = len(subtokens)
         self.hyper_token_spans = spans
 
+    @_compiler_disable
     def prepare_input_ids(
         self,
         ids: torch.LongTensor,
@@ -367,9 +376,9 @@ class StaticCodebookManager:
 
         positions = self.base_position_offset + spans.cumsum(dim=-1) - 1
         positions = torch.where(valid, positions, torch.zeros_like(positions))
-        self.base_position_offset = self.base_position_offset + spans.sum(
-            dim=-1, keepdim=True
-        )
+        self.base_position_offset = (
+            self.base_position_offset + spans.sum(dim=-1, keepdim=True)
+        ).detach().clone()
         self.position_ids = positions
         self._prepared_for_embedding = True
         return positions
@@ -418,18 +427,12 @@ class StaticCodebookManager:
             if any(len(ui) > 0 for ui in self.updates_indices):
                 new_weights = encoder_fn(self.updates, base_weight, self.pad_token_id)
                 self.input_encoder_calls += 1
-                if self.hyper_embedding_weight_cache.dtype != new_weights.dtype:
-                    self.hyper_embedding_weight_cache = torch.zeros(
-                        batch_size,
-                        self.max_codebook_size,
-                        self.embedding_dim,
-                        dtype=new_weights.dtype,
-                        device=curr_device,
-                    )
+                if new_weights.dtype != dtype:
+                    new_weights = new_weights.to(dtype=dtype)
                 for i, ui in enumerate(self.updates_indices):
                     self.hyper_embedding_weight_cache[i, ui] = new_weights[i, : len(ui)]
 
-        self._prepared_for_embedding = False
+        self._prepared_for_embedding = True
         return self.hyper_embedding_weight_cache
 
     def get_hyper_linear_weights(
@@ -461,14 +464,8 @@ class StaticCodebookManager:
             if any(len(ui) > 0 for ui in self.updates_indices):
                 new_weights = encoder_fn(self.updates, base_weight, self.pad_token_id)
                 self.output_encoder_calls += 1
-                if self.hyper_linear_weight_cache.dtype != new_weights.dtype:
-                    self.hyper_linear_weight_cache = torch.zeros(
-                        batch_size,
-                        self.max_codebook_size,
-                        self.embedding_dim,
-                        dtype=new_weights.dtype,
-                        device=curr_device,
-                    )
+                if new_weights.dtype != dtype:
+                    new_weights = new_weights.to(dtype=dtype)
                 for i, ui in enumerate(self.updates_indices):
                     self.hyper_linear_weight_cache[i, ui] = new_weights[i, : len(ui)]
 

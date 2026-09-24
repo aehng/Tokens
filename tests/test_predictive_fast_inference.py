@@ -709,3 +709,136 @@ def test_lora_merge_preserves_wrappers_outputs_and_one_position_hook(monkeypatch
     assert model.base_model.prepare_inputs_for_generation.__func__ is hooked_func
     assert manager.fast_inference_ready
     assert manager.inference_tables_build_count == 2
+
+
+def test_multi_step_decode_positions_match_reference_over_25_iterations():
+    """Verify semantic positions follow spans exactly across 25 decode steps."""
+    for fast_mode in (False, True):
+        manager = make_manager()
+        manager.fast_inference_ready = fast_mode
+
+        # Prompt prefill: tokens 1, 2, 12 (span 2), 3. Total base span = 1 + 1 + 2 + 1 = 5.
+        prompt = torch.tensor([[1, 2, 12, 3]])
+        prompt_positions = manager.prepare_input_ids(prompt)
+        assert prompt_positions.tolist() == [[0, 1, 3, 4]]
+        assert manager.base_position_offset.tolist() == [[5]]
+
+        # Simulated 25 decode steps with alternating tokens:
+        # 12 (span 2), 1 (span 1), 13 (span 3), 4 (span 1), ...
+        tokens = [12, 1, 13, 4, 12, 2, 1, 13, 12, 3] * 3
+        tokens = tokens[:25]
+
+        expected_offset = 5
+        for step, token_id in enumerate(tokens):
+            span = 2 if token_id == 12 else (3 if token_id == 13 else 1)
+            expected_pos = expected_offset + span - 1
+            expected_offset += span
+
+            pos = manager.prepare_input_ids(torch.tensor([[token_id]]))
+            assert pos.tolist() == [[expected_pos]], f"Step {step} (token {token_id}) expected pos {expected_pos}, got {pos.tolist()}"
+            assert manager.base_position_offset.tolist() == [[expected_offset]], f"Step {step} expected offset {expected_offset}"
+
+
+def test_hyper_weight_cache_preserves_dtype_and_calls_encoder_once_with_fp16():
+    """Verify weight cache preserves base_weight.dtype (fp16) even when encoder outputs fp32."""
+    initial_vocab_size = 100
+    max_codebook_size = 16
+    dim = 32
+    mgr = StaticCodebookManager(
+        initial_vocab_size=initial_vocab_size,
+        max_codebook_size=max_codebook_size,
+        max_subtokens=3,
+        embedding_dim=dim,
+        pad_token_id=0,
+    )
+    mgr.set_seeded_codebook([[5, 10], [15, 20, 25]], batch_size=1)
+
+    encoder_mock_calls = 0
+
+    def mock_encoder(updates, base_weight, pad_id):
+        nonlocal encoder_mock_calls
+        encoder_mock_calls += 1
+        b, n, s = updates.shape
+        return torch.randn(b, n, dim, dtype=torch.float32)
+
+    base_weight = torch.randn(initial_vocab_size, dim, dtype=torch.float16)
+    dummy_ids = torch.tensor([[10]])
+
+    # Call 1: Synthesize
+    w1 = mgr.get_hyper_embedding_weights(dummy_ids, base_weight, mock_encoder)
+    assert mgr.input_encoder_calls == 1
+    assert encoder_mock_calls == 1
+    assert w1.dtype == torch.float16
+    assert mgr.hyper_embedding_weight_cache.dtype == torch.float16
+
+    # Subsequent 25 decode steps must NOT re-call encoder
+    for _ in range(25):
+        w_step = mgr.get_hyper_embedding_weights(dummy_ids, base_weight, mock_encoder)
+        assert mgr.input_encoder_calls == 1
+        assert encoder_mock_calls == 1
+        assert w_step.dtype == torch.float16
+        assert torch.equal(w1, w_step)
+
+    # Linear weights test with fp16 base_weight and fp32 encoder
+    linear_calls = 0
+
+    def mock_linear_encoder(updates, base_weight, pad_id):
+        nonlocal linear_calls
+        linear_calls += 1
+        b, n, s = updates.shape
+        return torch.randn(b, n, dim, dtype=torch.float32)
+
+    l1 = mgr.get_hyper_linear_weights(base_weight, mock_linear_encoder)
+    assert mgr.output_encoder_calls == 1
+    assert linear_calls == 1
+    assert l1.dtype == torch.float16
+    assert mgr.hyper_linear_weight_cache.dtype == torch.float16
+
+    for _ in range(25):
+        l_step = mgr.get_hyper_linear_weights(base_weight, mock_linear_encoder)
+        assert mgr.output_encoder_calls == 1
+        assert linear_calls == 1
+        assert l_step.dtype == torch.float16
+        assert torch.equal(l1, l_step)
+
+
+def test_prepare_input_ids_cudagraph_safety_and_no_buffer_retention():
+    """Verify prepare_input_ids is compiler-safe and offsets do not retain computation graphs."""
+    manager = make_manager()
+    ids = torch.tensor([[1, 12, 2]])
+    positions = manager.prepare_input_ids(ids)
+    assert positions is not None
+    assert manager.base_position_offset is not None
+    assert manager.base_position_offset.grad_fn is None
+    assert not manager.base_position_offset.requires_grad
+
+    # Repeated decode steps retain no graph history
+    for _ in range(25):
+        pos = manager.prepare_input_ids(torch.tensor([[1]]))
+        assert manager.base_position_offset.grad_fn is None
+
+
+def test_multi_request_reset_lifecycle():
+    """Verify clean reset between requests: position state starts from 0, seeded codebook persists."""
+    manager = make_manager()
+
+    # Request 1: prompt + 10 decode steps
+    prompt1 = torch.tensor([[1, 2, 12]])
+    manager.prepare_input_ids(prompt1)
+    for _ in range(10):
+        manager.prepare_input_ids(torch.tensor([[1]]))
+    assert manager.base_position_offset.tolist() == [[14]]
+
+    # Step-level reset between requests
+    manager.reset(clear_dictionary=False)
+    assert manager.base_position_offset is None
+    assert manager.position_ids is None
+    assert manager._prepared_for_embedding is False
+    assert manager.num_seeded == 2
+
+    # Request 2: starts cleanly at 0
+    prompt2 = torch.tensor([[1, 2, 12]])
+    pos2 = manager.prepare_input_ids(prompt2)
+    assert pos2.tolist() == [[0, 1, 3]]
+    assert manager.base_position_offset.tolist() == [[4]]
+
