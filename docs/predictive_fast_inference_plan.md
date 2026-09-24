@@ -322,3 +322,35 @@ python experiments/validate_predictive_fast_path.py --execute --device cuda:0 --
 Do not start with the 12-prompt benchmark, run a Kaggle job, or schedule any
 GPU work as part of this gate. Historical V16 timings are context only and do
 not establish a performance result for this new implementation.
+
+## Authoritative Tier-1 (12-Prompt) Validation Results (Version 7)
+
+Executed on a single Tesla T4 GPU under commit `ea72dac3af7a6b5a3bbfcb2a5b6ab91167965ba2` using `disable_compile=True` and static cache capacity 512.
+
+### 1. Fixed-KV Microbenchmark (Context Length = 256, 100 Measured Cached Forwards)
+- **Vanilla:** 37.44 ms
+- **Predictive Legacy Merged:** 37.79 ms (+0.93% overhead vs Vanilla)
+- **Predictive Fast Merged:** 37.77 ms (+0.89% overhead vs Vanilla, +0.04% speedup vs Legacy)
+
+### 2. 12-Prompt Aggregate Decode & Speedup
+- **Total raw decode iterations:** 2,794
+- **Total expanded output tokens:** 3,134
+- **Net compression fraction:** 10.85%
+- **Overall break-even decode latency:** 42.04 ms (well above the 37.77 ms per-forward step time)
+- **Total Vanilla equivalent decode time:** 117,447.6 ms
+- **Total Legacy decode time:** 106,016.9 ms (106,392.8 ms with setup)
+- **Total Fast decode time:** 105,749.9 ms (106,243.6 ms with setup)
+- **Fast decode speedup vs Vanilla:** +9.96% (+9.54% with setup)
+- **Fast decode speedup vs Legacy:** +0.25% (+0.14% with setup)
+
+### 3. Setup Costs & Memory
+- **Fast Table Build Overhead:** Mean 3.48 ms (1.80 ms input table, 1.68 ms output table).
+- **Fast Table Memory:** Exactly 394,395,648 bytes (~376 MiB VRAM) for the concatenated effective embedding and lm_head weight tables.
+- **Legacy Eager Vector Synthesis:** Mean 31.33 ms (first prompt 81.22 ms).
+
+### 4. Semantic Equivalence & Quality
+- **Token Equivalence (Legacy vs Fast):** 12/12 prompts produced **100% identical token IDs** (`top1=1.0`). Finite logit differences were within normal FP16 precision limits (`max_abs_logit_diff <= 0.0039`).
+- **MBPP Code Synthesis (4 prompts):** Vanilla 3/4 syntax valid, 1/4 problem pass. Legacy/Fast 1/4 syntax valid, 0/4 problem pass.
+- **GSM8K Math Reasoning (4 prompts):** Vanilla 3/4 exact correct. Legacy/Fast 2/4 exact correct.
+- **Alpaca Instruction Following (4 prompts):** Vanilla 2/4 mechanical pass. Legacy/Fast 3/4 mechanical pass.
+
