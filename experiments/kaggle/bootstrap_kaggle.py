@@ -143,12 +143,18 @@ def main() -> None:
     )
     subprocess.call([sys.executable, "-m", "pip", "uninstall", "-y", "torchao"])
     subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "-e", str(root)])
-    os.environ["VLLM_USE_V2_MODEL_RUNNER"] = "1"
-    os.environ["VLLM_ENABLE_V1_MULTIPROCESSING"] = "0"
-    sys.path.insert(0, str(root))
-    from experiments.kaggle.run_vllm_predictive_proof import main as run_proof
-
-    run_proof()
+    # A new interpreter reads the editable install's .pth before vLLM loads plugins.
+    env = os.environ.copy()
+    env["VLLM_USE_V2_MODEL_RUNNER"] = "1"
+    env["VLLM_ENABLE_V1_MULTIPROCESSING"] = "0"
+    src = str(root / "src")
+    prior = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = src + os.pathsep + str(root) + (os.pathsep + prior if prior else "")
+    subprocess.check_call(
+        [sys.executable, "-m", "experiments.kaggle.run_vllm_predictive_proof"],
+        cwd=root,
+        env=env,
+    )
 
 
 if __name__ == "__main__":

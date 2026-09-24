@@ -32,6 +32,8 @@ PHI_REV = "2fe192450127e6a83f7441aef6e3ca586c338b77"
 VLLM_SHA = "ced6857afa0ea7b2e3f0846a62e1394e90f15607"
 MAX_NEW = 16
 PROOF_BLOCK_SIZE = 16
+# T4 Phi-3.5 fp16 weights are about 7.14 GiB. 0.42 left a negative KV budget.
+GPU_MEMORY_UTILIZATION = 0.90
 
 
 def _result_root() -> Path:
@@ -94,12 +96,39 @@ def environment() -> dict[str, Any]:
     }
 
 
-def _free(obj: Any | None = None) -> None:
-    if obj is not None:
-        del obj
+def shutdown_vllm_engine(llm) -> str:
+    """Shut down one vLLM 0.30 engine. The caller must ``del`` its own name."""
+    if llm is None:
+        return "none"
+    engine = getattr(llm, "llm_engine", None)
+    client = getattr(engine, "engine_core", None)
+    shutdown = getattr(client, "shutdown", None)
+    if not callable(shutdown):
+        return "no-shutdown"
+    shutdown()
+    return "engine_core.shutdown"
+
+
+def cuda_after_collect() -> dict[str, int | None]:
     gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
+    if not torch.cuda.is_available():
+        return {"allocated": None, "reserved": None}
+    torch.cuda.empty_cache()
+    return {
+        "allocated": int(torch.cuda.memory_allocated()),
+        "reserved": int(torch.cuda.memory_reserved()),
+    }
+
+
+def _record_teardown(root: Path, engine_name: str, method: str, cuda: dict[str, int | None]) -> None:
+    path = root / "engine_teardown.json"
+    events: list[dict[str, Any]] = []
+    if path.is_file():
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(loaded, dict) and isinstance(loaded.get("events"), list):
+            events = loaded["events"]
+    events.append({"engine": engine_name, "shutdown": method, **cuda})
+    write_json(path, {"events": events})
 
 
 def _sampling(extra: dict | None = None, max_tokens: int = MAX_NEW):
@@ -124,7 +153,7 @@ def _llm_kwargs(**overrides: Any) -> dict[str, Any]:
         enable_chunked_prefill=False,
         tensor_parallel_size=1,
         pipeline_parallel_size=1,
-        gpu_memory_utilization=0.42,
+        gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
         max_num_seqs=4,
         trust_remote_code=False,
         hf_overrides={
@@ -186,7 +215,7 @@ def phase_01_and_02(root: Path) -> dict[str, Any]:
         enable_chunked_prefill=False,
         max_model_len=128,
         max_num_seqs=2,
-        gpu_memory_utilization=0.42,
+        gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
         tensor_parallel_size=1,
     )
     stock_out = stock.generate(
@@ -195,7 +224,9 @@ def phase_01_and_02(root: Path) -> dict[str, Any]:
     )
     stock_ids = _ids(stock_out[0])
     stock_vocab = stock.llm_engine.model_config.get_vocab_size()
-    _free(stock)
+    stock_shutdown = shutdown_vllm_engine(stock)
+    del stock
+    cuda_after_stock = cuda_after_collect()
 
     ours = _make_llm(PHI_ID, h_enabled=False, revision=PHI_REV, max_model_len=128, max_num_seqs=2)
     ours_out = ours.generate([{"prompt_token_ids": prompt_ids}], stock_params)
@@ -242,7 +273,9 @@ def phase_01_and_02(root: Path) -> dict[str, Any]:
         }
 
     inspected = _apply(ours, inspect)
-    _free(ours)
+    ours_shutdown = shutdown_vllm_engine(ours)
+    del ours
+    cuda_after_ours = cuda_after_collect()
     phase1 = {
         "status": "PASS",
         "stock_vocab": stock_vocab,
@@ -258,6 +291,11 @@ def phase_01_and_02(root: Path) -> dict[str, Any]:
         "h_masked": inspected["h_slice_all_neg_inf"],
         "state": inspected["state"],
         "hyperencoders_invoked": False,
+        "gpu_memory_utilization": GPU_MEMORY_UTILIZATION,
+        "stock_shutdown": stock_shutdown,
+        "ours_shutdown": ours_shutdown,
+        "cuda_after_stock": cuda_after_stock,
+        "cuda_after_ours": cuda_after_ours,
     }
     if not phase1["greedy_match"] or phase1["embed_rows"] != 32064 or phase1["head_rows"] != 32064:
         phase1["status"] = "FAIL"
@@ -449,8 +487,10 @@ def _build_hf_references(root: Path) -> dict[str, Any]:
     merged = base.merge_and_unload() if hasattr(base, "merge_and_unload") else base
     merged_dir = root / "merged_phi"
     merged.save_pretrained(merged_dir, safe_serialization=True)
-    _free(model)
-    _free(merged)
+    del model
+    del base
+    del merged
+    cuda_after_collect()
     return {
         "references": references,
         "merged_dir": str(merged_dir),
@@ -761,7 +801,7 @@ def main() -> None:
             max_model_len=512,
             max_num_seqs=4,
             max_num_batched_tokens=512,
-            gpu_memory_utilization=0.50,
+            gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
         )
         encoder_info = _install_encoders(llm, prepared["encoder_path"])
         primary = prepared["references"][0]
@@ -1036,7 +1076,10 @@ def main() -> None:
         write_json(root / "phase_07_slot_reuse.json", phase7)
         if phase7["status"] != "PASS":
             raise RuntimeError(f"phase 7 slot reuse failed: {phase7}")
-        _free(llm)
+        del engine
+        llm_shutdown = shutdown_vllm_engine(llm)
+        del llm
+        _record_teardown(root, "llm", llm_shutdown, cuda_after_collect())
 
         chunk_llm = _make_llm(
             prepared["merged_dir"],
@@ -1045,7 +1088,7 @@ def main() -> None:
             max_num_seqs=2,
             max_num_batched_tokens=16,
             enable_chunked_prefill=True,
-            gpu_memory_utilization=0.50,
+            gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
         )
         _install_encoders(chunk_llm, prepared["encoder_path"])
         chunk_run = _run_request(
@@ -1072,7 +1115,9 @@ def main() -> None:
         if chunk_positions != primary["positions"]:
             phase8["status"] = "FAIL"
         write_json(root / "phase_08_chunked_prefill.json", phase8)
-        _free(chunk_llm)
+        chunk_shutdown = shutdown_vllm_engine(chunk_llm)
+        del chunk_llm
+        _record_teardown(root, "chunk_llm", chunk_shutdown, cuda_after_collect())
         if phase8["status"] != "PASS":
             raise RuntimeError(f"phase 8 chunked prefill diverged: {phase8}")
 
@@ -1091,7 +1136,7 @@ def main() -> None:
             max_num_batched_tokens=budget["max_model_len"],
             block_size=PROOF_BLOCK_SIZE,
             num_gpu_blocks_override=budget["num_gpu_blocks"],
-            gpu_memory_utilization=0.50,
+            gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
         )
         _install_encoders(preempt_llm, prepared["encoder_path"])
         idle = _scheduler_diagnostics(preempt_llm)
@@ -1123,7 +1168,9 @@ def main() -> None:
                 **budget_report,
             }
             write_json(root / "phase_09_preemption.json", phase9)
-            _free(preempt_llm)
+            preempt_shutdown = shutdown_vllm_engine(preempt_llm)
+            del preempt_llm
+            _record_teardown(root, "preempt_llm", preempt_shutdown, cuda_after_collect())
             raise RuntimeError(f"phase 9 preemption budget was not applied: {phase9}")
         max_new = budget["max_new_tokens"]
         uninterrupted_a = _run_request(
@@ -1199,7 +1246,10 @@ def main() -> None:
             **budget_report,
         }
         write_json(root / "phase_09_preemption.json", phase9)
-        _free(preempt_llm)
+        del engine
+        preempt_shutdown = shutdown_vllm_engine(preempt_llm)
+        del preempt_llm
+        _record_teardown(root, "preempt_llm", preempt_shutdown, cuda_after_collect())
         if phase9["status"] != "PASS":
             raise RuntimeError(f"phase 9 preemption failed: {phase9}")
 
@@ -1209,7 +1259,7 @@ def main() -> None:
             max_model_len=8,
             max_num_seqs=1,
             max_num_batched_tokens=8,
-            gpu_memory_utilization=0.50,
+            gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
         )
         _install_encoders(rope_llm, prepared["encoder_path"])
         synthetic = []
@@ -1242,7 +1292,9 @@ def main() -> None:
         if rope_positions and max(rope_positions) > 8 and max(rope_positions) < 131072:
             phase10["status"] = "PASS"
         write_json(root / "phase_10_semantic_rope.json", phase10)
-        _free(rope_llm)
+        rope_shutdown = shutdown_vllm_engine(rope_llm)
+        del rope_llm
+        _record_teardown(root, "rope_llm", rope_shutdown, cuda_after_collect())
         if phase10["status"] != "PASS":
             raise RuntimeError(f"phase 10 semantic RoPE failed: {phase10}")
 
