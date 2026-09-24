@@ -14,6 +14,7 @@ import hashlib
 import json
 import math
 import os
+import re
 from collections.abc import Mapping
 from pathlib import Path
 import statistics
@@ -43,6 +44,7 @@ CONDITIONS = (
 DEFAULT_PROMPT_ID = "gsm_2956"
 DEFAULT_MAX_NEW_TOKENS = 101
 STATIC_CACHE_CAPACITY = 256
+TIER1_12_PROMPTS_PATH = REPO_ROOT / "experiments" / "checkpoints" / "quality_benchmark" / "poc_12_prompt_ids.json"
 FIXED_KV_CONTEXT_LENGTH = 256
 FIXED_KV_WARMUP_ITERATIONS = 20
 FIXED_KV_MEASURED_ITERATIONS = 100
@@ -84,14 +86,24 @@ def build_parser() -> argparse.ArgumentParser:
         "--environment-provenance",
         help="Optional JSON provenance file copied into each durable partial result.",
     )
+    parser.add_argument(
+        "--tier1-12",
+        action="store_true",
+        help="Run the canonical 12-prompt Tier-1 validation set.",
+    )
     return parser
 
 
 def validate_args(args: argparse.Namespace) -> None:
     if args.batch_size != 1:
         raise ValueError("the predictive fast validation harness requires --batch-size 1")
-    if args.static_cache_capacity != STATIC_CACHE_CAPACITY:
-        raise ValueError("the behavioral smoke protocol uses static cache capacity 256")
+    if getattr(args, "tier1_12", False):
+        if args.max_new_tokens == DEFAULT_MAX_NEW_TOKENS:
+            args.max_new_tokens = 300
+        if args.static_cache_capacity == STATIC_CACHE_CAPACITY:
+            args.static_cache_capacity = 512
+    if args.static_cache_capacity not in (256, 512):
+        raise ValueError("the behavioral smoke protocol uses static cache capacity 256 or 512")
     if args.max_new_tokens < 2 or args.max_new_tokens > args.static_cache_capacity:
         raise ValueError("max-new-tokens must be between 2 and the static cache capacity")
     device = torch.device(args.device)
@@ -115,8 +127,159 @@ def _shape_only_phi_memory_estimate() -> Dict[str, int]:
     )
 
 
+def _load_canonical_12_prompts() -> List[Dict[str, Any]]:
+    tier1_path = TIER1_12_PROMPTS_PATH
+    if not tier1_path.is_absolute():
+        tier1_path = REPO_ROOT / tier1_path
+    with tier1_path.open("r", encoding="utf-8") as f:
+        meta_list = json.load(f)
+    prompts = []
+    for item in meta_list:
+        p = _load_prompt(item["id"])
+        prompts.append({**p, "poc_meta": item})
+    return prompts
+
+
+def extract_model_provenance(
+    model: torch.nn.Module, tokenizer=None, bundle: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    base = getattr(model, "base_model", model)
+    config = getattr(model, "config", getattr(base, "config", None))
+    return {
+        "model_class": type(model).__name__,
+        "base_model_class": type(base).__name__,
+        "config_model_type": getattr(config, "model_type", None),
+        "vocab_size": getattr(config, "vocab_size", None),
+        "hidden_size": getattr(config, "hidden_size", None),
+        "num_hidden_layers": getattr(config, "num_hidden_layers", None),
+        "num_attention_heads": getattr(config, "num_attention_heads", None),
+        "num_key_value_heads": getattr(config, "num_key_value_heads", None),
+        "base_model_name_or_path": getattr(config, "_name_or_path", benchmark.PHI_MODEL_ID),
+        "canonical_base_model_id": benchmark.PHI_MODEL_ID,
+        "canonical_base_revision": benchmark.DEFAULT_PHI_REVISION,
+        "canonical_zip2zip_revision": benchmark.DEFAULT_ZIP2ZIP_REVISION,
+        "model_architecture_label": "Phi-3.5-mini-instruct",
+        "provenance_note": (
+            "Prior assistant mentions of 'Phi-1.5' were an assistant labeling error; "
+            "the active model has always been Microsoft Phi-3.5-mini-instruct with Zip2Zip."
+        ),
+    }
+
+
+def evaluate_quality_and_termination(
+    record: Dict[str, Any],
+    prompt_dict: Dict[str, Any],
+) -> Dict[str, Any]:
+    dom = prompt_dict.get("domain")
+    output_text = record.get("output_text", "")
+    eos_reached = record.get("eos_emitted", False)
+    raw_ids = record.get("raw_decode_ids", [])
+
+    eval_metrics: Dict[str, Any] = {}
+    # Repetition check on all domains
+    rep = benchmark.severe_repetition_metrics(output_text)
+    eval_metrics.update(rep)
+
+    first_answer_char_pos = None
+    steps_to_answer = None
+    post_answer_tail_steps = None
+
+    if dom == "code":
+        gt = prompt_dict.get("ground_truth_response", "")
+        asserts = [line.strip() for line in gt.splitlines() if line.strip().startswith("assert")]
+        code_eval = benchmark.evaluate_mbpp_code(output_text, asserts)
+        eval_metrics.update(code_eval)
+    elif dom == "reasoning":
+        gt = prompt_dict.get("ground_truth_response", "")
+        gsm_eval = benchmark.evaluate_gsm8k_reasoning(output_text, gt)
+        eval_metrics.update(gsm_eval)
+        extracted_answer = gsm_eval.get("extracted_answer")
+        m = re.search(r"(?:####|\$\\boxed\{|\\boxed\{)", output_text)
+        if m:
+            first_answer_char_pos = m.start()
+        elif extracted_answer and extracted_answer in output_text:
+            first_answer_char_pos = output_text.find(extracted_answer)
+        if first_answer_char_pos is not None:
+            prefix_fraction = first_answer_char_pos / max(len(output_text), 1)
+            steps_to_answer = int(round(prefix_fraction * len(raw_ids)))
+            post_answer_tail_steps = max(0, len(raw_ids) - steps_to_answer)
+    elif dom == "instruction":
+        alp_eval = benchmark.evaluate_alpaca_instruction(output_text, eos_reached)
+        eval_metrics.update(alp_eval)
+
+    eval_metrics["first_answer_char_pos"] = first_answer_char_pos
+    eval_metrics["steps_to_answer"] = steps_to_answer
+    eval_metrics["post_answer_tail_steps"] = post_answer_tail_steps
+    return eval_metrics
+
+
+def compute_break_even_and_estimates(
+    *,
+    raw_iterations: int,
+    expanded_base_tokens: int,
+    vanilla_median_ms: float,
+    legacy_median_ms: float,
+    fast_median_ms: float,
+    legacy_setup_ms: float = 0.0,
+    fast_setup_ms: float = 0.0,
+) -> Dict[str, Any]:
+    comp_fraction = 1.0 - (raw_iterations / max(1, expanded_base_tokens))
+    break_even_decode_ms = (
+        vanilla_median_ms / (1.0 - comp_fraction) if (1.0 - comp_fraction) > 0 else None
+    )
+    vanilla_equiv_decode_ms = expanded_base_tokens * vanilla_median_ms
+    legacy_decode_ms = raw_iterations * legacy_median_ms
+    legacy_total_est_ms = legacy_decode_ms + legacy_setup_ms
+    fast_decode_ms = raw_iterations * fast_median_ms
+    fast_total_est_ms = fast_decode_ms + fast_setup_ms
+    return {
+        "compression_fraction": comp_fraction,
+        "break_even_decode_ms": break_even_decode_ms,
+        "vanilla_equivalent_decode_ms": vanilla_equiv_decode_ms,
+        "legacy_decode_ms": legacy_decode_ms,
+        "legacy_total_estimated_ms": legacy_total_est_ms,
+        "fast_decode_ms": fast_decode_ms,
+        "fast_total_estimated_ms": fast_total_est_ms,
+        "fast_decode_speedup_vs_legacy_pct": (
+            ((legacy_decode_ms - fast_decode_ms) / legacy_decode_ms * 100.0)
+            if legacy_decode_ms > 0 else 0.0
+        ),
+        "fast_total_speedup_vs_legacy_pct": (
+            ((legacy_total_est_ms - fast_total_est_ms) / legacy_total_est_ms * 100.0)
+            if legacy_total_est_ms > 0 else 0.0
+        ),
+        "fast_decode_speedup_vs_vanilla_pct": (
+            ((vanilla_equiv_decode_ms - fast_decode_ms) / vanilla_equiv_decode_ms * 100.0)
+            if vanilla_equiv_decode_ms > 0 else 0.0
+        ),
+        "fast_total_speedup_vs_vanilla_pct": (
+            ((vanilla_equiv_decode_ms - fast_total_est_ms) / vanilla_equiv_decode_ms * 100.0)
+            if vanilla_equiv_decode_ms > 0 else 0.0
+        ),
+    }
+
+
 def dry_run_report(args: argparse.Namespace) -> Dict[str, Any]:
-    prompt = _load_prompt(args.prompt_id)
+    if getattr(args, "tier1_12", False):
+        prompts = _load_canonical_12_prompts()
+        prompt_info = {
+            "tier1_12": True,
+            "prompt_count": len(prompts),
+            "prompts": [{"id": p["id"], "domain": p.get("domain")} for p in prompts],
+            "prompt_id": "tier1_12_matrix",
+            "source_prompt_characters": sum(len(p["prompt_text"]) for p in prompts),
+            "source_prompt_sha256": hashlib.sha256(
+                "".join(p["prompt_text"] for p in prompts).encode("utf-8")
+            ).hexdigest(),
+        }
+    else:
+        prompt = _load_prompt(args.prompt_id)
+        prompt_info = {
+            "tier1_12": False,
+            "prompt_id": args.prompt_id,
+            "source_prompt_sha256": hashlib.sha256(prompt["prompt_text"].encode("utf-8")).hexdigest(),
+            "source_prompt_characters": len(prompt["prompt_text"]),
+        }
     lifecycle = [
         "run Vanilla behavioral smoke and fixed-KV protocol first, then release its model",
         "load pinned Step-100 predictive bundle and canonical predictor policy",
@@ -138,9 +301,7 @@ def dry_run_report(args: argparse.Namespace) -> Dict[str, Any]:
         "execution_performed": False,
         "gpu_execution_enabled": False,
         "conditions": list(args.conditions),
-        "prompt_id": args.prompt_id,
-        "source_prompt_sha256": hashlib.sha256(prompt["prompt_text"].encode("utf-8")).hexdigest(),
-        "source_prompt_characters": len(prompt["prompt_text"]),
+        **prompt_info,
         "batch_size": args.batch_size,
         "device_requested": args.device,
         "checkpoint": args.checkpoint,
@@ -149,6 +310,8 @@ def dry_run_report(args: argparse.Namespace) -> Dict[str, Any]:
             "behavioral_generation_smoke": {
                 "cache_implementation": "static",
                 "static_cache_capacity": args.static_cache_capacity,
+                "disable_compile": True,
+                "disable_compile_interpretation": "disables automatic JIT compilation in Transformers 5.17 static cache for identical eager baseline across all conditions",
                 "active_context_grows_during_generation": True,
                 "interpretation": "behavioral/end-to-end only; not fixed-KV timing",
                 "per_forward_cuda_timing_authoritative": False,
@@ -883,6 +1046,7 @@ def _generation_result(
             max_new_tokens=args.max_new_tokens,
             max_cache_len=args.static_cache_capacity,
             cache_implementation="static",
+            disable_compile=True,
             do_sample=False,
             num_beams=1,
             num_return_sequences=1,
@@ -940,6 +1104,7 @@ def _generation_result(
         "batch_size": 1,
         "measurement_type": "behavioral_smoke_generate",
         "static_cache_capacity": args.static_cache_capacity,
+        "disable_compile": True,
         "generation_context_grows_during_decode": True,
         "generation_warmup": warmup_report,
         "raw_decode_ids": [int(token_id) for token_id in raw_ids],
@@ -965,6 +1130,7 @@ def _generation_result(
         "prompt_prefill_ttft_s": timing_proc.ttft,
         "generation_wall_time_s": generation_wall_s,
         "decode_wall_time_s": max(0.0, generation_wall_s - (timing_proc.ttft or 0.0)),
+        "behavioral_wall_time_is_authoritative": False,
         "per_forward_cuda_timing_authoritative": False,
         "transformer_forward_timing": None,
         "per_forward_timing_note": (
@@ -1110,6 +1276,7 @@ def _warmup_generation(
         "min_new_tokens": warmup_tokens,
         "max_cache_len": static_cache_capacity,
         "cache_implementation": "static",
+        "disable_compile": True,
         "do_sample": False,
         "num_beams": 1,
         "num_return_sequences": 1,
@@ -1165,14 +1332,19 @@ def _run_predictive_pair(
     on_condition_complete: Optional[
         Callable[[str, Dict[str, Any], Dict[str, Any]], None]
     ] = None,
+    bundle: Optional[Dict[str, Any]] = None,
 ):
-    bundle = benchmark.load_predictive_model_bundle(
-        args.checkpoint,
-        str(device),
-        base_revision=benchmark.DEFAULT_PHI_REVISION,
-        model_revision=benchmark.DEFAULT_ZIP2ZIP_REVISION,
-        expected_step=100,
-    )
+    should_delete = False
+    if bundle is None:
+        bundle = benchmark.load_predictive_model_bundle(
+            args.checkpoint,
+            str(device),
+            base_revision=benchmark.DEFAULT_PHI_REVISION,
+            model_revision=benchmark.DEFAULT_ZIP2ZIP_REVISION,
+            expected_step=100,
+        )
+        should_delete = True
+        prepare_model_for_inference(bundle["model"], merge_lora=True)
     model = bundle["model"]
     tokenizer = bundle["tokenizer"]
     policy = bundle["policy"]
@@ -1181,7 +1353,6 @@ def _run_predictive_pair(
             "canonical predictor contract changed: expected max_subtokens=3, "
             f"got {getattr(policy, 'max_subtokens', None)!r}"
         )
-    prepare_model_for_inference(model, merge_lora=True)
     original_ids = tokenizer.encode(prompt["prompt_text"], add_special_tokens=False)
     if any(token_id >= benchmark.INITIAL_VOCAB for token_id in original_ids):
         raise ValueError(
@@ -1237,6 +1408,18 @@ def _run_predictive_pair(
         manager_setup_s = time.perf_counter() - manager_setup_started
         try:
             if condition == "predictive_legacy_merged":
+                vram_before = int(torch.cuda.memory_allocated(device)) if device.type == "cuda" else 0
+                if device.type == "cuda":
+                    torch.cuda.reset_peak_memory_stats(device)
+                h_synth_start = time.perf_counter()
+                manager.synthesize_hyper_vectors(model, batch_size=1)
+                if device.type == "cuda":
+                    torch.cuda.synchronize(device)
+                h_synth_ms = (time.perf_counter() - h_synth_start) * 1000.0
+                vram_after = int(torch.cuda.memory_allocated(device)) if device.type == "cuda" else 0
+                peak_prepare = int(torch.cuda.max_memory_allocated(device)) if device.type == "cuda" else 0
+                if device.type == "cuda":
+                    torch.cuda.reset_peak_memory_stats(device)
                 input_ids = benchmark.prepare_prompt_input_ids(
                     original_ids, manager, compress_prompt=True
                 )
@@ -1245,11 +1428,15 @@ def _run_predictive_pair(
                 setup_metrics = {
                     "predictor_latency_s": predictor_latency_s,
                     "codebook_manager_setup_s": manager_setup_s,
-                    "h_vector_synthesis_ms": None,
+                    "h_vector_synthesis_ms": h_synth_ms,
                     "effective_input_table_build_ms": None,
                     "effective_output_table_build_ms": None,
+                    "total_table_preparation_ms": h_synth_ms,
                     "legacy_tables_prepared": False,
                     "fast_tables_prepared": False,
+                    "vram_before_table_prepare_bytes": vram_before,
+                    "vram_after_table_prepare_bytes": vram_after,
+                    "peak_vram_during_table_prepare_bytes": peak_prepare,
                     "codebook_sha256": codebook_sha256,
                 }
             else:
@@ -1269,12 +1456,16 @@ def _run_predictive_pair(
                         output_layer.bias.dtype if output_layer.bias is not None else None
                     ),
                 )
-                vram_before = int(torch.cuda.memory_allocated(device))
-                torch.cuda.reset_peak_memory_stats(device)
+                vram_before = int(torch.cuda.memory_allocated(device)) if device.type == "cuda" else 0
+                if device.type == "cuda":
+                    torch.cuda.reset_peak_memory_stats(device)
                 manager.prepare_inference_tables(model, batch_size=1)
-                vram_after = int(torch.cuda.memory_allocated(device))
-                peak_prepare = int(torch.cuda.max_memory_allocated(device))
-                torch.cuda.reset_peak_memory_stats(device)
+                if device.type == "cuda":
+                    torch.cuda.synchronize(device)
+                vram_after = int(torch.cuda.memory_allocated(device)) if device.type == "cuda" else 0
+                peak_prepare = int(torch.cuda.max_memory_allocated(device)) if device.type == "cuda" else 0
+                if device.type == "cuda":
+                    torch.cuda.reset_peak_memory_stats(device)
                 input_ids = manager.prepare_input_sequence(original_ids, compress=True)
                 if manager.decode_sequence(input_ids) != list(original_ids):
                     raise RuntimeError("fast compressed prompt failed its round-trip")
@@ -1376,25 +1567,35 @@ def _run_predictive_pair(
     for record in records.values():
         record.pop("generation_score_tensors", None)
         record.pop("generation_logit_tensors", None)
-    del bundle, model
-    gc.collect()
-    torch.cuda.empty_cache()
+    if should_delete:
+        del bundle, model
+        gc.collect()
+        torch.cuda.empty_cache()
     return records, smoke, original_ids, tokenizer, serialized_codebook, codebook_sha256
 
 
-def _run_vanilla(args: argparse.Namespace, prompt: Dict[str, Any], device: torch.device):
+def _run_vanilla(
+    args: argparse.Namespace,
+    prompt: Dict[str, Any],
+    device: torch.device,
+    model: Optional[torch.nn.Module] = None,
+    tokenizer: Optional[Any] = None,
+):
     if "vanilla" not in args.conditions:
         return None, None
-    tokenizer = AutoTokenizer.from_pretrained(
-        benchmark.PHI_MODEL_ID,
-        revision=benchmark.DEFAULT_PHI_REVISION,
-    )
-    model = AutoModelForCausalLM.from_pretrained(
-        benchmark.PHI_MODEL_ID,
-        revision=benchmark.DEFAULT_PHI_REVISION,
-        torch_dtype=torch.float16,
-        low_cpu_mem_usage=True,
-    ).to(device).eval()
+    should_delete = False
+    if model is None or tokenizer is None:
+        tokenizer = AutoTokenizer.from_pretrained(
+            benchmark.PHI_MODEL_ID,
+            revision=benchmark.DEFAULT_PHI_REVISION,
+        )
+        model = AutoModelForCausalLM.from_pretrained(
+            benchmark.PHI_MODEL_ID,
+            revision=benchmark.DEFAULT_PHI_REVISION,
+            torch_dtype=torch.float16,
+            low_cpu_mem_usage=True,
+        ).to(device).eval()
+        should_delete = True
     original_ids = tokenizer.encode(prompt["prompt_text"], add_special_tokens=False)
     metadata = {
         "id": prompt["id"],
@@ -1445,9 +1646,10 @@ def _run_vanilla(args: argparse.Namespace, prompt: Dict[str, Any], device: torch
     record.pop("generation_logit_tensors", None)
     del _
     record["total_request_wall_time_s"] = record["generation_wall_time_s"]
-    del model
-    gc.collect()
-    torch.cuda.empty_cache()
+    if should_delete:
+        del model
+        gc.collect()
+        torch.cuda.empty_cache()
     return record, tokenizer
 
 
@@ -1677,6 +1879,16 @@ def _build_validation_payload(
         "static_cache_capacity": args.static_cache_capacity,
         "batch_size": 1,
         "emission_gate": None,
+        "model_provenance": {
+            "canonical_base_model_id": benchmark.PHI_MODEL_ID,
+            "canonical_base_revision": benchmark.DEFAULT_PHI_REVISION,
+            "canonical_zip2zip_revision": benchmark.DEFAULT_ZIP2ZIP_REVISION,
+            "model_architecture_label": "Phi-3.5-mini-instruct",
+            "provenance_note": (
+                "Prior assistant mentions of 'Phi-1.5' were an assistant labeling error; "
+                "the active model has always been Microsoft Phi-3.5-mini-instruct with Zip2Zip."
+            ),
+        },
     }
 
 
@@ -1706,6 +1918,333 @@ def _write_partial_condition_result(
     return condition_path, aggregate_path
 
 
+def _render_tier1_12_human_readable_summary(payload: Dict[str, Any]) -> str:
+    agg = payload["aggregate_summary"]
+    fixed = agg["fixed_kv_microbenchmark_summary"]
+    q_sum = agg["quality_summary"]
+    prompts = payload["prompts"]
+
+    lines = [
+        "# Tier-1 (12-Prompt) Authoritative Validation Report",
+        "",
+        f"- Device: `{payload['gpu_name']}` ({payload['device']})",
+        f"- Checkpoint step: `{payload['checkpoint_step']}`",
+        f"- Static cache capacity: `{payload['static_cache_capacity']}` (disable_compile=True)",
+        f"- Fixed-KV Context Length: `{fixed['active_kv_length']}` (warmups: {fixed['warmup_iterations']}, measured: {fixed['measured_iterations']})",
+        "",
+        "## 1. Fixed-KV Microbenchmark (KV=256 Authoritative Decode Steps)",
+        "",
+        "| Condition | Median Forward (ms) | Overhead vs Vanilla (%) | Speedup vs Legacy (%) |",
+        "|---|---:|---:|---:|",
+        f"| Vanilla | {fixed['vanilla_median_ms']:.2f} ms | - | - |" if fixed.get("vanilla_median_ms") is not None else "| Vanilla | N/A | - | - |",
+        f"| Predictive Legacy Merged | {fixed['legacy_median_ms']:.2f} ms | {fixed['legacy_overhead_vs_vanilla_pct']:+.2f}% | - |" if fixed.get("legacy_median_ms") is not None else "| Predictive Legacy Merged | N/A | - | - |",
+        f"| Predictive Fast Merged | {fixed['fast_median_ms']:.2f} ms | {fixed['fast_overhead_vs_vanilla_pct']:+.2f}% | {fixed['fast_speedup_vs_legacy_pct']:+.2f}% |" if fixed.get("fast_median_ms") is not None else "| Predictive Fast Merged | N/A | - | - |",
+        "",
+        "## 2. 12-Prompt Aggregate Decode & Speedup Summary",
+        "",
+        f"- Total raw decode iterations: {agg['total_raw_decode_iterations']}",
+        f"- Total expanded output tokens: {agg['total_expanded_output_tokens']}",
+        f"- Net compression fraction: {agg['overall_compression_pct']}%",
+        f"- Overall break-even decode latency: {agg['overall_break_even_decode_ms']:.2f} ms" if agg.get("overall_break_even_decode_ms") is not None else "- Overall break-even decode latency: N/A",
+        f"- Total Vanilla equivalent decode time: {agg['total_vanilla_equivalent_decode_ms']:.1f} ms",
+        f"- Total Legacy decode time: {agg['total_legacy_decode_ms']:.1f} ms (Total with setup: {agg['total_legacy_total_estimated_ms']:.1f} ms)",
+        f"- Total Fast decode time: {agg['total_fast_decode_ms']:.1f} ms (Total with setup: {agg['total_fast_total_estimated_ms']:.1f} ms)",
+        f"- Fast decode speedup vs Legacy: {agg['fast_decode_speedup_vs_legacy_pct']:+.2f}%",
+        f"- Fast total speedup vs Legacy: {agg['fast_total_speedup_vs_legacy_pct']:+.2f}%",
+        f"- Fast decode speedup vs Vanilla: {agg['fast_decode_speedup_vs_vanilla_pct']:+.2f}%",
+        f"- Fast total speedup vs Vanilla: {agg['fast_total_speedup_vs_vanilla_pct']:+.2f}%",
+        "",
+        "## 3. Domain Quality & Termination Summary",
+        "",
+        "### MBPP Code Synthesis (4 prompts)",
+        f"- Vanilla: {q_sum['mbpp']['vanilla_syntax_valid']}/{q_sum['mbpp']['count']} syntax valid, {q_sum['mbpp']['vanilla_problem_pass']}/{q_sum['mbpp']['count']} passed assertions",
+        f"- Legacy: {q_sum['mbpp']['legacy_syntax_valid']}/{q_sum['mbpp']['count']} syntax valid, {q_sum['mbpp']['legacy_problem_pass']}/{q_sum['mbpp']['count']} passed assertions",
+        f"- Fast: {q_sum['mbpp']['fast_syntax_valid']}/{q_sum['mbpp']['count']} syntax valid, {q_sum['mbpp']['fast_problem_pass']}/{q_sum['mbpp']['count']} passed assertions",
+        "",
+        "### GSM8K Math Reasoning (4 prompts)",
+        f"- Vanilla: {q_sum['gsm8k']['vanilla_exact_correct']}/{q_sum['gsm8k']['count']} exact correct",
+        f"- Legacy: {q_sum['gsm8k']['legacy_exact_correct']}/{q_sum['gsm8k']['count']} exact correct",
+        f"- Fast: {q_sum['gsm8k']['fast_exact_correct']}/{q_sum['gsm8k']['count']} exact correct",
+        "",
+        "### Alpaca Instruction Following (4 prompts)",
+        f"- Vanilla: {q_sum['alpaca']['vanilla_mechanical_pass']}/{q_sum['alpaca']['count']} mechanical pass",
+        f"- Legacy: {q_sum['alpaca']['legacy_mechanical_pass']}/{q_sum['alpaca']['count']} mechanical pass",
+        f"- Fast: {q_sum['alpaca']['fast_mechanical_pass']}/{q_sum['alpaca']['count']} mechanical pass",
+        "",
+        "## 4. Per-Prompt Matrix Details",
+        "",
+        "| Prompt ID | Domain | Raw / Exp Tokens | Compression | Vanilla ms | Fast ms | Speedup vs Vanilla |",
+        "|---|---|---:|---:|---:|---:|---:|",
+    ]
+    for p in prompts:
+        be = p.get("break_even_and_estimates", {})
+        raw = (p.get("predictive_fast_merged") or p.get("predictive_legacy_merged") or {}).get("transformer_decode_iterations", "N/A")
+        exp = (p.get("predictive_fast_merged") or p.get("predictive_legacy_merged") or {}).get("expanded_output_tokens", "N/A")
+        comp = f"{be.get('compression_fraction', 0)*100.0:.1f}%" if be.get("compression_fraction") is not None else "N/A"
+        v_ms = f"{be.get('vanilla_equivalent_decode_ms', 0):.1f}" if be.get("vanilla_equivalent_decode_ms") is not None else "N/A"
+        f_ms = f"{be.get('fast_total_estimated_ms', 0):.1f}" if be.get("fast_total_estimated_ms") is not None else "N/A"
+        spd = f"{be.get('fast_total_speedup_vs_vanilla_pct', 0):+.1f}%" if be.get("fast_total_speedup_vs_vanilla_pct") is not None else "N/A"
+        lines.append(f"| {p['prompt_id']} | {p['domain']} | {raw} / {exp} | {comp} | {v_ms} | {f_ms} | {spd} |")
+
+    lines.extend(["", "## 5. Model Provenance", "", "```json"])
+    lines.append(json.dumps(payload.get("model_provenance", {}), indent=2))
+    lines.extend(["```", ""])
+    return "\n".join(lines)
+
+
+def _execute_tier1_12(
+    args: argparse.Namespace,
+    device: torch.device,
+    gpu_name: str,
+    environment_provenance: Optional[Dict[str, Any]],
+) -> Path:
+    prompts = _load_canonical_12_prompts()
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    vanilla_results: Dict[str, Dict[str, Any]] = {}
+    legacy_results: Dict[str, Dict[str, Any]] = {}
+    fast_results: Dict[str, Dict[str, Any]] = {}
+    smokes: Dict[str, Dict[str, Any]] = {}
+    codebooks: Dict[str, Any] = {}
+    original_ids_map: Dict[str, List[int]] = {}
+    model_provenance: Optional[Dict[str, Any]] = None
+
+    if "vanilla" in args.conditions:
+        tokenizer = AutoTokenizer.from_pretrained(
+            benchmark.PHI_MODEL_ID,
+            revision=benchmark.DEFAULT_PHI_REVISION,
+        )
+        vanilla_model = AutoModelForCausalLM.from_pretrained(
+            benchmark.PHI_MODEL_ID,
+            revision=benchmark.DEFAULT_PHI_REVISION,
+            torch_dtype=torch.float16,
+            low_cpu_mem_usage=True,
+        ).to(device).eval()
+        model_provenance = extract_model_provenance(vanilla_model, tokenizer=tokenizer)
+        for prompt in prompts:
+            pid = prompt["id"]
+            rec, _ = _run_vanilla(args, prompt, device, model=vanilla_model, tokenizer=tokenizer)
+            rec["quality_and_termination"] = evaluate_quality_and_termination(rec, prompt)
+            vanilla_results[pid] = rec
+            original_ids_map[pid] = list(rec["original_prompt_token_ids"])
+            partial_item = {
+                "completed_prompt": pid,
+                "completed_condition": "vanilla",
+                "prompt_domain": prompt.get("domain"),
+                "record": {k: v for k, v in rec.items() if k not in ("generation_score_tensors", "generation_logit_tensors")},
+            }
+            write_json_atomic(output_dir / f"partial_{pid}_vanilla.json", partial_item)
+            write_json_atomic(output_dir / "partial_results.json", {
+                "is_partial": True,
+                "completed_prompts": list(vanilla_results.keys()),
+                "last_condition": "vanilla",
+                "environment_provenance": environment_provenance,
+            })
+        del vanilla_model
+        gc.collect()
+        torch.cuda.empty_cache()
+
+    if any(c.startswith("predictive_") for c in args.conditions):
+        bundle = benchmark.load_predictive_model_bundle(
+            args.checkpoint,
+            str(device),
+            base_revision=benchmark.DEFAULT_PHI_REVISION,
+            model_revision=benchmark.DEFAULT_ZIP2ZIP_REVISION,
+            expected_step=100,
+        )
+        p_model = bundle["model"]
+        p_tok = bundle["tokenizer"]
+        prepare_model_for_inference(p_model, merge_lora=True)
+        if model_provenance is None:
+            model_provenance = extract_model_provenance(p_model, tokenizer=p_tok, bundle=bundle)
+
+        for prompt in prompts:
+            pid = prompt["id"]
+            records, smoke, orig_ids, _, serialized_cb, cb_sha = _run_predictive_pair(
+                args,
+                prompt,
+                device,
+                bundle=bundle,
+            )
+            original_ids_map[pid] = list(orig_ids)
+            codebooks[pid] = {"codebook": serialized_cb, "sha256": cb_sha}
+            smokes[pid] = smoke
+            for c_name, c_rec in records.items():
+                c_rec["quality_and_termination"] = evaluate_quality_and_termination(c_rec, prompt)
+                partial_item = {
+                    "completed_prompt": pid,
+                    "completed_condition": c_name,
+                    "prompt_domain": prompt.get("domain"),
+                    "record": {k: v for k, v in c_rec.items() if k not in ("generation_score_tensors", "generation_logit_tensors")},
+                    "codebook_sha256": cb_sha,
+                }
+                write_json_atomic(output_dir / f"partial_{pid}_{c_name}.json", partial_item)
+            if "predictive_legacy_merged" in records:
+                legacy_results[pid] = records["predictive_legacy_merged"]
+            if "predictive_fast_merged" in records:
+                fast_results[pid] = records["predictive_fast_merged"]
+
+            write_json_atomic(output_dir / "partial_results.json", {
+                "is_partial": True,
+                "completed_prompts": list(fast_results.keys() if fast_results else legacy_results.keys()),
+                "last_condition": "predictive_fast_merged" if fast_results else "predictive_legacy_merged",
+                "environment_provenance": environment_provenance,
+            })
+        del bundle, p_model
+        gc.collect()
+        torch.cuda.empty_cache()
+
+    per_prompt_records = []
+    for prompt in prompts:
+        pid = prompt["id"]
+        v_rec = vanilla_results.get(pid)
+        l_rec = legacy_results.get(pid)
+        f_rec = fast_results.get(pid)
+
+        v_med = v_rec["fixed_kv_microbenchmark"]["median_forward_ms"] if v_rec else None
+        l_med = l_rec["fixed_kv_microbenchmark"]["median_forward_ms"] if l_rec else None
+        f_med = f_rec["fixed_kv_microbenchmark"]["median_forward_ms"] if f_rec else None
+        raw_it = f_rec["transformer_decode_iterations"] if f_rec else (l_rec["transformer_decode_iterations"] if l_rec else None)
+        exp_tok = f_rec["expanded_output_tokens"] if f_rec else (l_rec["expanded_output_tokens"] if l_rec else None)
+        l_setup_ms = l_rec.get("setup", {}).get("total_table_preparation_ms", 0.0) if l_rec else 0.0
+        f_setup_ms = f_rec.get("setup", {}).get("total_table_preparation_ms", 0.0) if f_rec else 0.0
+
+        if v_med and l_med and f_med and raw_it and exp_tok:
+            be_est = compute_break_even_and_estimates(
+                raw_iterations=raw_it,
+                expanded_base_tokens=exp_tok,
+                vanilla_median_ms=v_med,
+                legacy_median_ms=l_med,
+                fast_median_ms=f_med,
+                legacy_setup_ms=l_setup_ms,
+                fast_setup_ms=f_setup_ms,
+            )
+        else:
+            be_est = {}
+
+        prompt_summary = {
+            "prompt_id": pid,
+            "domain": prompt.get("domain"),
+            "poc_meta": prompt.get("poc_meta"),
+            "original_prompt_token_count": len(original_ids_map.get(pid, [])),
+            "codebook_sha256": codebooks.get(pid, {}).get("sha256"),
+            "vanilla": {k: v for k, v in v_rec.items() if k not in ("generation_score_tensors", "generation_logit_tensors")} if v_rec else None,
+            "predictive_legacy_merged": {k: v for k, v in l_rec.items() if k not in ("generation_score_tensors", "generation_logit_tensors")} if l_rec else None,
+            "predictive_fast_merged": {k: v for k, v in f_rec.items() if k not in ("generation_score_tensors", "generation_logit_tensors")} if f_rec else None,
+            "smoke_comparison": smokes.get(pid),
+            "break_even_and_estimates": be_est,
+        }
+        per_prompt_records.append(prompt_summary)
+
+    total_raw = sum(
+        (fast_results.get(p["prompt_id"]) or legacy_results.get(p["prompt_id"]) or {}).get("transformer_decode_iterations", 0)
+        for p in per_prompt_records
+    )
+    total_expanded = sum(
+        (fast_results.get(p["prompt_id"]) or legacy_results.get(p["prompt_id"]) or {}).get("expanded_output_tokens", 0)
+        for p in per_prompt_records
+    )
+    total_vanilla_equiv_ms = sum(p["break_even_and_estimates"].get("vanilla_equivalent_decode_ms", 0.0) for p in per_prompt_records)
+    total_legacy_decode_ms = sum(p["break_even_and_estimates"].get("legacy_decode_ms", 0.0) for p in per_prompt_records)
+    total_fast_decode_ms = sum(p["break_even_and_estimates"].get("fast_decode_ms", 0.0) for p in per_prompt_records)
+    total_legacy_setup_ms = sum(p.get("predictive_legacy_merged", {}).get("setup", {}).get("total_table_preparation_ms", 0.0) or 0.0 for p in per_prompt_records)
+    total_fast_setup_ms = sum(p.get("predictive_fast_merged", {}).get("setup", {}).get("total_table_preparation_ms", 0.0) or 0.0 for p in per_prompt_records)
+    total_legacy_total_ms = total_legacy_decode_ms + total_legacy_setup_ms
+    total_fast_total_ms = total_fast_decode_ms + total_fast_setup_ms
+
+    overall_compression = 1.0 - (total_raw / max(1, total_expanded))
+    overall_break_even_decode_ms = (total_vanilla_equiv_ms / max(1, total_raw)) if total_raw else None
+
+    mbpp_prompts = [p for p in per_prompt_records if p["domain"] == "code"]
+    gsm_prompts = [p for p in per_prompt_records if p["domain"] == "reasoning"]
+    alpaca_prompts = [p for p in per_prompt_records if p["domain"] == "instruction"]
+
+    quality_summary = {
+        "mbpp": {
+            "count": len(mbpp_prompts),
+            "vanilla_syntax_valid": sum(1 for p in mbpp_prompts if p.get("vanilla", {}).get("quality_and_termination", {}).get("syntax_valid")),
+            "vanilla_problem_pass": sum(1 for p in mbpp_prompts if p.get("vanilla", {}).get("quality_and_termination", {}).get("problem_pass")),
+            "legacy_syntax_valid": sum(1 for p in mbpp_prompts if p.get("predictive_legacy_merged", {}).get("quality_and_termination", {}).get("syntax_valid")),
+            "legacy_problem_pass": sum(1 for p in mbpp_prompts if p.get("predictive_legacy_merged", {}).get("quality_and_termination", {}).get("problem_pass")),
+            "fast_syntax_valid": sum(1 for p in mbpp_prompts if p.get("predictive_fast_merged", {}).get("quality_and_termination", {}).get("syntax_valid")),
+            "fast_problem_pass": sum(1 for p in mbpp_prompts if p.get("predictive_fast_merged", {}).get("quality_and_termination", {}).get("problem_pass")),
+        },
+        "gsm8k": {
+            "count": len(gsm_prompts),
+            "vanilla_exact_correct": sum(1 for p in gsm_prompts if p.get("vanilla", {}).get("quality_and_termination", {}).get("exact_correct")),
+            "legacy_exact_correct": sum(1 for p in gsm_prompts if p.get("predictive_legacy_merged", {}).get("quality_and_termination", {}).get("exact_correct")),
+            "fast_exact_correct": sum(1 for p in gsm_prompts if p.get("predictive_fast_merged", {}).get("quality_and_termination", {}).get("exact_correct")),
+        },
+        "alpaca": {
+            "count": len(alpaca_prompts),
+            "vanilla_mechanical_pass": sum(1 for p in alpaca_prompts if p.get("vanilla", {}).get("quality_and_termination", {}).get("mechanical_instruction_pass")),
+            "legacy_mechanical_pass": sum(1 for p in alpaca_prompts if p.get("predictive_legacy_merged", {}).get("quality_and_termination", {}).get("mechanical_instruction_pass")),
+            "fast_mechanical_pass": sum(1 for p in alpaca_prompts if p.get("predictive_fast_merged", {}).get("quality_and_termination", {}).get("mechanical_instruction_pass")),
+        },
+    }
+
+    v_medians = [p.get("vanilla", {}).get("fixed_kv_microbenchmark", {}).get("median_forward_ms") for p in per_prompt_records if p.get("vanilla")]
+    l_medians = [p.get("predictive_legacy_merged", {}).get("fixed_kv_microbenchmark", {}).get("median_forward_ms") for p in per_prompt_records if p.get("predictive_legacy_merged")]
+    f_medians = [p.get("predictive_fast_merged", {}).get("fixed_kv_microbenchmark", {}).get("median_forward_ms") for p in per_prompt_records if p.get("predictive_fast_merged")]
+
+    aggregate_summary = {
+        "prompt_count": len(prompts),
+        "total_raw_decode_iterations": total_raw,
+        "total_expanded_output_tokens": total_expanded,
+        "overall_compression_fraction": overall_compression,
+        "overall_compression_pct": round(overall_compression * 100.0, 2),
+        "total_vanilla_equivalent_decode_ms": total_vanilla_equiv_ms,
+        "total_legacy_decode_ms": total_legacy_decode_ms,
+        "total_fast_decode_ms": total_fast_decode_ms,
+        "total_legacy_setup_ms": total_legacy_setup_ms,
+        "total_fast_setup_ms": total_fast_setup_ms,
+        "total_legacy_total_estimated_ms": total_legacy_total_ms,
+        "total_fast_total_estimated_ms": total_fast_total_ms,
+        "overall_break_even_decode_ms": overall_break_even_decode_ms,
+        "fast_decode_speedup_vs_legacy_pct": ((total_legacy_decode_ms - total_fast_decode_ms) / total_legacy_decode_ms * 100.0) if total_legacy_decode_ms > 0 else 0.0,
+        "fast_total_speedup_vs_legacy_pct": ((total_legacy_total_ms - total_fast_total_ms) / total_legacy_total_ms * 100.0) if total_legacy_total_ms > 0 else 0.0,
+        "fast_decode_speedup_vs_vanilla_pct": ((total_vanilla_equiv_ms - total_fast_decode_ms) / total_vanilla_equiv_ms * 100.0) if total_vanilla_equiv_ms > 0 else 0.0,
+        "fast_total_speedup_vs_vanilla_pct": ((total_vanilla_equiv_ms - total_fast_total_ms) / total_vanilla_equiv_ms * 100.0) if total_vanilla_equiv_ms > 0 else 0.0,
+        "fixed_kv_microbenchmark_summary": {
+            "active_kv_length": FIXED_KV_CONTEXT_LENGTH,
+            "warmup_iterations": FIXED_KV_WARMUP_ITERATIONS,
+            "measured_iterations": FIXED_KV_MEASURED_ITERATIONS,
+            "vanilla_median_ms": statistics.median(v_medians) if v_medians else None,
+            "legacy_median_ms": statistics.median(l_medians) if l_medians else None,
+            "fast_median_ms": statistics.median(f_medians) if f_medians else None,
+            "fast_overhead_vs_vanilla_pct": ((statistics.median(f_medians) / statistics.median(v_medians) - 1.0) * 100.0) if v_medians and f_medians else None,
+            "legacy_overhead_vs_vanilla_pct": ((statistics.median(l_medians) / statistics.median(v_medians) - 1.0) * 100.0) if v_medians and l_medians else None,
+            "fast_speedup_vs_legacy_pct": ((statistics.median(l_medians) - statistics.median(f_medians)) / statistics.median(l_medians) * 100.0) if l_medians and f_medians else None,
+        },
+        "quality_summary": quality_summary,
+    }
+
+    tier1_payload = {
+        "schema": "predictive_fast_path_tier1_12_v1",
+        "benchmark_type": "tier1_12_validation",
+        "checkpoint": args.checkpoint,
+        "checkpoint_step": 100,
+        "device": str(device),
+        "gpu_name": gpu_name,
+        "gpu_validation_explicitly_authorized_by_cli": bool(args.allow_gpu),
+        "static_cache_capacity": args.static_cache_capacity,
+        "batch_size": 1,
+        "conditions": list(args.conditions),
+        "model_provenance": model_provenance,
+        "environment_provenance": environment_provenance,
+        "aggregate_summary": aggregate_summary,
+        "prompts": per_prompt_records,
+    }
+
+    run_name = f"tier1_12_{time.strftime('%Y%m%d_%H%M%S')}"
+    output_path = output_dir / f"{run_name}.json"
+    write_json_atomic(output_path, tier1_payload)
+    summary_path = output_path.with_suffix(".md")
+    summary_path.write_text(_render_tier1_12_human_readable_summary(tier1_payload), encoding="utf-8")
+    return output_path
+
+
 def execute(args: argparse.Namespace) -> Path:
     device = torch.device(args.device)
     if not args.execute:
@@ -1720,7 +2259,6 @@ def execute(args: argparse.Namespace) -> Path:
     if "T4" not in gpu_name.upper():
         raise RuntimeError(f"the reviewed first GPU protocol requires one T4; selected {gpu_name!r}")
     torch.cuda.set_device(device)
-    prompt = _load_prompt(args.prompt_id)
     os.makedirs(args.output_dir, exist_ok=True)
     environment_provenance = None
     if args.environment_provenance:
@@ -1730,6 +2268,9 @@ def execute(args: argparse.Namespace) -> Path:
                 f"requested environment provenance file is missing: {provenance_path}"
             )
         environment_provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    if getattr(args, "tier1_12", False):
+        return _execute_tier1_12(args, device, gpu_name, environment_provenance)
+    prompt = _load_prompt(args.prompt_id)
     records: Dict[str, Any] = {}
     smoke = None
     original_ids: List[int] = []

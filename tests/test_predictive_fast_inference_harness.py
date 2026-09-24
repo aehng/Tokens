@@ -947,3 +947,121 @@ def test_fixed_context_ids_are_deterministic_and_exactly_256_positions():
     assert ids[:3] == [9, 8, 7]
     assert ids[3:] == [21] * 253
     assert ids == harness._fixed_context_ids([9, 8, 7], [21, 22, 23])
+
+
+def test_tier1_12_dry_run_and_args_validation(monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("dry-run must not initialize or query CUDA")
+
+    monkeypatch.setattr(torch.cuda, "is_available", forbidden)
+    monkeypatch.setattr(torch.cuda, "init", forbidden)
+
+    parser = harness.build_parser()
+    args = parser.parse_args(["--dry-run", "--tier1-12"])
+    harness.validate_args(args)
+    assert args.tier1_12 is True
+    assert args.static_cache_capacity == 512
+    assert args.max_new_tokens == 300
+
+    report = harness.dry_run_report(args)
+    assert report["tier1_12"] is True
+    assert report["prompt_count"] == 12
+    canonical_expected_ids = [
+        "mbpp_740", "mbpp_969", "mbpp_542", "mbpp_769",
+        "gsm_3022", "gsm_6613", "gsm_2956", "gsm_8674",
+        "alpaca_1337", "alpaca_1992", "alpaca_55", "alpaca_183",
+    ]
+    assert [p["id"] for p in report["prompts"]] == canonical_expected_ids
+    behavioral = report["protocols"]["behavioral_generation_smoke"]
+    fixed = report["protocols"]["fixed_kv_microbenchmark"]
+    assert behavioral["static_cache_capacity"] == 512
+    assert behavioral["disable_compile"] is True
+    assert fixed["active_kv_length"] == 256
+    assert fixed["warmup_iterations"] == 20
+    assert fixed["measured_iterations"] == 100
+
+
+def test_extract_model_provenance_and_phi35_label():
+    class DummyConfig:
+        model_type = "phi3"
+        vocab_size = 32064
+        hidden_size = 3072
+        num_hidden_layers = 32
+        num_attention_heads = 32
+        num_key_value_heads = 32
+        _name_or_path = "microsoft/Phi-3.5-mini-instruct"
+
+    class DummyModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.config = DummyConfig()
+
+    prov = harness.extract_model_provenance(DummyModel())
+    assert prov["model_architecture_label"] == "Phi-3.5-mini-instruct"
+    assert "Phi-1.5" in prov["provenance_note"]
+    assert prov["canonical_base_model_id"] == "microsoft/Phi-3.5-mini-instruct"
+    assert prov["canonical_base_revision"] == "2fe192450127e6a83f7441aef6e3ca586c338b77"
+    assert prov["canonical_zip2zip_revision"] == "11c461733a79d2a5de6b814585c3361ca2aacbe7"
+
+
+def test_evaluate_quality_and_termination_smoke():
+    # Code domain
+    code_prompt = {
+        "domain": "code",
+        "ground_truth_response": "def add(a, b):\n    return a + b\nassert add(1, 2) == 3\n",
+    }
+    code_record = {
+        "output_text": "```python\ndef add(a, b):\n    return a + b\n```",
+        "raw_decode_ids": [10, 11, 12],
+    }
+    res_code = harness.evaluate_quality_and_termination(code_record, code_prompt)
+    assert res_code["syntax_valid"] is True
+    assert res_code["problem_pass"] is True
+
+    # Reasoning domain
+    gsm_prompt = {
+        "domain": "reasoning",
+        "ground_truth_response": "The answer is 42. #### 42",
+    }
+    gsm_record = {
+        "output_text": "First calculate 6 * 7 = 42. The answer is 42.",
+        "raw_decode_ids": list(range(20)),
+    }
+    res_gsm = harness.evaluate_quality_and_termination(gsm_record, gsm_prompt)
+    assert res_gsm["exact_correct"] is True
+    assert res_gsm["extracted_answer"] == "42"
+    assert res_gsm["steps_to_answer"] is not None
+    assert res_gsm["post_answer_tail_steps"] is not None
+
+    # Instruction domain
+    alpaca_prompt = {"domain": "instruction"}
+    alpaca_record = {
+        "output_text": "This is a detailed and compliant response that is long enough.",
+        "raw_decode_ids": list(range(10)),
+        "eos_emitted": True,
+    }
+    res_alpaca = harness.evaluate_quality_and_termination(alpaca_record, alpaca_prompt)
+    assert res_alpaca["mechanical_instruction_pass"] is True
+    assert res_alpaca["severe_repetition_detected"] is False
+
+
+def test_compute_break_even_and_estimates():
+    # 100 raw iterations vs 125 expanded tokens = 20% compression
+    # Vanilla median 36 ms, legacy 37 ms, fast 36.5 ms
+    estimates = harness.compute_break_even_and_estimates(
+        raw_iterations=100,
+        expanded_base_tokens=125,
+        vanilla_median_ms=36.0,
+        legacy_median_ms=37.0,
+        fast_median_ms=36.5,
+        legacy_setup_ms=0.5,
+        fast_setup_ms=1.0,
+    )
+    assert estimates["compression_fraction"] == pytest.approx(0.20)
+    assert estimates["break_even_decode_ms"] == pytest.approx(45.0)  # 36.0 / 0.8
+    assert estimates["vanilla_equivalent_decode_ms"] == 4500.0  # 125 * 36
+    assert estimates["legacy_decode_ms"] == 3700.0  # 100 * 37
+    assert estimates["fast_decode_ms"] == 3650.0  # 100 * 36.5
+    assert estimates["fast_decode_speedup_vs_legacy_pct"] > 0
+    assert estimates["fast_decode_speedup_vs_vanilla_pct"] > 0
+
