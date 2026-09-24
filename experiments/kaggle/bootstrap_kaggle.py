@@ -27,6 +27,9 @@ def main() -> None:
     root.mkdir(parents=True, exist_ok=True)
     with tarfile.open(archive, "r:gz") as bundle:
         bundle.extractall(root)
+    sha_file = archive.parent / "SOURCE_SHA.txt"
+    if sha_file.is_file():
+        (root / "SOURCE_SHA.txt").write_text(sha_file.read_text(encoding="utf-8"), encoding="utf-8")
     os.chdir(root)
     subprocess.check_call(
         [sys.executable, "-m", "pip", "install", "-q", "vllm==0.30.0"]
