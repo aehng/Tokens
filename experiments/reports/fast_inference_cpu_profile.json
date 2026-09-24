@@ -1,0 +1,91 @@
+{
+  "device": "cpu",
+  "timing_interpretation": "directional CPU result; not evidence of GPU speedup",
+  "no_gpu_work_performed": true,
+  "dimensions": {
+    "base_vocab_rows": 2052,
+    "initial_vocab_size": 2048,
+    "codebook_size": 32,
+    "hidden_size": 128
+  },
+  "checks": {
+    "base_only": "pass",
+    "H2": "pass",
+    "H3": "pass",
+    "mixed_prompt": "pass",
+    "multiple_H": "pass",
+    "eos_base_token": "pass",
+    "decode_did_not_rerun_encoders": "pass",
+    "shifted_original_tail_embedding": "pass",
+    "output_logits_top1_top5_and_tail": "pass",
+    "autoregressive_greedy_ids": "pass",
+    "prompt_segmentation_and_expansion": "pass",
+    "prompt_tail_ids_shift_and_roundtrip": "pass",
+    "H2_H3_semantic_positions": "pass",
+    "fast_position_has_no_aten_any": "pass",
+    "reset_and_second_codebook": "pass"
+  },
+  "greedy_generated_ids": [
+    428,
+    1426,
+    1549,
+    1326,
+    1161
+  ],
+  "encoder_calls_after_first_setup": {
+    "input": 1,
+    "output": 1,
+    "additional_decode_calls": 0
+  },
+  "memory_bytes": {
+    "base_input_embedding_bytes": 1050624,
+    "effective_input_embedding_bytes": 1067008,
+    "additional_input_embedding_bytes": 16384,
+    "base_output_head_bytes": 1058832,
+    "effective_output_head_bytes": 1075344,
+    "additional_output_head_bytes": 16512,
+    "additional_cpu_ram_bytes": 2142352
+  },
+  "operator_counts": {
+    "embedding_legacy": {
+      "aten::mul": 5,
+      "aten::arange": 2,
+      "aten::embedding": 2,
+      "aten::add": 1
+    },
+    "embedding_fast": {
+      "aten::embedding": 1
+    },
+    "output_legacy": {
+      "aten::linear": 1,
+      "aten::bmm": 1,
+      "aten::cat": 1
+    },
+    "output_fast": {
+      "aten::linear": 1
+    },
+    "position_legacy": {
+      "aten::any": 2,
+      "aten::where": 2,
+      "aten::add": 2
+    },
+    "position_fast": {
+      "aten::where": 2,
+      "aten::add": 2
+    }
+  },
+  "median_timing_ms": {
+    "position_legacy_ms": 0.0563,
+    "position_fast_ms": 0.0309,
+    "embedding_legacy_ms": 0.0617,
+    "embedding_fast_ms": 0.0036,
+    "output_legacy_ms": 0.0743,
+    "output_fast_ms": 0.0421
+  },
+  "notes": [
+    "Synthetic deterministic encoder/model only; no live Phi generation was run.",
+    "The legacy output path preserves tail logits but does not embed shifted tail IDs.",
+    "The fast effective table supports shifted tail IDs and reverses that shift on decode.",
+    "CPU timing and operator counts do not predict T4 latency."
+  ]
+}
