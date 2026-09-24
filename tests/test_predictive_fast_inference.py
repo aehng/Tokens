@@ -4,8 +4,18 @@ import pytest
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from peft import LoraConfig, get_peft_model
+from transformers import LlamaConfig, LlamaForCausalLM
 
-from zip2zip import StaticCodebookManager
+from zip2zip import (
+    CompressionConfig,
+    StaticCodebookManager,
+    Zip2ZipConfig,
+    Zip2ZipModel,
+    prepare_model_for_inference,
+)
+from zip2zip.codebook import CodebookManager
+from zip2zip.nn.encoders.config import ResLatentAttnConfig
 from zip2zip.nn.embedding import HyperEmbedding
 from zip2zip.nn.linear import HyperLinear
 
@@ -21,6 +31,28 @@ class MeanTokenEncoder:
             return summed / valid.sum(dim=-1, keepdim=True).clamp_min(1)
 
         return encode
+
+
+class TinyCausalModel(nn.Module):
+    def __init__(self, embedding, output_head):
+        super().__init__()
+        self.embedding = embedding
+        self.output_head = output_head
+
+    def get_input_embeddings(self):
+        return self.embedding
+
+    def get_output_embeddings(self):
+        return self.output_head
+
+
+class TinyPredictiveModel(nn.Module):
+    def __init__(self, manager, embedding, output_head):
+        super().__init__()
+        self.base_model = TinyCausalModel(embedding, output_head)
+        self.input_encoder = MeanTokenEncoder()
+        self.output_encoder = MeanTokenEncoder()
+        self.codebook_manager = manager
 
 
 def make_manager(*, vocab=12, codebook_size=4, dim=5):
@@ -131,6 +163,22 @@ def test_legacy_output_projection_preserves_base_h_insertion_and_tail():
     assert manager.output_encoder_calls == 1
 
 
+def test_unprepared_legacy_wrappers_remain_differentiable_for_training():
+    manager = make_manager()
+    embedding = make_embedding(manager)
+    head = make_linear(manager)
+
+    embedded = embedding(torch.tensor([[1, 12, 7, 13]]))
+    logits = head(embedded)
+    logits.square().mean().backward()
+
+    assert not manager.fast_inference_ready
+    assert embedding.weight.grad is not None
+    assert head.weight.grad is not None
+    assert manager.input_encoder_calls == 1
+    assert manager.output_encoder_calls == 1
+
+
 def test_legacy_embedding_does_not_map_shifted_original_tail_ids():
     """Record the existing mismatch: output tail IDs are shifted, input IDs are not."""
     manager = make_manager()
@@ -217,6 +265,7 @@ def test_seeded_codebook_validation_rejects_invalid_or_sparse_ids_atomically():
         [[-1, 2]],       # negative base token
         [[2, 12]],       # nested/out-of-base-vocabulary token
         [[2, 9]],        # disabled base token
+        [[2, 3], [2, 3]],  # duplicate phrase
         {1: [2, 3]},     # sparse slot; mask assumes packed slots
         {16: [2, 3]},    # absolute ID outside [V, V + K)
     ]
@@ -237,3 +286,234 @@ def test_new_codebook_invalidates_fast_inference_readiness_and_vectors():
     assert not manager.fast_inference_ready
     assert manager.hyper_embedding_weight_cache is None
     assert manager.hyper_linear_weight_cache is None
+
+
+def test_prepared_tables_match_legacy_and_cover_shifted_input_tail():
+    legacy_manager = make_manager()
+    legacy_embedding = make_embedding(legacy_manager)
+    legacy_head = make_linear(legacy_manager)
+
+    fast_manager = make_manager()
+    fast_embedding = make_embedding(fast_manager)
+    fast_head = make_linear(fast_manager)
+    with torch.no_grad():
+        fast_embedding.weight.copy_(legacy_embedding.weight)
+        fast_head.weight.copy_(legacy_head.weight)
+        fast_head.bias.copy_(legacy_head.bias)
+
+    model = TinyPredictiveModel(fast_manager, fast_embedding, fast_head).eval()
+    fast_manager.attach_to_model(model)
+    memory = fast_manager.prepare_inference_tables(model, batch_size=2)
+    assert fast_manager.base_position_offset is None
+    assert not fast_manager._prepared_for_embedding
+
+    prompt_ids = torch.tensor([[1, 12, 7, 13]])
+    legacy_embedded = legacy_embedding(prompt_ids)
+    fast_embedded = fast_embedding(prompt_ids)
+    assert torch.equal(fast_embedded, legacy_embedded)
+
+    hidden = torch.arange(2 * 5, dtype=torch.float32).view(1, 2, 5) / 7
+    legacy_logits = legacy_head(hidden)
+    fast_logits = fast_head(hidden)
+    assert torch.allclose(fast_logits, legacy_logits, atol=1e-6, rtol=1e-6)
+    assert torch.equal(
+        torch.topk(fast_logits, k=5, dim=-1).indices,
+        torch.topk(legacy_logits, k=5, dim=-1).indices,
+    )
+    def greedy_ids(embedding, head, manager, prompt, steps):
+        sequence = prompt.clone()
+        generated = []
+        for _ in range(steps):
+            hidden_step = embedding(sequence)[:, -1:, :]
+            step_logits = head(hidden_step)[:, -1, :].clone()
+            step_logits[..., 16:] = float("-inf")  # keep this fixture in the common ID space
+            step_logits = manager.mask_unused_logits(step_logits)
+            next_id = step_logits.argmax(dim=-1, keepdim=True)
+            generated.append(next_id)
+            sequence = torch.cat((sequence, next_id), dim=-1)
+        return torch.cat(generated, dim=-1)
+
+    legacy_greedy = greedy_ids(
+        legacy_embedding, legacy_head, legacy_manager, torch.tensor([[1, 2]]), 5
+    )
+    fast_greedy = greedy_ids(
+        fast_embedding, fast_head, fast_manager, torch.tensor([[1, 2]]), 5
+    )
+    assert torch.equal(fast_greedy, legacy_greedy)
+    assert torch.count_nonzero(fast_manager.effective_linear_bias_cache[12:16]) == 0
+    assert torch.equal(fast_logits[..., 16:], legacy_logits[..., 16:])
+
+    shifted_tail_ids = torch.tensor([[16, 18]])
+    expected_tail = torch.stack(
+        [legacy_embedding.weight[12], legacy_embedding.weight[14]]
+    ).unsqueeze(0)
+    assert torch.equal(fast_embedding(shifted_tail_ids), expected_tail)
+    assert fast_manager.decode_sequence([12, 13, 16, 18]) == [2, 3, 4, 5, 6, 12, 14]
+    assert fast_manager.segment_sequence([2, 3, 4, 5, 6]) == [12, 13]
+    assert fast_manager.prepare_input_sequence([12, 14], compress=False) == [16, 18]
+    assert fast_manager.prepare_input_sequence([2, 3, 12, 14]) == [12, 16, 18]
+    assert fast_manager.decode_sequence(
+        fast_manager.prepare_input_sequence([2, 3, 12, 14])
+    ) == [2, 3, 12, 14]
+    assert torch.equal(
+        fast_embedding(
+            torch.tensor([fast_manager.prepare_input_sequence([12, 14], compress=False)])
+        ),
+        torch.stack([legacy_embedding.weight[12], legacy_embedding.weight[14]]).unsqueeze(0),
+    )
+
+    batch_legacy_manager = StaticCodebookManager(
+        initial_vocab_size=12,
+        max_codebook_size=4,
+        max_subtokens=3,
+        embedding_dim=5,
+        pad_token_id=0,
+    )
+    batch_legacy_manager.set_seeded_codebook([[2, 3], [4, 5, 6]], batch_size=2)
+    batch_legacy_embedding = make_embedding(batch_legacy_manager)
+    batch_legacy_head = make_linear(batch_legacy_manager)
+    with torch.no_grad():
+        batch_legacy_embedding.weight.copy_(legacy_embedding.weight)
+        batch_legacy_head.weight.copy_(legacy_head.weight)
+        batch_legacy_head.bias.copy_(legacy_head.bias)
+    batch_ids = torch.tensor([[1, 12, 7, 13], [7, 13, 1, 12]])
+    assert torch.equal(fast_embedding(batch_ids), batch_legacy_embedding(batch_ids))
+    batch_hidden = hidden.expand(2, -1, -1)
+    assert torch.allclose(
+        fast_head(batch_hidden), batch_legacy_head(batch_hidden), atol=1e-6, rtol=1e-6
+    )
+
+    assert fast_manager.input_encoder_calls == 1
+    assert fast_manager.output_encoder_calls == 1
+    assert fast_manager.inference_tables_build_count == 1
+    assert memory["effective_input_embedding_bytes"] == 19 * 5 * 4
+    assert memory["effective_output_head_bytes"] == 19 * 5 * 4 + 19 * 4
+    assert memory["additional_cpu_ram_bytes"] == memory[
+        "effective_input_embedding_bytes"
+    ] + memory["effective_output_head_bytes"]
+
+    for _ in range(3):
+        fast_embedding(prompt_ids)
+        fast_head(hidden)
+    assert fast_manager.input_encoder_calls == 1
+    assert fast_manager.output_encoder_calls == 1
+    assert fast_manager.inference_tables_build_count == 1
+
+    fast_manager.reset(clear_dictionary=False)
+    fast_manager.prepare_inference_tables(model, batch_size=1)
+    assert fast_manager.inference_tables_build_count == 1
+    fast_manager.reset(clear_caches=True)
+    assert not fast_manager.fast_inference_ready
+    assert fast_manager.effective_embedding_weight_cache is None
+    fast_manager.prepare_inference_tables(model, batch_size=1)
+    assert fast_manager.inference_tables_build_count == 2
+    assert fast_manager.input_encoder_calls == 2
+    assert fast_manager.output_encoder_calls == 2
+
+
+def test_prepared_output_projection_supports_biasless_head():
+    manager = make_manager()
+    embedding = make_embedding(manager)
+    head = make_linear(manager, bias=False)
+    model = TinyPredictiveModel(manager, embedding, head).eval()
+    manager.attach_to_model(model)
+    manager.prepare_inference_tables(model)
+
+    assert manager.effective_linear_bias_cache is None
+    hidden = torch.arange(10, dtype=torch.float32).view(1, 2, 5) / 9
+    actual = head(hidden)
+    base_logits = F.linear(hidden, head.weight)
+    h_vectors = torch.zeros(4, 5)
+    h_vectors[0] = head.weight[[2, 3]].mean(0)
+    h_vectors[1] = head.weight[[4, 5, 6]].mean(0)
+    h_logits = hidden @ h_vectors.T
+    expected = torch.cat(
+        [base_logits[..., :12], h_logits, base_logits[..., 12:]], dim=-1
+    )
+    assert torch.allclose(actual, expected, atol=1e-6, rtol=1e-6)
+
+
+def test_lora_merge_preserves_wrappers_outputs_and_one_position_hook(monkeypatch):
+    vocab, hidden = 12, 16
+    base = LlamaForCausalLM(
+        LlamaConfig(
+            vocab_size=vocab,
+            hidden_size=hidden,
+            intermediate_size=32,
+            num_hidden_layers=1,
+            num_attention_heads=4,
+            num_key_value_heads=2,
+            max_position_embeddings=32,
+            bos_token_id=1,
+            eos_token_id=vocab - 1,
+            pad_token_id=0,
+        )
+    )
+    peft_base = get_peft_model(
+        base,
+        LoraConfig(
+            r=2,
+            lora_alpha=4,
+            target_modules=["q_proj", "v_proj"],
+            lora_dropout=0.0,
+            task_type="CAUSAL_LM",
+        ),
+    )
+    manager = StaticCodebookManager(
+        initial_vocab_size=vocab,
+        max_codebook_size=4,
+        max_subtokens=3,
+        embedding_dim=hidden,
+        pad_token_id=0,
+    )
+    config = Zip2ZipConfig(
+        format_version=2,
+        base_model_name_or_path="unused",
+        position_mode="base_token_end",
+        encoder_type="res_latent_attn",
+        encoder=ResLatentAttnConfig(
+            hidden_size=hidden,
+            model_hidden_size=None,
+            num_hidden_layers=1,
+            intermediate_size=32,
+            num_heads=4,
+            causal=False,
+            residual=True,
+            tie_encoders=False,
+            position_encoding=None,
+        ),
+        compression=CompressionConfig(
+            initial_vocab_size=vocab,
+            max_codebook_size=4,
+            max_subtokens=3,
+            disabled_ids=[0],
+        ),
+    )
+    monkeypatch.setattr(
+        CodebookManager,
+        "from_config",
+        classmethod(lambda cls, config: manager),
+    )
+    model = Zip2ZipModel(config, base_model=peft_base).eval()
+    manager.set_seeded_codebook([[2, 3]])
+    manager.attach_to_model(model)
+    manager.prepare_inference_tables(model)
+    ids = torch.tensor([[1, 2, 3]])
+    with torch.no_grad():
+        before = model.base_model(input_ids=ids).logits
+
+    prepared = prepare_model_for_inference(model, merge_lora=True)
+    assert prepared is model
+    assert not manager.fast_inference_ready
+    assert isinstance(model.base_model.get_input_embeddings(), HyperEmbedding)
+    assert isinstance(model.base_model.get_output_embeddings(), HyperLinear)
+    assert not model.base_model.__class__.__name__.startswith("Peft")
+    with torch.no_grad():
+        after = model.base_model(input_ids=ids).logits
+    assert torch.allclose(before, after, atol=2e-5, rtol=2e-5)
+
+    hooked_method = model.base_model.prepare_inputs_for_generation
+    hooked_func = hooked_method.__func__
+    assert getattr(hooked_func, "_zip2zip_position_hook_owner", None) == id(model)
+    prepare_model_for_inference(model, merge_lora=True)
+    assert model.base_model.prepare_inputs_for_generation.__func__ is hooked_func
