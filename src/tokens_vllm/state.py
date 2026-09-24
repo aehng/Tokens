@@ -83,6 +83,7 @@ def _build_state() -> None:
             extra = dict(getattr(sampling, "extra_args", None) or {})
             history = list(new_req_data.prefill_token_ids or [])
             already = int(new_req_data.num_computed_tokens or 0)
+            # Setup check only. The decode loop does not read this flag.
             was_clear = bool(torch.count_nonzero(self.h_spans[req_index]).item() == 0)
             if not self.model.h_enabled:
                 self.h_spans[req_index].fill_(1)
@@ -110,6 +111,7 @@ def _build_state() -> None:
                 disabled_ids=payload.get("disabled_ids") or (),
             )
             started = time.perf_counter()
+            # TTFT instrumentation around one-time H synthesis, not the decode loop.
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
             self._synthesize(req_index, codebook)
@@ -175,6 +177,7 @@ def _build_state() -> None:
             n = int(input_batch.num_tokens)
             n_pad = int(input_batch.num_tokens_after_padding)
             num_reqs = int(input_batch.num_reqs)
+            # Proof path: ownership is built on CPU and copied to GPU.
             owners = np.zeros(n_pad, dtype=np.int64)
             query = input_batch.query_start_loc_np
             mapping = input_batch.idx_mapping_np

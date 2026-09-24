@@ -19,6 +19,10 @@ from typing import Any
 
 import torch
 
+# Admission logs record the id passed to add_request. vLLM 0.30.0 otherwise
+# appends a random suffix, which the proof cannot match to a phase.
+os.environ["VLLM_DISABLE_REQUEST_ID_RANDOMIZATION"] = "1"
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -27,6 +31,7 @@ PHI_ID = "microsoft/Phi-3.5-mini-instruct"
 PHI_REV = "2fe192450127e6a83f7441aef6e3ca586c338b77"
 VLLM_SHA = "ced6857afa0ea7b2e3f0846a62e1394e90f15607"
 MAX_NEW = 16
+PROOF_BLOCK_SIZE = 16
 
 
 def _result_root() -> Path:
@@ -180,7 +185,15 @@ def phase_01_and_02(root: Path) -> dict[str, Any]:
 
     ours = _make_llm(PHI_ID, h_enabled=False, revision=PHI_REV, max_model_len=128, max_num_seqs=2)
     ours_out = ours.generate([{"prompt_token_ids": prompt_ids}], stock_params)
-    ours_ids = _ids(ours_out[0])
+    ours_logical_ids = _ids(ours_out[0])
+    from tokens_vllm.contract import logical_output_to_base_ids
+
+    conversion_error = None
+    try:
+        ours_base_ids = logical_output_to_base_ids(ours_logical_ids)
+    except ValueError as exc:
+        ours_base_ids = []
+        conversion_error = str(exc)
 
     def inspect(model):
         seen: dict[str, list[int]] = {}
@@ -221,8 +234,10 @@ def phase_01_and_02(root: Path) -> dict[str, Any]:
         "stock_vocab": stock_vocab,
         "logical_vocab": 32096,
         "stock_ids": stock_ids,
-        "ours_ids": ours_ids,
-        "greedy_match": stock_ids == ours_ids,
+        "ours_logical_ids": ours_logical_ids,
+        "ours_base_ids": ours_base_ids,
+        "base_conversion_error": conversion_error,
+        "greedy_match": conversion_error is None and ours_base_ids == stock_ids,
         "embed_rows": inspected["embed_rows"],
         "head_rows": inspected["head_rows"],
         "logits_width": inspected["logits_width"],
@@ -467,53 +482,215 @@ def _compare_vectors(reference: torch.Tensor, actual: torch.Tensor) -> dict[str,
     return {"max_abs": float(delta.max()), "mean_abs": float(delta.mean())}
 
 
-def _run_request(llm, compressed: list[int], payload: dict, max_tokens: int = MAX_NEW):
-    params = _sampling({"predictive_codebook": payload}, max_tokens=max_tokens)
-    seen: dict[str, Any] = {}
+def _install_debug_hooks(model):
+    """Record RoPE positions and the first logits on the worker model."""
+    debug: dict[str, Any] = {"rope_positions": [], "first_logits": None}
+    model._tokens_debug = debug
 
-    def hook_factory(model):
-        def pre_hook(_module, args):
-            seen.setdefault("forwards", []).append(args[0].detach().to("cpu").tolist())
+    def pre_hook(_module, args, debug=debug):
+        debug["rope_positions"].append(args[0].detach().to("cpu").tolist())
 
-        handle = model.model.layers[0].self_attn.rotary_emb.register_forward_pre_hook(pre_hook)
-        if not hasattr(model, "_orig_compute_logits"):
-            model._orig_compute_logits = model.compute_logits
-        original = model._orig_compute_logits
+    handle = model.model.layers[0].self_attn.rotary_emb.register_forward_pre_hook(pre_hook)
+    model._tokens_debug_handle = handle
+    if not hasattr(model, "_orig_compute_logits"):
+        model._orig_compute_logits = model.compute_logits
+    original = model._orig_compute_logits
 
-        def wrapped(hidden):
-            logits = original(hidden)
-            if logits is not None and "logits" not in seen:
-                seen["logits"] = logits[0].detach().float().cpu()
-            return logits
+    def wrapped(hidden, debug=debug, original=original):
+        logits = original(hidden)
+        if logits is not None and debug["first_logits"] is None:
+            debug["first_logits"] = logits[0].detach().float().cpu()
+        return logits
 
-        model.compute_logits = wrapped
-        seen["handle"] = handle
-        return True
+    model.compute_logits = wrapped
+    return True
 
-    _apply(llm, hook_factory)
-    outputs = llm.generate([{"prompt_token_ids": compressed}], params)
-    token_ids = _ids(outputs[0])
 
-    def snapshot(model):
-        log = list(model.predictive_state.admission_log)
-        handle = seen.get("handle")
-        if handle is not None:
-            handle.remove()
-        if hasattr(model, "_orig_compute_logits"):
-            model.compute_logits = model._orig_compute_logits
+def _consume_debug(model):
+    """Return CPU copies of worker debug state and remove the hooks."""
+    debug = getattr(model, "_tokens_debug", None) or {}
+    handle = getattr(model, "_tokens_debug_handle", None)
+    if handle is not None:
+        handle.remove()
+    model._tokens_debug = None
+    model._tokens_debug_handle = None
+    if hasattr(model, "_orig_compute_logits"):
+        model.compute_logits = model._orig_compute_logits
+        delattr(model, "_orig_compute_logits")
+    logits = debug.get("first_logits")
+    if logits is not None:
+        logits = logits.detach().float().cpu()
+    return {
+        "rope_positions": list(debug.get("rope_positions") or []),
+        "first_logits": logits,
+        "log": list(model.predictive_state.admission_log),
+        "setup_ms": dict(model.predictive_state.setup_ms),
+    }
+
+
+def _capture_active_request(model, request_id: str):
+    """Copy H state only while this request still owns its slot."""
+    state = model.predictive_state
+    slot = state.req_id_to_index.get(request_id)
+    if slot is None:
+        return {"active": False, "req_id": request_id}
+    return {
+        "active": True,
+        "req_id": request_id,
+        "req_index": int(slot),
+        "sha256": state.codebook_sha.get(slot),
+        "h_input": state.h_input[slot].detach().float().cpu(),
+        "h_output": state.h_output[slot].detach().float().cpu(),
+        "spans": [int(span) for span in state.h_spans[slot].detach().cpu().tolist()],
+    }
+
+
+def _scheduler_diagnostics(llm) -> dict[str, Any]:
+    try:
+        scheduler = llm.llm_engine.engine_core.engine_core.scheduler
+    except Exception as exc:
+        return {"error": f"{type(exc).__name__}: {exc}"}
+
+    def brief(request) -> dict[str, Any]:
         return {
-            "log": log,
-            "setup_ms": dict(model.predictive_state.setup_ms),
+            "request_id": request.request_id,
+            "status": str(request.status),
+            "num_computed_tokens": int(request.num_computed_tokens),
+            "num_tokens": int(request.num_tokens),
+            "num_preemptions": int(request.num_preemptions),
+            "max_tokens": int(request.max_tokens),
         }
 
-    snap = _apply(llm, snapshot)
+    pool = scheduler.kv_cache_manager.block_pool
     return {
+        "running": [brief(request) for request in list(scheduler.running)],
+        "waiting": [brief(request) for request in list(scheduler.waiting)],
+        "free_blocks": int(pool.get_num_free_blocks()),
+        "num_gpu_blocks": int(pool.num_gpu_blocks),
+        "block_size": int(scheduler.block_size),
+    }
+
+
+def _fail_step_budget(root: Path, phase_name: str, llm, steps: int, max_steps: int) -> None:
+    diagnostics = _scheduler_diagnostics(llm)
+    payload = {
+        "status": "FAIL",
+        "reason": "engine step budget exceeded",
+        "phase": phase_name,
+        "steps": steps,
+        "max_engine_steps": max_steps,
+        "diagnostics": diagnostics,
+    }
+    write_json(root / f"{phase_name}.json", payload)
+    raise RuntimeError(f"{phase_name} exceeded {max_steps} engine steps: {diagnostics}")
+
+
+def _bounded_steps(
+    engine,
+    llm,
+    *,
+    root: Path,
+    phase_name: str,
+    max_steps: int,
+    stop_when=None,
+):
+    from tokens_vllm.proof_harness import engine_step_decision
+
+    collected = []
+    steps = 0
+    while True:
+        decision = engine_step_decision(
+            steps, max_steps, engine.has_unfinished_requests()
+        )
+        if decision == "stop":
+            return collected, steps
+        if decision == "budget_exceeded":
+            _fail_step_budget(root, phase_name, llm, steps, max_steps)
+        collected.extend(engine.step())
+        steps += 1
+        if stop_when is not None and stop_when(collected):
+            return collected, steps
+
+
+def _finished_ids(collected, request_id: str) -> list[int]:
+    finished = [
+        item
+        for item in collected
+        if getattr(item, "request_id", None) == request_id and _is_finished(item)
+    ]
+    if not finished:
+        return []
+    return _ids(finished[-1])
+
+
+def _run_request(
+    llm,
+    compressed: list[int],
+    payload: dict,
+    max_tokens: int = MAX_NEW,
+    *,
+    request_id: str,
+    root: Path,
+    phase_name: str,
+    capture_h: bool = False,
+):
+    from tokens_vllm.proof_harness import MAX_ENGINE_STEPS
+
+    params = _sampling({"predictive_codebook": payload}, max_tokens=max_tokens)
+    _apply(llm, _install_debug_hooks)
+    captured = None
+    token_ids: list[int] = []
+    try:
+        assigned = llm.llm_engine.add_request(
+            request_id,
+            {"prompt_token_ids": compressed},
+            params,
+        )
+        if assigned != request_id:
+            raise RuntimeError(
+                f"engine assigned request id {assigned}, expected {request_id}"
+            )
+
+        def _capture_while_active(collected):
+            nonlocal captured
+            del collected
+            if captured is not None:
+                return False
+            snap = _apply(
+                llm,
+                lambda model, request_id=request_id: _capture_active_request(
+                    model, request_id
+                ),
+            )
+            if snap.get("active"):
+                captured = snap
+            return False
+
+        collected, _steps = _bounded_steps(
+            llm.llm_engine,
+            llm,
+            root=root,
+            phase_name=phase_name,
+            max_steps=MAX_ENGINE_STEPS,
+            stop_when=_capture_while_active if capture_h else None,
+        )
+        if capture_h and captured is None:
+            raise RuntimeError(
+                f"{request_id} finished before its H vectors could be captured"
+            )
+        token_ids = _finished_ids(collected, request_id)
+    finally:
+        snap = _apply(llm, _consume_debug)
+    forwards = snap["rope_positions"]
+    return {
+        "request_id": request_id,
         "token_ids": token_ids,
-        "positions": (seen.get("forwards") or [[]])[0],
-        "forwards": seen.get("forwards") or [],
-        "logits": seen.get("logits"),
+        "positions": forwards[0] if forwards else [],
+        "forwards": forwards,
+        "logits": snap["first_logits"],
         "log": snap["log"],
         "setup_ms": snap["setup_ms"],
+        "h_capture": captured,
     }
 
 
@@ -575,37 +752,52 @@ def main() -> None:
         encoder_info = _install_encoders(llm, prepared["encoder_path"])
         primary = prepared["references"][0]
         secondary = prepared["references"][1]
-        primary_run = _run_request(llm, primary["compressed_ids"], primary["payload"])
+        primary_run = _run_request(
+            llm,
+            primary["compressed_ids"],
+            primary["payload"],
+            request_id="phase3-primary",
+            root=root,
+            phase_name="phase_03_single_request_state",
+            capture_h=True,
+        )
         hf_h = torch.load(root / f"hf_{primary['prompt_id']}.pt", weights_only=False)
+        from tokens_vllm.contract import expected_hypertoken_spans
 
-        def grab_h(model):
-            # The last admission for this request holds the slot.
-            slot = model.predictive_state.admission_log[-1]["req_index"]
-            return {
-                "h_input": model.predictive_state.h_input[slot].detach().float().cpu(),
-                "h_output": model.predictive_state.h_output[slot].detach().float().cpu(),
-                "spans": model.predictive_state.h_spans[slot].detach().cpu().tolist(),
+        synthesized = primary_run["h_capture"] or {"active": False}
+        expected_spans = expected_hypertoken_spans(primary["payload"]["phrases"])
+        got_spans = synthesized.get("spans")
+        spans_match = got_spans == expected_spans
+        vector_delta = None
+        if synthesized.get("active"):
+            vector_delta = {
+                "h_input": _compare_vectors(hf_h["h_input"], synthesized["h_input"]),
+                "h_output": _compare_vectors(hf_h["h_output"], synthesized["h_output"]),
             }
-
-        synthesized = _apply(llm, grab_h)
-        vector_delta = {
-            "h_input": _compare_vectors(hf_h["h_input"], synthesized["h_input"]),
-            "h_output": _compare_vectors(hf_h["h_output"], synthesized["h_output"]),
-        }
         phase3 = {
             "status": "PASS",
             "prompt_id": primary["prompt_id"],
             "encoder": encoder_info,
             "setup_ms": primary_run["setup_ms"],
+            "captured_while_active": bool(synthesized.get("active")),
+            "req_index": synthesized.get("req_index"),
+            "codebook_sha256": synthesized.get("sha256"),
             "vector_delta": vector_delta,
-            "spans": synthesized["spans"],
+            "spans": got_spans,
+            "expected_spans": expected_spans,
+            "spans_match": spans_match,
             "hyperencoders_in_decode": False,
         }
-        if vector_delta["h_input"]["max_abs"] > 1e-2 or vector_delta["h_output"]["max_abs"] > 1e-2:
+        vectors_ok = (
+            vector_delta is not None
+            and vector_delta["h_input"]["max_abs"] <= 1e-2
+            and vector_delta["h_output"]["max_abs"] <= 1e-2
+        )
+        if not phase3["captured_while_active"] or not spans_match or not vectors_ok:
             phase3["status"] = "FAIL"
         write_json(root / "phase_03_single_request_state.json", phase3)
         if phase3["status"] != "PASS":
-            raise RuntimeError(f"phase 3 H vectors diverged: {vector_delta}")
+            raise RuntimeError(f"phase 3 H vectors diverged: {phase3}")
 
         ref_positions = primary["positions"]
         got_positions = primary_run["positions"] or []
@@ -639,7 +831,14 @@ def main() -> None:
             raise RuntimeError(f"phase 5 greedy or logits diverged: {phase5}")
 
         alone_a = primary_run["token_ids"]
-        alone_b = _run_request(llm, secondary["compressed_ids"], secondary["payload"])["token_ids"]
+        alone_b = _run_request(
+            llm,
+            secondary["compressed_ids"],
+            secondary["payload"],
+            request_id="phase6-alone-b",
+            root=root,
+            phase_name="phase_06_two_codebooks",
+        )["token_ids"]
 
         def isolation(model):
             logical = torch.tensor(
@@ -663,22 +862,48 @@ def main() -> None:
                 "rows_differ": bool((embedded[0] - embedded[1]).abs().max().item() > 1e-4),
             }
 
+        from tokens_vllm.proof_harness import MAX_ENGINE_STEPS
+
         engine = llm.llm_engine
+        # Two tokens so the first scheduled step cannot finish and clear the slots.
         engine.add_request(
             "iso-A",
             {"prompt_token_ids": primary["compressed_ids"]},
-            _sampling({"predictive_codebook": primary["payload"]}, max_tokens=1),
+            _sampling({"predictive_codebook": primary["payload"]}, max_tokens=2),
         )
         engine.add_request(
             "iso-B",
             {"prompt_token_ids": secondary["compressed_ids"]},
-            _sampling({"predictive_codebook": secondary["payload"]}, max_tokens=1),
+            _sampling({"predictive_codebook": secondary["payload"]}, max_tokens=2),
         )
-        engine.step()
+
+        def _both_live(_collected):
+            presence = _apply(
+                llm,
+                lambda model: {
+                    "a": "iso-A" in model.predictive_state.req_id_to_index,
+                    "b": "iso-B" in model.predictive_state.req_id_to_index,
+                },
+            )
+            return bool(presence["a"] and presence["b"])
+
+        _bounded_steps(
+            engine,
+            llm,
+            root=root,
+            phase_name="phase_06_two_codebooks",
+            max_steps=MAX_ENGINE_STEPS,
+            stop_when=_both_live,
+        )
         isolated = _apply(llm, isolation)
         engine.abort_request(["iso-A", "iso-B"])
-        while engine.has_unfinished_requests():
-            engine.step()
+        _bounded_steps(
+            engine,
+            llm,
+            root=root,
+            phase_name="phase_06_two_codebooks",
+            max_steps=MAX_ENGINE_STEPS,
+        )
         both = llm.generate(
             [
                 {"prompt_token_ids": primary["compressed_ids"]},
@@ -721,11 +946,18 @@ def main() -> None:
             disabled_ids=prepared["disabled_ids"],
             pad_id=prepared["pad_id"],
         )
-        standalone_c = _run_request(llm, primary["compressed_ids"], third_payload, max_tokens=4)
+        standalone_c = _run_request(
+            llm,
+            primary["compressed_ids"],
+            third_payload,
+            max_tokens=4,
+            request_id="phase7-standalone-c",
+            root=root,
+            phase_name="phase_07_slot_reuse",
+        )
         engine = llm.llm_engine
-        # The standalone call above also consumed the engine. Re-drive A/B/C
-        # on a clean schedule: C is admitted only after A has been removed.
-        engine.add_request(
+        # C is admitted only after A has been removed.
+        a_id = engine.add_request(
             "reuse-A2",
             {"prompt_token_ids": primary["compressed_ids"]},
             _sampling({"predictive_codebook": primary["payload"]}, max_tokens=1),
@@ -735,27 +967,41 @@ def main() -> None:
             {"prompt_token_ids": secondary["compressed_ids"]},
             _sampling({"predictive_codebook": secondary["payload"]}, max_tokens=6),
         )
-        while engine.has_unfinished_requests():
-            step_outs = engine.step()
-            if any(getattr(item, "request_id", None) == "reuse-A2" and _is_finished(item) for item in step_outs):
-                break
-        engine.add_request(
+
+        def _a_finished(step_outs, a_id=a_id):
+            return any(
+                getattr(item, "request_id", None) == a_id and _is_finished(item)
+                for item in step_outs
+            )
+
+        _bounded_steps(
+            engine,
+            llm,
+            root=root,
+            phase_name="phase_07_slot_reuse",
+            max_steps=MAX_ENGINE_STEPS,
+            stop_when=_a_finished,
+        )
+        c_id = engine.add_request(
             "reuse-C",
             {"prompt_token_ids": primary["compressed_ids"]},
             _sampling({"predictive_codebook": third_payload}, max_tokens=4),
         )
-        collected = []
-        while engine.has_unfinished_requests():
-            collected.extend(engine.step())
-        c_out = [item for item in collected if getattr(item, "request_id", None) == "reuse-C"]
-        c_ids = _ids(c_out[-1]) if c_out else []
+        collected, _steps = _bounded_steps(
+            engine,
+            llm,
+            root=root,
+            phase_name="phase_07_slot_reuse",
+            max_steps=MAX_ENGINE_STEPS,
+        )
+        c_ids = _finished_ids(collected, c_id)
 
         def reuse_snapshot(model):
             return list(model.predictive_state.admission_log)
 
         reuse_log = _apply(llm, reuse_snapshot)
-        c_adds = [event for event in reuse_log if event["event"] == "add" and event["req_id"] == "reuse-C"]
-        a_removes = [event for event in reuse_log if event["event"] == "remove" and event["req_id"] == "reuse-A2"]
+        c_adds = [event for event in reuse_log if event["event"] == "add" and event["req_id"] == c_id]
+        a_removes = [event for event in reuse_log if event["event"] == "remove" and event["req_id"] == a_id]
         phase7 = {
             "status": "FAIL",
             "c_ids": c_ids,
@@ -788,7 +1034,14 @@ def main() -> None:
             gpu_memory_utilization=0.50,
         )
         _install_encoders(chunk_llm, prepared["encoder_path"])
-        chunk_run = _run_request(chunk_llm, primary["compressed_ids"], primary["payload"])
+        chunk_run = _run_request(
+            chunk_llm,
+            primary["compressed_ids"],
+            primary["payload"],
+            request_id="phase8-chunk",
+            root=root,
+            phase_name="phase_08_chunked_prefill",
+        )
         chunk_positions: list[int] = []
         for forward in chunk_run["forwards"]:
             if len(chunk_positions) >= len(primary["positions"]):
@@ -809,56 +1062,128 @@ def main() -> None:
         if phase8["status"] != "PASS":
             raise RuntimeError(f"phase 8 chunked prefill diverged: {phase8}")
 
+        from tokens_vllm.proof_harness import preemption_block_budget, preempted_request_ids
+
+        budget = preemption_block_budget(
+            len(primary["compressed_ids"]),
+            len(secondary["compressed_ids"]),
+            PROOF_BLOCK_SIZE,
+        )
         preempt_llm = _make_llm(
             prepared["merged_dir"],
             h_enabled=True,
-            max_model_len=256,
+            max_model_len=budget["max_model_len"],
             max_num_seqs=2,
-            max_num_batched_tokens=256,
-            num_gpu_blocks_override=6,
+            max_num_batched_tokens=budget["max_model_len"],
+            block_size=PROOF_BLOCK_SIZE,
+            num_gpu_blocks_override=budget["num_gpu_blocks"],
             gpu_memory_utilization=0.50,
         )
         _install_encoders(preempt_llm, prepared["encoder_path"])
-        uninterrupted = _run_request(
-            preempt_llm, primary["compressed_ids"], primary["payload"], max_tokens=8
+        idle = _scheduler_diagnostics(preempt_llm)
+        budget_report = {
+            "block_size": int(preempt_llm.llm_engine.vllm_config.cache_config.block_size),
+            "available_blocks": idle.get("free_blocks"),
+            "num_gpu_blocks": idle.get("num_gpu_blocks"),
+            "a_required_blocks": budget["a_full_blocks"],
+            "b_required_blocks": budget["b_full_blocks"],
+            "a_prompt_blocks": budget["a_prompt_blocks"],
+            "b_prompt_blocks": budget["b_prompt_blocks"],
+            "combined_requirement": budget["combined_full_blocks"],
+            "max_new_tokens": budget["max_new_tokens"],
+            "prompt_a_tokens": budget["prompt_a_tokens"],
+            "prompt_b_tokens": budget["prompt_b_tokens"],
+        }
+        budget_ok = (
+            budget_report["block_size"] == PROOF_BLOCK_SIZE
+            and budget_report["num_gpu_blocks"] == budget["num_gpu_blocks"]
+            and budget_report["available_blocks"] == budget["usable_blocks"]
+            and budget["a_full_blocks"] <= budget["usable_blocks"]
+            and budget["b_full_blocks"] <= budget["usable_blocks"]
+            and budget["combined_full_blocks"] > budget["usable_blocks"]
+        )
+        if not budget_ok:
+            phase9 = {
+                "status": "FAIL",
+                "reason": "preemption block budget was not applied",
+                **budget_report,
+            }
+            write_json(root / "phase_09_preemption.json", phase9)
+            _free(preempt_llm)
+            raise RuntimeError(f"phase 9 preemption budget was not applied: {phase9}")
+        max_new = budget["max_new_tokens"]
+        uninterrupted_a = _run_request(
+            preempt_llm,
+            primary["compressed_ids"],
+            primary["payload"],
+            max_tokens=max_new,
+            request_id="pre-A-solo",
+            root=root,
+            phase_name="phase_09_preemption",
+        )
+        uninterrupted_b = _run_request(
+            preempt_llm,
+            secondary["compressed_ids"],
+            secondary["payload"],
+            max_tokens=max_new,
+            request_id="pre-B-solo",
+            root=root,
+            phase_name="phase_09_preemption",
         )
         engine = preempt_llm.llm_engine
-        long_ids = primary["compressed_ids"]
         engine.add_request(
             "pre-A",
-            {"prompt_token_ids": long_ids},
-            _sampling({"predictive_codebook": primary["payload"]}, max_tokens=8),
+            {"prompt_token_ids": primary["compressed_ids"]},
+            _sampling({"predictive_codebook": primary["payload"]}, max_tokens=max_new),
         )
         engine.add_request(
             "pre-B",
             {"prompt_token_ids": secondary["compressed_ids"]},
-            _sampling({"predictive_codebook": secondary["payload"]}, max_tokens=8),
+            _sampling({"predictive_codebook": secondary["payload"]}, max_tokens=max_new),
         )
-        preempt_collected = []
-        while engine.has_unfinished_requests():
-            preempt_collected.extend(engine.step())
-        pre_ids = [
-            _ids(item)
-            for item in preempt_collected
-            if getattr(item, "request_id", None) == "pre-A" and _is_finished(item)
-        ]
+        preempt_collected, preempt_steps = _bounded_steps(
+            engine,
+            preempt_llm,
+            root=root,
+            phase_name="phase_09_preemption",
+            max_steps=MAX_ENGINE_STEPS,
+        )
+        final_ids = {
+            "pre-A": _finished_ids(preempt_collected, "pre-A"),
+            "pre-B": _finished_ids(preempt_collected, "pre-B"),
+        }
+        solo_ids = {
+            "pre-A": uninterrupted_a["token_ids"],
+            "pre-B": uninterrupted_b["token_ids"],
+        }
 
         def preempt_log(model):
             return list(model.predictive_state.admission_log)
 
         events = _apply(preempt_llm, preempt_log)
-        a_events = [event for event in events if event["req_id"] == "pre-A"]
-        readded = [event for event in a_events if event["event"] == "add"]
-        removed = [event for event in a_events if event["event"] == "remove"]
+        victims = [
+            req_id
+            for req_id in ("pre-A", "pre-B")
+            if req_id in preempted_request_ids(events)
+        ]
+        trajectories_match = bool(victims) and all(
+            final_ids[req_id] == solo_ids[req_id] for req_id in victims
+        )
+        if not victims:
+            reason = "preemption not exercised"
+        elif not trajectories_match:
+            reason = "preempted trajectory diverged"
+        else:
+            reason = None
         phase9 = {
-            "status": "FAIL",
-            "adds": len(readded),
-            "removes": len(removed),
-            "final_ids": pre_ids[-1] if pre_ids else [],
-            "uninterrupted": uninterrupted["token_ids"],
+            "status": "PASS" if reason is None else "FAIL",
+            "reason": reason,
+            "preempted_request_ids": victims,
+            "steps": preempt_steps,
+            "final_ids": final_ids,
+            "uninterrupted": solo_ids,
+            **budget_report,
         }
-        if len(readded) >= 2 and removed and phase9["final_ids"] == uninterrupted["token_ids"]:
-            phase9["status"] = "PASS"
         write_json(root / "phase_09_preemption.json", phase9)
         _free(preempt_llm)
         if phase9["status"] != "PASS":
@@ -883,7 +1208,15 @@ def main() -> None:
             pad_id=prepared["pad_id"],
         )
         rope_ids = [32011] * 6
-        rope_run = _run_request(rope_llm, rope_ids, synthetic_payload, max_tokens=1)
+        rope_run = _run_request(
+            rope_llm,
+            rope_ids,
+            synthetic_payload,
+            max_tokens=1,
+            request_id="phase10-rope",
+            root=root,
+            phase_name="phase_10_semantic_rope",
+        )
         rope_positions = rope_run["positions"] or []
         phase10 = {
             "status": "FAIL",

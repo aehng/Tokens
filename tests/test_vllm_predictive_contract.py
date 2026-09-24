@@ -10,9 +10,11 @@ from tokens_vllm.contract import (
     INITIAL_VOCAB_SIZE,
     LOGICAL_VOCAB_SIZE,
     codebook_sha256,
+    expected_hypertoken_spans,
     expand_logical_id,
     insert_hypertoken_logits,
     logical_kind,
+    logical_output_to_base_ids,
     pending_advances,
     physical_embed_id,
     reconstruct_semantic_offset,
@@ -20,6 +22,13 @@ from tokens_vllm.contract import (
     spans_for_logical_ids,
     token_request_indices,
     validate_codebook,
+)
+from tokens_vllm.proof_harness import (
+    MAX_ENGINE_STEPS,
+    engine_step_decision,
+    preemption_block_budget,
+    preemption_cycle,
+    preempted_request_ids,
 )
 
 
@@ -149,3 +158,60 @@ def test_codebook_rejects_bad_phrases_and_checks_the_hash():
         assert "disabled" in str(exc)
     else:
         raise AssertionError("expected a disabled id to be rejected")
+
+
+def test_disabled_h_outputs_map_back_to_stock_phi_ids():
+    # Logical tail 32043..32095 is base Phi 32011..32063. H ids are not base tokens.
+    logical = [10, 32010, 32043, 32095]
+    base = logical_output_to_base_ids(logical)
+    stock = [10, 32010, 32011, 32063]
+    assert base == stock
+    assert base == logical_output_to_base_ids(logical)
+    try:
+        logical_output_to_base_ids([32011])
+    except ValueError as exc:
+        assert "hypertoken" in str(exc)
+    else:
+        raise AssertionError("an H id must not compare as a base Phi id")
+
+
+def test_expected_h_spans_follow_the_reference_phrases():
+    phrases = [[slot, slot + 1] for slot in range(CODEBOOK_SIZE)]
+    phrases[0] = [4, 5, 6]
+    phrases[4] = [7, 8, 9, 10]
+    assert expected_hypertoken_spans(phrases) == [len(phrase) for phrase in phrases]
+    assert expected_hypertoken_spans(phrases)[0] == 3
+    assert expected_hypertoken_spans(phrases)[4] == 4
+
+
+def test_engine_step_budget_stops_an_unfinished_loop():
+    assert engine_step_decision(0, MAX_ENGINE_STEPS, True) == "continue"
+    assert engine_step_decision(MAX_ENGINE_STEPS - 1, MAX_ENGINE_STEPS, True) == "continue"
+    assert engine_step_decision(MAX_ENGINE_STEPS, MAX_ENGINE_STEPS, True) == "budget_exceeded"
+    assert engine_step_decision(3, MAX_ENGINE_STEPS, False) == "stop"
+
+
+def test_preemption_budget_fits_each_prompt_and_not_the_pair():
+    budget = preemption_block_budget(20, 32, block_size=16)
+    assert budget["a_prompt_blocks"] == 2
+    assert budget["b_prompt_blocks"] == 2
+    assert budget["usable_blocks"] == 4
+    assert budget["num_gpu_blocks"] == 5
+    assert budget["a_full_blocks"] <= budget["usable_blocks"]
+    assert budget["b_full_blocks"] <= budget["usable_blocks"]
+    assert budget["combined_full_blocks"] > budget["usable_blocks"]
+    assert budget["a_prompt_blocks"] + budget["b_prompt_blocks"] <= budget["usable_blocks"]
+    assert budget["max_new_tokens"] == 13
+
+
+def test_preemption_cycle_requires_add_remove_readd():
+    events = [
+        {"event": "add", "req_id": "pre-A"},
+        {"event": "remove", "req_id": "pre-A"},
+        {"event": "add", "req_id": "pre-B"},
+        {"event": "remove", "req_id": "pre-B"},
+        {"event": "add", "req_id": "pre-A"},
+    ]
+    assert preemption_cycle(events, "pre-A")
+    assert not preemption_cycle(events, "pre-B")
+    assert preempted_request_ids(events) == ["pre-A"]

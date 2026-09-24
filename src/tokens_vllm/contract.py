@@ -87,6 +87,20 @@ def expand_logical_ids(
     return expanded
 
 
+def logical_output_to_base_ids(logical_ids: Sequence[int]) -> list[int]:
+    """Map H-disabled sampler ids back to base Phi ids.
+
+    Base ids are unchanged. Shifted-tail ids move back by K. A hypertoken
+    id is not a base token; expansion uses an empty phrase list and raises.
+    """
+    return expand_logical_ids(logical_ids, ())
+
+
+def expected_hypertoken_spans(phrases: Sequence[Sequence[int]]) -> list[int]:
+    """Span of each codebook slot, in H0..H31 order."""
+    return [len(phrase) for phrase in phrases]
+
+
 def insert_hypertoken_logits(
     base_logits: torch.Tensor, h_logits: torch.Tensor
 ) -> torch.Tensor:

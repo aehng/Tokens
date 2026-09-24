@@ -410,6 +410,24 @@ Sampling for the proof is greedy: temperature 0, no speculative
 decoding, grammar, structured output, or logprobs. Sampled ids are in
 `0 .. 32095`.
 
+With H disabled, sampled ids are compared with stock Phi only after
+`logical_output_to_base_ids`. Base ids stay themselves and shifted-tail
+ids move back by K. An H id in that comparison is a failure.
+
+## Proof limitations
+
+These two paths are correct for this compatibility proof and are not
+the production implementation.
+
+`prepare_inputs` builds token ownership on CPU with NumPy, then copies
+that index tensor to the GPU. A later version should generate and stage
+ownership entirely on the GPU.
+
+`add_request` synchronizes and uses `.item()` while it checks that a
+reused slot was empty and while it times hyperencoder synthesis. That
+work runs once per admission. It is time-to-first-token setup
+instrumentation, not part of the serial decode loop.
+
 ## Product split (design only)
 
 Not built in this proof.
