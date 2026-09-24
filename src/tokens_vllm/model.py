@@ -18,6 +18,7 @@ from tokens_vllm.contract import (
     LOGICAL_VOCAB_SIZE,
 )
 from tokens_vllm.remap import insert_h_logits, remap_logical_ids
+from tokens_vllm.warmup import mask_inactive_h_logits
 
 _H_ENABLED_ENV = "TOKENS_PREDICTIVE_H_ENABLED"
 
@@ -51,8 +52,10 @@ def _build_classes() -> None:
             if state is None or not getattr(self, "h_enabled", False):
                 return embeds
             req = state.token_req_indices[: input_ids.shape[0]]
+            active = state.h_active[req]
             h_vec = state.h_input[req, slots]
-            return torch.where(is_h.unsqueeze(-1), h_vec.to(dtype=embeds.dtype), embeds)
+            use_h = is_h & active
+            return torch.where(use_h.unsqueeze(-1), h_vec.to(dtype=embeds.dtype), embeds)
 
     class _PredictivePhi3ForCausalLM(Phi3ForCausalLM):
         def __init__(self, *, vllm_config, prefix: str = ""):
@@ -125,6 +128,7 @@ def _build_classes() -> None:
                 flat = hidden_states.reshape(rows, -1)
                 h_logits = torch.bmm(flat.unsqueeze(1), h_weight.transpose(1, 2)).squeeze(1)
                 h_logits = h_logits.to(dtype=base_logits.dtype)
+                h_logits = mask_inactive_h_logits(h_logits, state.h_active[req])
             return insert_h_logits(base_logits, h_logits)
 
         def load_weights(self, weights: Iterable[tuple[str, torch.Tensor]]) -> set[str]:

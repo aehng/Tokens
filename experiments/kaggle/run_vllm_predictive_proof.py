@@ -189,6 +189,26 @@ def _is_finished(output) -> bool:
     return bool(flag() if callable(flag) else flag)
 
 
+def _record_predictive_warmup(llm, root: Path) -> dict[str, Any]:
+    def audit(model):
+        events = list(model.predictive_state.admission_log)
+        warmup = [
+            event
+            for event in events
+            if event.get("event") == "add" and event.get("mode") == "vllm_warmup"
+        ]
+        synthesized = [event for event in events if event.get("event") == "add" and event.get("h_enabled")]
+        return {
+            "request_ids": [event["req_id"] for event in warmup],
+            "all_inactive": all(event.get("h_enabled") is False for event in warmup),
+            "codebooks_synthesized": len(synthesized),
+        }
+
+    payload = _apply(llm, audit)
+    write_json(root / "predictive_warmup.json", payload)
+    return payload
+
+
 def _apply(llm, fn):
     results = llm.apply_model(fn)
     return results[0]
@@ -803,6 +823,7 @@ def main() -> None:
             max_num_batched_tokens=512,
             gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
         )
+        _record_predictive_warmup(llm, root)
         encoder_info = _install_encoders(llm, prepared["encoder_path"])
         primary = prepared["references"][0]
         secondary = prepared["references"][1]

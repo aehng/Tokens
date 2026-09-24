@@ -16,6 +16,12 @@ from tokens_vllm.contract import (
     MAX_POSITION_EMBEDDINGS,
     validate_codebook,
 )
+from tokens_vllm.warmup import (
+    activate_codebook_slot,
+    admission_kind,
+    clear_predictive_slot,
+    prepare_warmup_slot,
+)
 
 
 class PredictiveModelState:
@@ -41,6 +47,7 @@ def _build_state() -> None:
             self.h_spans = torch.zeros(
                 self.max_num_reqs, CODEBOOK_SIZE, dtype=torch.int64, device=device
             )
+            self.h_active = torch.zeros(self.max_num_reqs, dtype=torch.bool, device=device)
             self.semantic_offset = torch.zeros(
                 self.max_num_reqs, dtype=torch.int64, device=device
             )
@@ -86,9 +93,7 @@ def _build_state() -> None:
             # Setup check only. The decode loop does not read this flag.
             was_clear = bool(torch.count_nonzero(self.h_spans[req_index]).item() == 0)
             if not self.model.h_enabled:
-                self.h_spans[req_index].fill_(1)
-                self.semantic_offset[req_index] = already
-                self.physical_accounted[req_index] = already
+                prepare_warmup_slot(self, req_index, already)
                 self.admission_log.append(
                     {
                         "event": "add",
@@ -101,11 +106,24 @@ def _build_state() -> None:
                 )
                 return
 
-            payload = extra.get("predictive_codebook")
-            if not isinstance(payload, dict):
-                raise RuntimeError(
-                    f"request {req_id} is missing extra_args['predictive_codebook']"
+            kind = admission_kind(req_id, extra)
+            if kind == "warmup":
+                prepare_warmup_slot(self, req_index, already)
+                self.admission_log.append(
+                    {
+                        "event": "add",
+                        "req_id": req_id,
+                        "req_index": int(req_index),
+                        "mode": "vllm_warmup",
+                        "h_enabled": False,
+                        "was_clear": was_clear,
+                        "already": already,
+                        "spans": [1] * CODEBOOK_SIZE,
+                    }
                 )
+                return
+
+            payload = extra.get("predictive_codebook")
             codebook = validate_codebook(
                 payload,
                 disabled_ids=payload.get("disabled_ids") or (),
@@ -128,6 +146,7 @@ def _build_state() -> None:
                 )
             self.semantic_offset[req_index] = offset
             self.physical_accounted[req_index] = already
+            activate_codebook_slot(self, req_index)
             digest = _tensor_hash(self.h_input[req_index])
             self.admission_log.append(
                 {
@@ -150,13 +169,7 @@ def _build_state() -> None:
             req_index = self.req_id_to_index.pop(req_id, None)
             if req_index is None:
                 return
-            self.h_input[req_index].zero_()
-            self.h_output[req_index].zero_()
-            self.h_spans[req_index].zero_()
-            self.semantic_offset[req_index] = 0
-            self.physical_accounted[req_index] = 0
-            self.pending_semantic_advance[req_index] = 0
-            self.pending_physical_advance[req_index] = 0
+            clear_predictive_slot(self, req_index)
             self.codebook_sha.pop(req_index, None)
             self.admission_log.append(
                 {"event": "remove", "req_id": req_id, "req_index": int(req_index)}
@@ -201,7 +214,8 @@ def _build_state() -> None:
             slots = (logical - H_START).clamp(0, CODEBOOK_SIZE - 1)
             span = torch.ones(n, dtype=torch.int64, device=self.device)
             if self.model.h_enabled and n > 0:
-                span = torch.where(is_h, self.h_spans[req, slots], span)
+                active = self.h_active[req]
+                span = torch.where(is_h & active, self.h_spans[req, slots], span)
             if n == 0:
                 self._commit_pending = True
                 return {"positions": self.positions_buffer[:n_pad]}
