@@ -63,10 +63,21 @@ def _source_sha() -> str:
         return "unknown"
 
 
+def _source_provenance() -> dict[str, Any]:
+    path = REPO_ROOT / "source_provenance.json"
+    if not path.is_file():
+        return {}
+    loaded = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(loaded, dict):
+        return {}
+    return loaded
+
+
 def environment() -> dict[str, Any]:
     import vllm
 
     cuda = torch.cuda.is_available()
+    provenance = _source_provenance()
     return {
         "python": platform.python_version(),
         "torch": torch.__version__,
@@ -76,6 +87,9 @@ def environment() -> dict[str, Any]:
         "vllm_tag": "v0.30.0",
         "vllm_sha": VLLM_SHA,
         "source_sha": _source_sha(),
+        "source_dataset_slug": provenance.get("source_dataset_slug"),
+        "source_dataset_path": provenance.get("source_dataset_path"),
+        "source_archive_sha256": provenance.get("source_archive_sha256"),
         "v2_env": os.environ.get("VLLM_USE_V2_MODEL_RUNNER"),
     }
 

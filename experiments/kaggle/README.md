@@ -12,6 +12,8 @@ inputs are still:
 `phase_*.json` under `/kaggle/working/vllm_predictive_proof/` and stops on
 the first failed phase. It does not relaunch itself.
 
-The kernel bootstrap is `bootstrap_kaggle.py`. Push that script together with
-a `source.tar.gz` archive of the proof commit. The archive is produced at
-launch time and is not stored in git.
+The kernel bootstrap is `bootstrap_kaggle.py`. `kaggle kernels push` uploads
+only that script. The proof archive is the private dataset
+`elikearl/tokens-vllm-predictive-source` (`source.tar.gz` and
+`SOURCE_SHA.txt`). The bootstrap selects the input directory whose
+`SOURCE_SHA.txt` matches the packed commit. The archive is not stored in git.
