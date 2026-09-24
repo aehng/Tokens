@@ -23,6 +23,18 @@ from tokens_vllm.contract import (
 )
 
 
+def test_tensor_remap_matches_the_boundary_table():
+    from tokens_vllm.remap import remap_logical_ids
+
+    logical = torch.tensor([0, 32010, 32011, 32042, 32043, 32095])
+    physical, is_h, slots = remap_logical_ids(logical)
+    assert physical.tolist() == [0, 32010, 0, 0, 32011, 32063]
+    assert is_h.tolist() == [False, False, True, True, False, False]
+    assert slots[2].item() == 0
+    assert slots[3].item() == 31
+    assert int(physical.max()) < 32064
+
+
 def test_boundary_ids_match_the_insertion_layout():
     cases = {
         0: ("base", 0),

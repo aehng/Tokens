@@ -262,6 +262,9 @@ def validate_codebook(
         raise ValueError("predictive_codebook.version must be 1")
     if int(payload.get("k", 0)) != CODEBOOK_SIZE:
         raise ValueError(f"predictive_codebook.k must be {CODEBOOK_SIZE}")
+    max_phrase_len = int(payload.get("max_subtokens", MAX_SUBTOKENS))
+    if max_phrase_len < 2:
+        raise ValueError("predictive_codebook.max_subtokens must be at least 2")
     raw_phrases = payload.get("phrases")
     if not isinstance(raw_phrases, list) or len(raw_phrases) != CODEBOOK_SIZE:
         raise ValueError(f"predictive_codebook.phrases must contain {CODEBOOK_SIZE} phrases")
@@ -272,8 +275,10 @@ def validate_codebook(
     for slot, phrase in enumerate(raw_phrases):
         if not isinstance(phrase, (list, tuple)):
             raise ValueError(f"phrase {slot} must be a list of token ids")
-        if len(phrase) not in (2, 3):
-            raise ValueError(f"phrase {slot} length {len(phrase)} must be 2 or 3")
+        if not 2 <= len(phrase) <= max_phrase_len:
+            raise ValueError(
+                f"phrase {slot} length {len(phrase)} must be between 2 and {max_phrase_len}"
+            )
         tokens: list[int] = []
         for token_id in phrase:
             if isinstance(token_id, bool) or not isinstance(token_id, int):

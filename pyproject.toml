@@ -28,6 +28,9 @@ eval = ["lm_eval==0.4.9"]
 [project.urls]
 Homepage = "https://github.com/epfl-dlab/zip2zip"
 
+[project.entry-points."vllm.general_plugins"]
+tokens_predictive = "tokens_vllm.plugin:register"
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 
