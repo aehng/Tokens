@@ -37,6 +37,9 @@ def test_dry_run_describes_two_separate_protocols_without_model_or_cuda(monkeypa
     assert behavioral["static_cache_capacity"] == 256
     assert behavioral["active_context_grows_during_generation"] is True
     assert "not fixed-KV" in behavioral["interpretation"]
+    assert behavioral["per_forward_cuda_timing_authoritative"] is False
+    assert behavioral["transformer_forward_timing"] is None
+    assert behavioral["authoritative_per_step_timing"] == "fixed_kv_microbenchmark"
     assert fixed["active_kv_length"] == 256
     assert fixed["warmup_iterations"] >= 20
     assert fixed["measured_iterations"] == 100
@@ -118,6 +121,137 @@ def test_behavioral_warmup_uses_separate_state_and_masks_unseeded_h_ids():
     assert model.kwargs["max_cache_len"] == 256
     assert model.kwargs["logits_processor"][0] is marker
     assert manager.reset_calls == 1
+
+
+def test_behavioral_generation_needs_no_optional_forward_events(monkeypatch):
+    class Model(torch.nn.Module):
+        def register_forward_pre_hook(self, *args, **kwargs):
+            raise AssertionError("behavioral smoke must not install forward timing hooks")
+
+        def register_forward_hook(self, *args, **kwargs):
+            raise AssertionError("behavioral smoke must not install forward timing hooks")
+
+        def generate(self, **kwargs):
+            if kwargs.get("return_dict_in_generate"):
+                return SimpleNamespace(sequences=torch.tensor([[7, 1]]), scores=(), logits=())
+            return torch.tensor([[7, 8, 9]])
+
+    def unexpected_cuda_event(*args, **kwargs):
+        raise AssertionError("behavioral smoke must not create CUDA forward events")
+
+    monkeypatch.setattr(torch.cuda, "Event", unexpected_cuda_event)
+    args = harness.build_parser().parse_args(["--dry-run"])
+    record, _ = harness._generation_result(
+        condition="vanilla",
+        model=Model(),
+        tokenizer=SimpleNamespace(
+            eos_token_id=1,
+            decode=lambda token_ids, skip_special_tokens=True: "answer",
+        ),
+        prompt_ids=[7],
+        input_ids=[7],
+        manager=None,
+        device=torch.device("cpu"),
+        args=args,
+        prompt_metadata={"id": "fixture", "prompt_text": "fixture prompt"},
+    )
+    assert record["raw_decode_ids"] == [1]
+    assert record["expanded_base_ids"] == [1]
+    assert record["output_text"] == "answer"
+    assert record["eos_emitted"] is True
+    assert record["prompt_prefill_ttft_s"] is None
+    assert record["generation_wall_time_s"] >= 0
+    assert record["per_forward_cuda_timing_authoritative"] is False
+    assert record["transformer_forward_timing"] is None
+    assert "fixed_kv_microbenchmark is the authoritative" in record["per_forward_timing_note"]
+
+
+def test_fixed_kv_cuda_event_pairs_are_synchronized_and_finalized_strictly(monkeypatch):
+    sync_calls = []
+
+    class Event:
+        def __init__(self, duration_ms):
+            self.duration_ms = duration_ms
+
+        def query(self):
+            return True
+
+        def elapsed_time(self, other):
+            assert isinstance(other, Event)
+            return self.duration_ms
+
+    monkeypatch.setattr(torch.cuda, "synchronize", lambda device: sync_calls.append(device))
+    device = torch.device("cuda:0")
+    pairs = [
+        {
+            "start_event": Event(1.25),
+            "end_event": Event(2.5),
+            "start_recorded": True,
+            "end_recorded": True,
+        }
+    ]
+    durations = harness._fixed_kv_cuda_event_durations(
+        pairs, device=device, expected_iterations=1
+    )
+    assert durations == [1.25]
+    assert sync_calls == [device]
+
+
+@pytest.mark.parametrize(
+    "pair, expected_iterations, message",
+    [
+        (
+            {
+                "start_event": object(),
+                "end_event": object(),
+                "start_recorded": True,
+                "end_recorded": False,
+            },
+            1,
+            "not fully recorded",
+        ),
+        (
+            {
+                "start_event": SimpleNamespace(query=lambda: False),
+                "end_event": SimpleNamespace(query=lambda: True),
+                "start_recorded": True,
+                "end_recorded": True,
+            },
+            1,
+            "not recorded/completed",
+        ),
+        (None, 1, "event pair 0 is missing"),
+    ],
+)
+def test_fixed_kv_invalid_event_pairs_raise_without_partial_timings(
+    monkeypatch, pair, expected_iterations, message
+):
+    monkeypatch.setattr(torch.cuda, "synchronize", lambda device: None)
+    with pytest.raises(RuntimeError, match=message):
+        harness._fixed_kv_cuda_event_durations(
+            [pair], device=torch.device("cuda:0"), expected_iterations=expected_iterations
+        )
+
+
+def test_fixed_kv_elapsed_time_failure_is_invalid_not_a_wall_clock_fallback(monkeypatch):
+    class UnfinalizableEvent:
+        def query(self):
+            return True
+
+        def elapsed_time(self, other):
+            raise ValueError("Both events must be recorded before calculating elapsed time.")
+
+    monkeypatch.setattr(torch.cuda, "synchronize", lambda device: None)
+    pair = {
+        "start_event": UnfinalizableEvent(),
+        "end_event": UnfinalizableEvent(),
+        "start_recorded": True,
+        "end_recorded": True,
+    }
+    with pytest.raises(RuntimeError, match="could not be finalized.*no performance timings"):
+        harness._fixed_kv_cuda_event_durations(
+            [pair], device=torch.device("cuda:0"), expected_iterations=1
+        )
 
 
 def test_cache_copy_preserves_representation_metadata_and_independent_storage():
@@ -542,6 +676,8 @@ def test_payload_separates_behavioral_and_fixed_kv_metrics_and_derives_compariso
             "condition": condition,
             "output_text": "answer",
             "generation_wall_time_s": 1.5,
+            "per_forward_cuda_timing_authoritative": False,
+            "transformer_forward_timing": None,
             "fixed_kv_microbenchmark": {
                 "median_forward_ms": median,
                 "mean_forward_ms": median,
@@ -580,7 +716,10 @@ def test_payload_separates_behavioral_and_fixed_kv_metrics_and_derives_compariso
     ]
     assert set(payload) >= {"behavioral_generation_smoke", "fixed_kv_microbenchmark"}
     assert payload["behavioral_generation_smoke"]["timings_are_fixed_kv_measurements"] is False
+    assert payload["behavioral_generation_smoke"]["per_forward_cuda_timing_authoritative"] is False
+    assert payload["behavioral_generation_smoke"]["transformer_forward_timing"] is None
     assert "fixed_kv_microbenchmark" not in payload["behavioral_generation_smoke"]["conditions"]["vanilla"]
+    assert payload["behavioral_generation_smoke"]["conditions"]["vanilla"]["transformer_forward_timing"] is None
     assert payload["fixed_kv_microbenchmark"]["protocol"]["active_kv_length"] == 256
     comparisons = payload["fixed_kv_microbenchmark"]["derived_comparisons"]
     assert comparisons["legacy_overhead_vs_vanilla_pct"] == pytest.approx(60.0)

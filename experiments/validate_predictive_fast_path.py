@@ -145,6 +145,9 @@ def dry_run_report(args: argparse.Namespace) -> Dict[str, Any]:
                 "static_cache_capacity": args.static_cache_capacity,
                 "active_context_grows_during_generation": True,
                 "interpretation": "behavioral/end-to-end only; not fixed-KV timing",
+                "per_forward_cuda_timing_authoritative": False,
+                "transformer_forward_timing": None,
+                "authoritative_per_step_timing": "fixed_kv_microbenchmark",
             },
             "fixed_kv_microbenchmark": {
                 "active_kv_length": FIXED_KV_CONTEXT_LENGTH,
@@ -183,67 +186,77 @@ def _load_prompt(prompt_id: str) -> Dict[str, Any]:
     raise ValueError(f"prompt ID {prompt_id!r} is absent from {data_path}")
 
 
-def _install_forward_timers(model: torch.nn.Module, device: torch.device):
-    calls: List[Dict[str, Any]] = []
-    pending: List[Dict[str, Any]] = []
+def _fixed_kv_cuda_event_durations(
+    measured_events: Sequence[Dict[str, Any]],
+    *,
+    device: torch.device,
+    expected_iterations: int,
+) -> List[float]:
+    """Finalize strict fixed-KV CUDA event pairs; never fall back to wall time."""
+    if len(measured_events) != expected_iterations:
+        raise RuntimeError(
+            "fixed-KV CUDA timing invalid: expected "
+            f"{expected_iterations} recorded event pairs, found {len(measured_events)}; "
+            "no performance timings will be reported"
+        )
 
-    def before_forward(module, args, kwargs):
-        call: Dict[str, Any] = {"started": time.perf_counter()}
-        if device.type == "cuda":
-            event = torch.cuda.Event(enable_timing=True)
-            event.record()
-            call["start_event"] = event
-        input_ids = kwargs.get("input_ids")
-        if input_ids is None and args and torch.is_tensor(args[0]):
-            input_ids = args[0]
-        call["input_tokens"] = int(input_ids.shape[-1]) if torch.is_tensor(input_ids) else None
-        pending.append(call)
-
-    def after_forward(module, args, kwargs, output):
-        call = pending.pop()
-        if device.type == "cuda":
-            end_event = torch.cuda.Event(enable_timing=True)
-            end_event.record()
-            call["end_event"] = end_event
-        else:
-            call["duration_s"] = time.perf_counter() - call["started"]
-        calls.append(call)
-
-    pre_hook = model.register_forward_pre_hook(before_forward, with_kwargs=True)
-    post_hook = model.register_forward_hook(after_forward, with_kwargs=True)
-    return calls, (pre_hook, post_hook)
-
-
-def _timer_summary(calls: Sequence[Dict[str, Any]], device: torch.device) -> Dict[str, Any]:
-    if device.type == "cuda":
-        torch.cuda.synchronize(device)
-        durations_ms = [
-            float(call["start_event"].elapsed_time(call["end_event"]))
-            for call in calls
-            if "start_event" in call and "end_event" in call
-        ]
-    else:
-        durations_ms = [float(call["duration_s"] * 1000) for call in calls]
-    decode_ms = durations_ms[1:]
-    if not decode_ms:
-        return {
-            "transformer_forward_calls": len(durations_ms),
-            "decode_forward_calls": 0,
-            "mean_decode_forward_ms": None,
-            "median_decode_forward_ms": None,
-            "p95_decode_forward_ms": None,
-            "transformer_steps_per_second": None,
-        }
-    ordered = sorted(decode_ms)
-    p95 = ordered[min(len(ordered) - 1, math.ceil(0.95 * len(ordered)) - 1)]
-    return {
-        "transformer_forward_calls": len(durations_ms),
-        "decode_forward_calls": len(decode_ms),
-        "mean_decode_forward_ms": statistics.fmean(decode_ms),
-        "median_decode_forward_ms": statistics.median(decode_ms),
-        "p95_decode_forward_ms": p95,
-        "transformer_steps_per_second": 1000.0 / statistics.mean(decode_ms),
-    }
+    # One batch-boundary synchronization preserves the event timing protocol.
+    torch.cuda.synchronize(device)
+    durations_ms: List[float] = []
+    for sample_index, pair in enumerate(measured_events):
+        if not isinstance(pair, dict):
+            raise RuntimeError(
+                f"fixed-KV CUDA timing invalid: event pair {sample_index} is missing; "
+                "no performance timings will be reported"
+            )
+        start_event = pair.get("start_event")
+        end_event = pair.get("end_event")
+        if start_event is None or end_event is None:
+            raise RuntimeError(
+                f"fixed-KV CUDA timing invalid: event pair {sample_index} is incomplete; "
+                "no performance timings will be reported"
+            )
+        if pair.get("start_recorded") is not True or pair.get("end_recorded") is not True:
+            raise RuntimeError(
+                f"fixed-KV CUDA timing invalid: event pair {sample_index} was not fully "
+                "recorded; no performance timings will be reported"
+            )
+        for event_name, event in (("start", start_event), ("end", end_event)):
+            query = getattr(event, "query", None)
+            if not callable(query):
+                raise RuntimeError(
+                    f"fixed-KV CUDA timing invalid: event pair {sample_index} "
+                    f"{event_name} event cannot be validated; no performance timings "
+                    "will be reported"
+                )
+            try:
+                recorded_and_complete = query()
+            except Exception as error:
+                raise RuntimeError(
+                    f"fixed-KV CUDA timing invalid: event pair {sample_index} "
+                    f"{event_name} event was not recorded; no performance timings "
+                    "will be reported"
+                ) from error
+            if not recorded_and_complete:
+                raise RuntimeError(
+                    f"fixed-KV CUDA timing invalid: event pair {sample_index} "
+                    f"{event_name} event was not recorded/completed; no performance "
+                    "timings will be reported"
+                )
+        try:
+            duration_ms = float(start_event.elapsed_time(end_event))
+        except Exception as error:
+            raise RuntimeError(
+                f"fixed-KV CUDA timing invalid: event pair {sample_index} could not be "
+                "finalized after synchronization; no performance timings will be reported"
+            ) from error
+        if not math.isfinite(duration_ms) or duration_ms < 0:
+            raise RuntimeError(
+                f"fixed-KV CUDA timing invalid: event pair {sample_index} returned "
+                f"duration {duration_ms!r}; no performance timings will be reported"
+            )
+        durations_ms.append(duration_ms)
+    return durations_ms
 
 
 def _generation_tensors_to_cpu(values) -> Tuple[torch.Tensor, ...]:
@@ -640,15 +653,29 @@ def _fixed_kv_microbenchmark(
                 timed_context_lengths.append(working_length)
                 start_event = torch.cuda.Event(enable_timing=True)
                 end_event = torch.cuda.Event(enable_timing=True)
+                start_recorded = False
+                end_recorded = False
                 start_event.record()
+                start_recorded = True
                 measured_output = run_forward(working_cache)
                 end_event.record()
-                measured_events.append((start_event, end_event))
+                end_recorded = True
+                measured_events.append(
+                    {
+                        "start_event": start_event,
+                        "end_event": end_event,
+                        "start_recorded": start_recorded,
+                        "end_recorded": end_recorded,
+                    }
+                )
                 if _cache_sequence_length(reference_cache) != FIXED_KV_CONTEXT_LENGTH:
                     raise AssertionError("measured forward mutated the reference cache")
                 del measured_output, working_cache
-        torch.cuda.synchronize(device)
-        durations_ms = [float(start.elapsed_time(end)) for start, end in measured_events]
+        durations_ms = _fixed_kv_cuda_event_durations(
+            measured_events,
+            device=device,
+            expected_iterations=measured_iterations,
+        )
     else:
         durations_ms = []
         timed_context_lengths = []
@@ -759,35 +786,29 @@ def _generation_result(
         device=device,
         static_cache_capacity=args.static_cache_capacity,
     )
-    timer_model = model.base_model if hasattr(model, "base_model") else model
-    calls, hooks = _install_forward_timers(timer_model, device)
     if device.type == "cuda":
         torch.cuda.synchronize(device)
     generation_started = time.perf_counter()
     timing_proc = benchmark.TimingLogitsProcessor(generation_started, static_mgr=manager)
-    try:
-        with torch.inference_mode():
-            output = model.generate(
-                input_ids=tensor_ids,
-                max_new_tokens=args.max_new_tokens,
-                max_cache_len=args.static_cache_capacity,
-                cache_implementation="static",
-                do_sample=False,
-                num_beams=1,
-                num_return_sequences=1,
-                min_new_tokens=0,
-                repetition_penalty=1.0,
-                no_repeat_ngram_size=0,
-                use_cache=True,
-                pad_token_id=tokenizer.eos_token_id,
-                logits_processor=LogitsProcessorList([timing_proc]),
-                return_dict_in_generate=True,
-                output_scores=True,
-                output_logits=True,
-            )
-    finally:
-        hooks[0].remove()
-        hooks[1].remove()
+    with torch.inference_mode():
+        output = model.generate(
+            input_ids=tensor_ids,
+            max_new_tokens=args.max_new_tokens,
+            max_cache_len=args.static_cache_capacity,
+            cache_implementation="static",
+            do_sample=False,
+            num_beams=1,
+            num_return_sequences=1,
+            min_new_tokens=0,
+            repetition_penalty=1.0,
+            no_repeat_ngram_size=0,
+            use_cache=True,
+            pad_token_id=tokenizer.eos_token_id,
+            logits_processor=LogitsProcessorList([timing_proc]),
+            return_dict_in_generate=True,
+            output_scores=True,
+            output_logits=True,
+        )
     if device.type == "cuda":
         torch.cuda.synchronize(device)
     generation_wall_s = time.perf_counter() - generation_started
@@ -817,7 +838,6 @@ def _generation_result(
         else [int(eos_value)] if eos_value is not None else []
     )
     eos_reached = any(int(token_id) in eos_ids for token_id in raw_ids)
-    timing = _timer_summary(calls, device)
     scores = _generation_tensors_to_cpu(getattr(output, "scores", ()) or ())
     logits = _generation_tensors_to_cpu(getattr(output, "logits", ()) or ())
     record: Dict[str, Any] = {
@@ -847,7 +867,6 @@ def _generation_result(
         "hypertokens_emitted": len(events),
         "base_tokens_represented_by_hypertokens": sum(len(event["phrase_token_ids"]) for event in events),
         "transformer_decode_iterations": len(raw_ids),
-        "cached_decode_forward_calls": timing["decode_forward_calls"],
         "expanded_output_tokens": len(expanded_ids),
         "net_decode_steps_saved": len(expanded_ids) - len(raw_ids),
         "raw_decode_reduction": (
@@ -859,7 +878,12 @@ def _generation_result(
         "prompt_prefill_ttft_s": timing_proc.ttft,
         "generation_wall_time_s": generation_wall_s,
         "decode_wall_time_s": max(0.0, generation_wall_s - (timing_proc.ttft or 0.0)),
-        "runtime_step_timing": timing,
+        "per_forward_cuda_timing_authoritative": False,
+        "transformer_forward_timing": None,
+        "per_forward_timing_note": (
+            "Behavioral generate() does not install CUDA-event forward hooks; "
+            "fixed_kv_microbenchmark is the authoritative per-step timing."
+        ),
         "generation_score_tensors": scores,
         "generation_logit_tensors": logits,
         "setup": setup_metrics or {},
@@ -1388,6 +1412,7 @@ def _render_human_readable_summary(payload: Dict[str, Any]) -> str:
         f"capacity {behavioral['cache_semantics']['capacity']}; "
         f"{behavioral['cache_semantics']['interpretation']}.",
         "These generation timings are behavioral/end-to-end and are not fixed-KV measurements.",
+        "Behavioral per-forward CUDA timing is disabled; fixed-KV CUDA Events are the authoritative per-step measurement.",
         "",
     ]
     for condition in CONDITIONS:
@@ -1519,6 +1544,9 @@ def _build_validation_payload(
                 "interpretation": "growing active KV length during autoregressive generation",
             },
             "timings_are_fixed_kv_measurements": False,
+            "per_forward_cuda_timing_authoritative": False,
+            "transformer_forward_timing": None,
+            "authoritative_per_step_timing": "fixed_kv_microbenchmark",
             "conditions": behavioral_conditions,
             "legacy_vs_fast": smoke,
         },
