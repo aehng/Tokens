@@ -16,4 +16,6 @@ The kernel bootstrap is `bootstrap_kaggle.py`. `kaggle kernels push` uploads
 only that script. The proof archive is the private dataset
 `elikearl/tokens-vllm-predictive-source` (`source.tar.gz` and
 `SOURCE_SHA.txt`). The bootstrap selects the input directory whose
-`SOURCE_SHA.txt` matches the packed commit. The archive is not stored in git.
+`SOURCE_SHA.txt` matches the packed commit. Kaggle extracts an uploaded
+`.tar.gz`, so the dataset also stores those bytes as `proof_source.bin`.
+The archive is not stored in git.

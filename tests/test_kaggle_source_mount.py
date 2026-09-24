@@ -72,6 +72,17 @@ def test_multiple_matching_source_datasets_are_rejected(tmp_path: Path):
         find_source_dataset(kaggle, SHA)
 
 
+def test_unextracted_bin_archive_is_accepted(tmp_path: Path):
+    kaggle = tmp_path / "kaggle" / "input"
+    directory = kaggle / "tokens-vllm-predictive-source"
+    directory.mkdir(parents=True)
+    (directory / "SOURCE_SHA.txt").write_text(SHA + "\n", encoding="utf-8")
+    (directory / "proof_source.bin").write_bytes(b"gzip-tar")
+    found = find_source_dataset(kaggle, SHA)
+    assert found == directory.resolve()
+    assert (found / "proof_source.bin").is_file()
+
+
 def test_missing_archive_is_rejected(tmp_path: Path):
     kaggle = tmp_path / "kaggle" / "input"
     _mount(kaggle, "tokens-vllm-predictive-source", SHA, archive=False)
