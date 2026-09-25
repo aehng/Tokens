@@ -33,7 +33,12 @@ VLLM_SHA = "ced6857afa0ea7b2e3f0846a62e1394e90f15607"
 MAX_NEW = 16
 PROOF_BLOCK_SIZE = 16
 # T4 Phi-3.5 fp16 weights are about 7.14 GiB. 0.42 left a negative KV budget.
-GPU_MEMORY_UTILIZATION = 0.90
+# BASE=0.90 is used only for engines that do not receive hyperencoders (stock and Phase 1 H-disabled).
+# PREDICTIVE=0.75 leaves ~3.6 GiB outside vLLM allocation for the ~1.73 GiB hyperencoders plus safety headroom.
+BASE_GPU_MEMORY_UTILIZATION = 0.90
+PREDICTIVE_GPU_MEMORY_UTILIZATION = 0.75
+DEFAULT_HEADROOM_SAFETY_MARGIN_BYTES = 512 * 1024 * 1024  # 512 MiB
+GPU_MEMORY_UTILIZATION = PREDICTIVE_GPU_MEMORY_UTILIZATION
 
 
 def _result_root() -> Path:
@@ -153,7 +158,7 @@ def _llm_kwargs(**overrides: Any) -> dict[str, Any]:
         enable_chunked_prefill=False,
         tensor_parallel_size=1,
         pipeline_parallel_size=1,
-        gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
+        gpu_memory_utilization=PREDICTIVE_GPU_MEMORY_UTILIZATION,
         max_num_seqs=4,
         trust_remote_code=False,
         hf_overrides={
@@ -235,7 +240,7 @@ def phase_01_and_02(root: Path) -> dict[str, Any]:
         enable_chunked_prefill=False,
         max_model_len=128,
         max_num_seqs=2,
-        gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
+        gpu_memory_utilization=BASE_GPU_MEMORY_UTILIZATION,
         tensor_parallel_size=1,
     )
     stock_out = stock.generate(
@@ -248,7 +253,14 @@ def phase_01_and_02(root: Path) -> dict[str, Any]:
     del stock
     cuda_after_stock = cuda_after_collect()
 
-    ours = _make_llm(PHI_ID, h_enabled=False, revision=PHI_REV, max_model_len=128, max_num_seqs=2)
+    ours = _make_llm(
+        PHI_ID,
+        h_enabled=False,
+        revision=PHI_REV,
+        max_model_len=128,
+        max_num_seqs=2,
+        gpu_memory_utilization=BASE_GPU_MEMORY_UTILIZATION,
+    )
     ours_out = ours.generate([{"prompt_token_ids": prompt_ids}], stock_params)
     ours_logical_ids = _ids(ours_out[0])
     from tokens_vllm.contract import logical_output_to_base_ids
@@ -311,7 +323,9 @@ def phase_01_and_02(root: Path) -> dict[str, Any]:
         "h_masked": inspected["h_slice_all_neg_inf"],
         "state": inspected["state"],
         "hyperencoders_invoked": False,
-        "gpu_memory_utilization": GPU_MEMORY_UTILIZATION,
+        "base_gpu_memory_utilization": BASE_GPU_MEMORY_UTILIZATION,
+        "predictive_gpu_memory_utilization": PREDICTIVE_GPU_MEMORY_UTILIZATION,
+        "gpu_memory_utilization": BASE_GPU_MEMORY_UTILIZATION,
         "stock_shutdown": stock_shutdown,
         "ours_shutdown": ours_shutdown,
         "cuda_after_stock": cuda_after_stock,
@@ -503,6 +517,13 @@ def _build_hf_references(root: Path) -> dict[str, Any]:
         },
         encoder_path,
     )
+    from tokens_vllm.proof_harness import build_encoder_memory_plan
+    plan = build_encoder_memory_plan(
+        encoder_path,
+        base_utilization=BASE_GPU_MEMORY_UTILIZATION,
+        predictive_utilization=PREDICTIVE_GPU_MEMORY_UTILIZATION,
+    )
+    write_json(root / "encoder_memory_plan.json", plan)
     base = model.base_model
     merged = base.merge_and_unload() if hasattr(base, "merge_and_unload") else base
     merged_dir = root / "merged_phi"
@@ -522,14 +543,43 @@ def _build_hf_references(root: Path) -> dict[str, Any]:
     }
 
 
-def _install_encoders(llm, encoder_path: str) -> None:
+def _install_encoders(llm, encoder_path: str, *, root: Path | None = None) -> dict[str, Any]:
     blob_path = encoder_path
 
     def install(model):
         from zip2zip.nn.encoders.base import BaseEncoder
+        from tokens_vllm.proof_harness import (
+            DEFAULT_HEADROOM_SAFETY_MARGIN_BYTES,
+            check_encoder_headroom,
+            inspect_parameter_footprint,
+        )
 
         blob = torch.load(blob_path, map_location="cpu", weights_only=False)
         device = model.model.embed_tokens.weight.device
+
+        in_fp = inspect_parameter_footprint(blob["input_state"])
+        out_fp = inspect_parameter_footprint(blob["output_state"])
+        total_encoder_bytes = in_fp["bytes"] + out_fp["bytes"]
+
+        def _cuda_snapshot():
+            if not torch.cuda.is_available() or device.type != "cuda":
+                return {"free": None, "total": None, "allocated": None, "reserved": None}
+            free, total = torch.cuda.mem_get_info(device)
+            return {
+                "free": int(free),
+                "total": int(total),
+                "allocated": int(torch.cuda.memory_allocated(device)),
+                "reserved": int(torch.cuda.memory_reserved(device)),
+            }
+
+        cuda_before = _cuda_snapshot()
+        if cuda_before["free"] is not None:
+            check_encoder_headroom(
+                cuda_before["free"],
+                total_encoder_bytes,
+                safety_margin_bytes=DEFAULT_HEADROOM_SAFETY_MARGIN_BYTES,
+            )
+
         input_encoder = BaseEncoder.from_config(
             blob["encoder_config"], blob["compression_config"]
         )
@@ -538,17 +588,37 @@ def _install_encoders(llm, encoder_path: str) -> None:
         )
         input_encoder.load_state_dict(blob["input_state"])
         output_encoder.load_state_dict(blob["output_state"])
+
         model.input_encoder = input_encoder.to(device).eval()
+        cuda_after_input = _cuda_snapshot()
+
         model.output_encoder = output_encoder.to(device).eval()
+        cuda_after_output = _cuda_snapshot()
+
         model.pad_token_id = int(blob["pad_id"])
         model.h_enabled = True
         model.model.h_enabled = True
-        return {
+
+        audit = {
             "max_subtokens": int(blob["max_subtokens"]),
             "position_mode": blob["position_mode"],
+            "input_parameter_count": in_fp["count"],
+            "output_parameter_count": out_fp["count"],
+            "input_parameter_bytes": in_fp["bytes"],
+            "output_parameter_bytes": out_fp["bytes"],
+            "total_parameter_bytes": total_encoder_bytes,
+            "dtypes": sorted(list(set(in_fp["dtypes"] + out_fp["dtypes"]))),
+            "safety_margin_bytes": DEFAULT_HEADROOM_SAFETY_MARGIN_BYTES,
+            "cuda_memory_before": cuda_before,
+            "cuda_memory_after_input_encoder": cuda_after_input,
+            "cuda_memory_after_output_encoder": cuda_after_output,
         }
+        return audit
 
-    return _apply(llm, install)
+    info = _apply(llm, install)
+    if root is not None:
+        write_json(root / "encoder_gpu_memory.json", info)
+    return info
 
 
 def _compare_vectors(reference: torch.Tensor, actual: torch.Tensor) -> dict[str, float]:
@@ -821,10 +891,10 @@ def main() -> None:
             max_model_len=512,
             max_num_seqs=4,
             max_num_batched_tokens=512,
-            gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
+            gpu_memory_utilization=PREDICTIVE_GPU_MEMORY_UTILIZATION,
         )
         _record_predictive_warmup(llm, root)
-        encoder_info = _install_encoders(llm, prepared["encoder_path"])
+        encoder_info = _install_encoders(llm, prepared["encoder_path"], root=root)
         primary = prepared["references"][0]
         secondary = prepared["references"][1]
         primary_run = _run_request(
@@ -1109,9 +1179,9 @@ def main() -> None:
             max_num_seqs=2,
             max_num_batched_tokens=16,
             enable_chunked_prefill=True,
-            gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
+            gpu_memory_utilization=PREDICTIVE_GPU_MEMORY_UTILIZATION,
         )
-        _install_encoders(chunk_llm, prepared["encoder_path"])
+        _install_encoders(chunk_llm, prepared["encoder_path"], root=root)
         chunk_run = _run_request(
             chunk_llm,
             primary["compressed_ids"],
@@ -1157,9 +1227,9 @@ def main() -> None:
             max_num_batched_tokens=budget["max_model_len"],
             block_size=PROOF_BLOCK_SIZE,
             num_gpu_blocks_override=budget["num_gpu_blocks"],
-            gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
+            gpu_memory_utilization=PREDICTIVE_GPU_MEMORY_UTILIZATION,
         )
-        _install_encoders(preempt_llm, prepared["encoder_path"])
+        _install_encoders(preempt_llm, prepared["encoder_path"], root=root)
         idle = _scheduler_diagnostics(preempt_llm)
         budget_report = {
             "block_size": int(preempt_llm.llm_engine.vllm_config.cache_config.block_size),
@@ -1280,9 +1350,9 @@ def main() -> None:
             max_model_len=8,
             max_num_seqs=1,
             max_num_batched_tokens=8,
-            gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
+            gpu_memory_utilization=PREDICTIVE_GPU_MEMORY_UTILIZATION,
         )
-        _install_encoders(rope_llm, prepared["encoder_path"])
+        _install_encoders(rope_llm, prepared["encoder_path"], root=root)
         synthetic = []
         for slot in range(32):
             synthetic.append([100 + slot, 200 + slot, 300 + slot])

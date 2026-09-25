@@ -63,7 +63,8 @@ def test_bootstrap_runs_the_proof_in_a_fresh_interpreter():
 
 def test_engine_transitions_delete_the_owner_name():
     assert "_free(" not in RUNNER
-    assert "GPU_MEMORY_UTILIZATION = 0.90" in RUNNER
+    assert "BASE_GPU_MEMORY_UTILIZATION = 0.90" in RUNNER
+    assert "PREDICTIVE_GPU_MEMORY_UTILIZATION = 0.75" in RUNNER
     assert "gpu_memory_utilization=0.42" not in RUNNER
     assert "gpu_memory_utilization=0.50" not in RUNNER
     for name in ("stock", "ours", "llm", "chunk_llm", "preempt_llm", "rope_llm"):

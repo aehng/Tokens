@@ -6,9 +6,91 @@ pool and to stop a manual engine loop.
 
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any, Mapping
+
+import torch
+
 NULL_KV_BLOCKS = 1
 DEFAULT_BLOCK_SIZE = 16
 MAX_ENGINE_STEPS = 500
+
+BASE_GPU_MEMORY_UTILIZATION = 0.90
+PREDICTIVE_GPU_MEMORY_UTILIZATION = 0.75
+DEFAULT_HEADROOM_SAFETY_MARGIN_BYTES = 512 * 1024 * 1024  # 512 MiB
+
+
+def inspect_parameter_footprint(
+    target: Mapping[str, Any] | torch.nn.Module,
+) -> dict[str, Any]:
+    """Calculate exact parameter count, bytes, and dtypes using numel * element_size."""
+    if isinstance(target, torch.nn.Module):
+        tensors = [p for p in target.parameters() if isinstance(p, torch.Tensor)]
+    elif isinstance(target, Mapping):
+        tensors = [p for p in target.values() if isinstance(p, torch.Tensor)]
+    else:
+        raise TypeError(f"expected Mapping or nn.Module, got {type(target)}")
+
+    count = sum(p.numel() for p in tensors)
+    total_bytes = sum(p.numel() * p.element_size() for p in tensors)
+    dtypes = sorted(list({str(p.dtype) for p in tensors}))
+    return {
+        "count": count,
+        "bytes": total_bytes,
+        "dtypes": dtypes,
+    }
+
+
+def build_encoder_memory_plan(
+    encoder_source: str | Path | dict[str, Any],
+    *,
+    base_utilization: float = BASE_GPU_MEMORY_UTILIZATION,
+    predictive_utilization: float = PREDICTIVE_GPU_MEMORY_UTILIZATION,
+) -> dict[str, Any]:
+    """Calculate the hyperencoder footprint plan from saved blob or dict."""
+    if isinstance(encoder_source, (str, Path)):
+        blob = torch.load(str(encoder_source), map_location="cpu", weights_only=False)
+    elif isinstance(encoder_source, dict):
+        blob = encoder_source
+    else:
+        raise TypeError(f"expected path or dict, got {type(encoder_source)}")
+
+    in_state = blob.get("input_state") or blob.get("input_encoder_state_dict") or blob.get("input_encoder")
+    out_state = blob.get("output_state") or blob.get("output_encoder_state_dict") or blob.get("output_encoder")
+    if in_state is None or out_state is None:
+        raise ValueError("encoder source is missing input or output encoder state")
+
+    in_fp = inspect_parameter_footprint(in_state)
+    out_fp = inspect_parameter_footprint(out_state)
+    total_bytes = in_fp["bytes"] + out_fp["bytes"]
+    dtypes = sorted(list(set(in_fp["dtypes"] + out_fp["dtypes"])))
+
+    return {
+        "input_parameter_count": in_fp["count"],
+        "output_parameter_count": out_fp["count"],
+        "input_parameter_bytes": in_fp["bytes"],
+        "output_parameter_bytes": out_fp["bytes"],
+        "total_parameter_bytes": total_bytes,
+        "dtypes": dtypes,
+        "base_gpu_memory_utilization": base_utilization,
+        "predictive_gpu_memory_utilization": predictive_utilization,
+    }
+
+
+def check_encoder_headroom(
+    free_gpu_bytes: int,
+    total_encoder_bytes: int,
+    safety_margin_bytes: int = DEFAULT_HEADROOM_SAFETY_MARGIN_BYTES,
+) -> None:
+    """Fail early if free GPU memory cannot accommodate encoders plus safety margin."""
+    required = total_encoder_bytes + safety_margin_bytes
+    if free_gpu_bytes < required:
+        raise RuntimeError(
+            f"insufficient reserved GPU headroom for predictive encoders: "
+            f"free={free_gpu_bytes} bytes ({free_gpu_bytes / (1024**2):.2f} MiB) < "
+            f"required={required} bytes ({required / (1024**2):.2f} MiB) "
+            f"(encoders={total_encoder_bytes} bytes, safety_margin={safety_margin_bytes} bytes)"
+        )
 
 
 def blocks_for_tokens(num_tokens: int, block_size: int) -> int:
