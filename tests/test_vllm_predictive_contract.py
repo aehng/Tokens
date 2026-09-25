@@ -22,9 +22,11 @@ from tokens_vllm.contract import (
     spans_for_logical_ids,
     token_request_indices,
     validate_codebook,
+    validate_position_mode,
 )
 from tokens_vllm.proof_harness import (
     MAX_ENGINE_STEPS,
+    assert_lora_merged_and_unloaded,
     engine_step_decision,
     preemption_block_budget,
     preemption_cycle,
@@ -107,14 +109,41 @@ def test_semantic_positions_use_per_request_offsets_and_do_not_commit():
     req_indices = [4, 9, 4]
     offsets = [0] * 10
     offsets[4] = 10
-    positions = semantic_positions(spans, req_indices, offsets)
+    positions = semantic_positions(
+        spans, req_indices, offsets, position_mode="base_token_end"
+    )
     assert positions == [10, 1, 13]
     assert offsets[4] == 10
 
-    semantic, physical = pending_advances(spans, req_indices, num_reqs=10)
+    semantic, physical = pending_advances(
+        spans, req_indices, num_reqs=10, position_mode="base_token_end"
+    )
     assert semantic[4] == 4
     assert physical[4] == 2
     assert semantic[9] == 2
+    assert physical[9] == 1
+
+
+def test_semantic_positions_compressed_mode():
+    # In compressed mode, each token advances by 1 regardless of hypertoken span.
+    # Request 4: offset 10, tokens 0 then 2 -> positions 10, 11. Advance 2.
+    # Request 9: offset 0, token 1 -> position 0. Advance 1.
+    spans = [1, 2, 3]
+    req_indices = [4, 9, 4]
+    offsets = [0] * 10
+    offsets[4] = 10
+    positions = semantic_positions(
+        spans, req_indices, offsets, position_mode="compressed"
+    )
+    assert positions == [10, 0, 11]
+    assert offsets[4] == 10
+
+    semantic, physical = pending_advances(
+        spans, req_indices, num_reqs=10, position_mode="compressed"
+    )
+    assert semantic[4] == 2
+    assert physical[4] == 2
+    assert semantic[9] == 1
     assert physical[9] == 1
 
 
@@ -122,7 +151,93 @@ def test_resume_reconstructs_the_semantic_offset_from_history():
     spans = [1] * CODEBOOK_SIZE
     spans[3] = 3
     history = [10, H_START + 3, 32043]
-    assert reconstruct_semantic_offset(history, spans) == 1 + 3 + 1
+    assert reconstruct_semantic_offset(history, spans, position_mode="base_token_end") == 1 + 3 + 1
+    assert reconstruct_semantic_offset(history, spans, position_mode="compressed") == len(history)
+
+
+def test_4_token_span_contract_and_reconstruction():
+    h_spans = torch.zeros(2, CODEBOOK_SIZE, dtype=torch.long)
+    h_spans[0, 5] = 4
+    logical_ids = [H_START + 5]
+    spans = spans_for_logical_ids(logical_ids, [0], h_spans, max_subtokens=4)
+    assert spans == [4]
+
+    row = [1] * CODEBOOK_SIZE
+    row[5] = 4
+    assert reconstruct_semantic_offset([H_START + 5], row, position_mode="base_token_end", max_subtokens=4) == 4
+    assert reconstruct_semantic_offset([H_START + 5], row, position_mode="compressed") == 1
+
+
+def test_validate_position_mode():
+    assert validate_position_mode("compressed") == "compressed"
+    assert validate_position_mode("base_token_end") == "base_token_end"
+    try:
+        validate_position_mode("invalid_mode")
+    except ValueError as exc:
+        assert "unknown position_mode" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for invalid position_mode")
+
+
+def test_assert_lora_merged_and_unloaded():
+    import torch.nn as nn
+
+    # Clean model passes
+    clean_model = nn.Linear(10, 10)
+    assert_lora_merged_and_unloaded(clean_model)
+
+    # PeftModel name fails
+    class MockPeftModel(nn.Module):
+        pass
+    try:
+        assert_lora_merged_and_unloaded(MockPeftModel())
+    except AssertionError as exc:
+        assert "PEFT model" in str(exc)
+    else:
+        raise AssertionError("expected AssertionError for PeftModel")
+
+    # peft_config attribute fails
+    class MockModelWithConfig(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.peft_config = {"default": {}}
+    try:
+        assert_lora_merged_and_unloaded(MockModelWithConfig())
+    except AssertionError as exc:
+        assert "peft_config" in str(exc)
+    else:
+        raise AssertionError("expected AssertionError for peft_config")
+
+    # Submodule with LoRA class name fails
+    class MockLoraLinear(nn.Module):
+        pass
+    class MockModelWithLoraName(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.layer = MockLoraLinear()
+    try:
+        assert_lora_merged_and_unloaded(MockModelWithLoraName())
+    except AssertionError as exc:
+        assert "LoRA layer" in str(exc)
+    else:
+        raise AssertionError("expected AssertionError for LoRA class name")
+
+    # Submodule with active lora_A fails
+    class MockCustomLayer(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.lora_A = nn.Parameter(torch.randn(2, 2))
+    class MockModelWithLora(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.layer = MockCustomLayer()
+    try:
+        assert_lora_merged_and_unloaded(MockModelWithLora())
+    except AssertionError as exc:
+        assert "lora_A" in str(exc)
+    else:
+        raise AssertionError("expected AssertionError for active lora_A")
+
 
 
 def test_codebook_rejects_bad_phrases_and_checks_the_hash():

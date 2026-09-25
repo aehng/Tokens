@@ -15,6 +15,7 @@ from tokens_vllm.contract import (
     H_START,
     MAX_POSITION_EMBEDDINGS,
     validate_codebook,
+    validate_position_mode,
 )
 from tokens_vllm.warmup import (
     activate_codebook_slot,
@@ -77,10 +78,14 @@ def _build_state() -> None:
             self.admission_log: list[dict[str, Any]] = []
             self._commit_pending = False
             self.last_positions: torch.Tensor | None = None
+            self.position_mode = validate_position_mode(
+                getattr(model, "position_mode", "compressed")
+            )
             model.predictive_state = self
             if hasattr(model, "model"):
                 model.model.predictive_state = self
                 model.model.h_enabled = model.h_enabled
+                model.model.position_mode = self.position_mode
 
         def add_request(self, req_index: int, new_req_data) -> None:
             super().add_request(req_index, new_req_data)
@@ -139,7 +144,9 @@ def _build_state() -> None:
             self.setup_ms[req_index] = elapsed_ms
             self.codebook_sha[req_index] = codebook.sha256
             spans = [len(phrase) for phrase in codebook.phrases]
-            offset = _semantic_offset_from_history(history[:already], spans)
+            offset = _semantic_offset_from_history(
+                history[:already], spans, position_mode=self.position_mode
+            )
             if offset >= MAX_POSITION_EMBEDDINGS:
                 raise RuntimeError(
                     f"reconstructed semantic offset {offset} exceeds Phi RoPE"
@@ -154,6 +161,7 @@ def _build_state() -> None:
                     "req_id": req_id,
                     "req_index": int(req_index),
                     "h_enabled": True,
+                    "position_mode": self.position_mode,
                     "was_clear": was_clear,
                     "already": already,
                     "semantic_offset": int(offset),
@@ -220,7 +228,12 @@ def _build_state() -> None:
                 self._commit_pending = True
                 return {"positions": self.positions_buffer[:n_pad]}
 
-            csum = torch.cumsum(span, dim=0)
+            if self.position_mode == "compressed":
+                token_advance = torch.ones(n, dtype=torch.int64, device=self.device)
+            else:
+                token_advance = span
+
+            csum = torch.cumsum(token_advance, dim=0)
             prev = torch.zeros_like(csum)
             prev[1:] = csum[:-1]
             starts = input_batch.query_start_loc[:num_reqs].to(dtype=torch.int64)
@@ -299,7 +312,11 @@ def _build_state() -> None:
     PredictiveModelState = _PredictiveModelState
 
 
-def _semantic_offset_from_history(history: list[int], spans: list[int]) -> int:
+def _semantic_offset_from_history(
+    history: list[int], spans: list[int], position_mode: str = "compressed"
+) -> int:
+    if position_mode == "compressed":
+        return len(history)
     total = 0
     for logical_id in history:
         if H_START <= int(logical_id) < H_END:

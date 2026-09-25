@@ -17,9 +17,20 @@ INITIAL_VOCAB_SIZE = 32011
 CODEBOOK_SIZE = 32
 BASE_VOCAB_SIZE = 32064
 LOGICAL_VOCAB_SIZE = BASE_VOCAB_SIZE + CODEBOOK_SIZE  # 32096
-MAX_SUBTOKENS = 3
+MAX_SUBTOKENS = 4
 MAX_POSITION_EMBEDDINGS = 131072
 SAFE_PHYSICAL_ID = 0
+
+VALID_POSITION_MODES = ("compressed", "base_token_end")
+
+
+def validate_position_mode(mode: str) -> str:
+    """Validate position mode is either 'compressed' or 'base_token_end'."""
+    if mode not in VALID_POSITION_MODES:
+        raise ValueError(
+            f"unknown position_mode {mode!r}, expected one of {VALID_POSITION_MODES}"
+        )
+    return mode
 
 H_START = INITIAL_VOCAB_SIZE
 H_END = INITIAL_VOCAB_SIZE + CODEBOOK_SIZE  # 32043, exclusive
@@ -165,6 +176,8 @@ def spans_for_logical_ids(
     logical_ids: Sequence[int],
     req_indices: Sequence[int],
     h_spans: torch.Tensor,
+    *,
+    max_subtokens: int = MAX_SUBTOKENS,
 ) -> list[int]:
     """Span of 1 for base and shifted-tail ids, codebook span for H ids."""
     if len(logical_ids) != len(req_indices):
@@ -180,9 +193,9 @@ def spans_for_logical_ids(
             spans.append(1)
             continue
         span = int(h_spans[int(req_index), slot].item())
-        if span not in (2, 3):
+        if not (2 <= span <= max_subtokens):
             raise ValueError(
-                f"request {req_index} slot {slot} has span {span}, expected 2 or 3"
+                f"request {req_index} slot {slot} has span {span}, expected between 2 and {max_subtokens}"
             )
         spans.append(span)
     return spans
@@ -192,12 +205,16 @@ def semantic_positions(
     spans: Sequence[int],
     req_indices: Sequence[int],
     semantic_offset: Sequence[int],
+    *,
+    position_mode: str = "compressed",
 ) -> list[int]:
     """Positions for one scheduled chunk, without committing offsets.
 
-    Within a request, position is ``offset + cumsum(span) - 1``. Requests are
-    interleaved by ``req_indices``; each request has its own running sum.
+    In 'compressed' mode, each token advances position by 1.
+    In 'base_token_end' mode, position is ``offset + cumsum(span) - 1``.
+    Requests are interleaved by ``req_indices``; each request has its own running sum.
     """
+    validate_position_mode(position_mode)
     if len(spans) != len(req_indices):
         raise ValueError("spans and request indices must have the same length")
     running: dict[int, int] = {}
@@ -205,36 +222,49 @@ def semantic_positions(
     for span, req_index in zip(spans, req_indices):
         req_index = int(req_index)
         cursor = running.get(req_index, int(semantic_offset[req_index]))
-        position = cursor + int(span) - 1
+        adv = 1 if position_mode == "compressed" else int(span)
+        position = cursor + adv - 1
         if position < 0 or position >= MAX_POSITION_EMBEDDINGS:
             raise ValueError(
                 f"semantic position {position} is outside "
                 f"[0, {MAX_POSITION_EMBEDDINGS})"
             )
         positions.append(position)
-        running[req_index] = cursor + int(span)
+        running[req_index] = cursor + adv
     return positions
 
 
 def pending_advances(
-    spans: Sequence[int], req_indices: Sequence[int], num_reqs: int
+    spans: Sequence[int],
+    req_indices: Sequence[int],
+    num_reqs: int,
+    *,
+    position_mode: str = "compressed",
 ) -> tuple[list[int], list[int]]:
     """Semantic and physical advances for this chunk. Physical advance is 1 per token."""
+    validate_position_mode(position_mode)
     semantic = [0] * num_reqs
     physical = [0] * num_reqs
     for span, req_index in zip(spans, req_indices):
         req_index = int(req_index)
         if req_index < 0 or req_index >= num_reqs:
             raise ValueError(f"request index {req_index} is outside [0, {num_reqs})")
-        semantic[req_index] += int(span)
+        semantic[req_index] += 1 if position_mode == "compressed" else int(span)
         physical[req_index] += 1
     return semantic, physical
 
 
 def reconstruct_semantic_offset(
-    logical_ids: Sequence[int], h_spans_row: Sequence[int]
+    logical_ids: Sequence[int],
+    h_spans_row: Sequence[int],
+    *,
+    position_mode: str = "compressed",
+    max_subtokens: int = MAX_SUBTOKENS,
 ) -> int:
-    """Sum of spans over already-accounted logical history."""
+    """Sum of advances over already-accounted logical history."""
+    validate_position_mode(position_mode)
+    if position_mode == "compressed":
+        return len(logical_ids)
     total = 0
     for logical_id in logical_ids:
         slot = hypertoken_slot(int(logical_id))
@@ -242,8 +272,10 @@ def reconstruct_semantic_offset(
             total += 1
         else:
             span = int(h_spans_row[slot])
-            if span not in (2, 3):
-                raise ValueError(f"slot {slot} has span {span}, expected 2 or 3")
+            if not (2 <= span <= max_subtokens):
+                raise ValueError(
+                    f"slot {slot} has span {span}, expected between 2 and {max_subtokens}"
+                )
             total += span
     return total
 

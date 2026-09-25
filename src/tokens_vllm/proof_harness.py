@@ -214,3 +214,25 @@ def preempted_request_ids(events: list[dict]) -> list[str]:
         if req_id is not None and req_id not in ordered:
             ordered.append(req_id)
     return [req_id for req_id in ordered if preemption_cycle(events, req_id)]
+
+
+def assert_lora_merged_and_unloaded(model: Any) -> None:
+    """Assert that LoRA adapters have been merged and unloaded from the base model."""
+    base = getattr(model, "base_model", model)
+    base_cls_name = type(base).__name__
+    if "PeftModel" in base_cls_name:
+        raise AssertionError(f"base_model is still a PEFT model: {base_cls_name}")
+    if hasattr(base, "peft_config") and getattr(base, "peft_config"):
+        raise AssertionError("base_model still has peft_config")
+
+    for name, module in base.named_modules():
+        mod_type = type(module).__name__
+        if "LoraLayer" in mod_type or "LoraLinear" in mod_type:
+            raise AssertionError(f"module {name} is still a LoRA layer: {mod_type}")
+        if hasattr(module, "lora_A") and getattr(module, "lora_A") is not None:
+            lora_a = getattr(module, "lora_A")
+            if isinstance(lora_a, (torch.nn.Parameter, torch.Tensor)):
+                raise AssertionError(f"module {name} still has active lora_A weights")
+            if isinstance(lora_a, torch.nn.Module) and list(lora_a.parameters()):
+                raise AssertionError(f"module {name} still has active lora_A weights")
+

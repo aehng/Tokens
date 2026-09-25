@@ -401,11 +401,13 @@ def _codebook_payload(phrases: list[list[int]], *, max_subtokens: int, disabled_
     return payload
 
 
-def _build_hf_references(root: Path) -> dict[str, Any]:
+def _build_hf_references(root: Path, *, diagnostic_mode: bool = False) -> dict[str, Any]:
     os.environ.setdefault("PREDICTOR_PATH", str(_predictor_path()))
     # The benchmark loader reads its module-level predictor constant.
     import experiments.run_quality_benchmark as benchmark
     from zip2zip import StaticCodebookManager, prepare_model_for_inference
+    from tokens_vllm.proof_harness import assert_lora_merged_and_unloaded
+    from tokens_vllm.contract import validate_position_mode
 
     benchmark.PREDICTOR_PATH = _predictor_path()
     checkpoint = _checkpoint_path()
@@ -415,15 +417,15 @@ def _build_hf_references(root: Path) -> dict[str, Any]:
     model = bundle["model"]
     # Use the official inference helper to merge LoRA adapters into the base
     # model BEFORE generating reference tokens.
-    # Without this, the HF reference forward pass uses dynamic LoRA
-    # application (x @ W + scale * x @ A @ B), while vLLM loads the
-    # merged weights (x @ (W + scale * A @ B)).  FP16 rounding makes
-    # these numerically different, causing greedy decode divergence.
     prepare_model_for_inference(model, merge_lora=True)
+    assert_lora_merged_and_unloaded(model)
+
     max_subtokens = int(model.zip2zip_config.compression.max_subtokens)
     disabled_ids = list(model.zip2zip_config.compression.disabled_ids)
     pad_id = int(bundle["pad_id"])
-    position_mode = model.zip2zip_config.position_mode
+    position_mode = validate_position_mode(
+        getattr(model.zip2zip_config, "position_mode", "compressed")
+    )
 
     samples = _load_samples()
     chosen = []
@@ -435,8 +437,11 @@ def _build_hf_references(root: Path) -> dict[str, Any]:
     if len(chosen) < 2:
         raise RuntimeError(f"need two prompts, found {chosen}")
 
+    from transformers import LogitsProcessor, LogitsProcessorList
+
     references = []
     for prompt_id in chosen:
+        is_primary = (prompt_id == chosen[0])
         sample = samples[prompt_id]
         prompt_ids = [int(token) for token in sample["prompt_token_ids"]]
         codebook_dict, _meta = bundle["policy"].select_codebook(prompt_ids)
@@ -465,21 +470,32 @@ def _build_hf_references(root: Path) -> dict[str, Any]:
         h_in = manager.effective_embedding_weight_cache[32011:32043].detach().float().cpu()
         h_out = manager.effective_linear_weight_cache[32011:32043].detach().float().cpu()
         compressed = manager.prepare_input_sequence(prompt_ids, compress=True)
-        position_tensor = manager.prepare_input_ids(
-            torch.tensor([compressed], dtype=torch.long, device="cuda")
-        )
-        positions = position_tensor[0].detach().cpu().tolist()
         manager.base_position_offset = None
         manager.position_ids = None
 
-        captured: list[torch.Tensor] = []
+        # Capture actual positions from model.base_model.model.layers[0]
+        actual_hf_positions: list[list[int]] = []
 
-        from transformers import LogitsProcessor, LogitsProcessorList
+        def _hf_layer_pre_hook(_module, args, kwargs=None):
+            pos = None
+            if kwargs is not None and "position_ids" in kwargs and kwargs["position_ids"] is not None:
+                pos = kwargs["position_ids"]
+            elif len(args) > 2 and args[2] is not None:
+                pos = args[2]
+            if pos is not None:
+                p = pos.detach().cpu()
+                if p.ndim > 1:
+                    p = p.squeeze(0)
+                actual_hf_positions.append(p.tolist())
+
+        layer0 = model.base_model.model.layers[0]
+        hook_handle = layer0.register_forward_pre_hook(_hf_layer_pre_hook, with_kwargs=True)
+
+        captured: list[torch.Tensor] = []
 
         class _Capture(LogitsProcessor):
             def __call__(self, input_ids, scores):
-                if len(captured) < 1:
-                    captured.append(scores[0].detach().float().cpu())
+                captured.append(scores[0].detach().float().cpu())
                 return scores
 
         with torch.no_grad():
@@ -490,26 +506,100 @@ def _build_hf_references(root: Path) -> dict[str, Any]:
                 pad_token_id=bundle["tokenizer"].eos_token_id,
                 logits_processor=LogitsProcessorList([_Capture()]),
             )
+        hook_handle.remove()
         new_ids = generated[0, len(compressed) :].detach().cpu().tolist()
+        prefill_positions = (
+            actual_hf_positions[0]
+            if actual_hf_positions
+            else list(range(len(compressed)))
+        )
+
+        bte_step_logits = None
+        bte_new_ids = None
+        raw_step_logits = None
+        raw_new_ids = None
+        if diagnostic_mode and is_primary:
+            # Base token end generation
+            captured_bte: list[torch.Tensor] = []
+
+            class _CaptureBTE(LogitsProcessor):
+                def __call__(self, input_ids, scores):
+                    captured_bte.append(scores[0].detach().float().cpu())
+                    return scores
+
+            orig_mode = model.zip2zip_config.position_mode
+            model.zip2zip_config.position_mode = "base_token_end"
+            model._install_base_position_generation_hook()
+            with torch.no_grad():
+                gen_bte = model.generate(
+                    input_ids=torch.tensor([compressed], dtype=torch.long, device="cuda"),
+                    max_new_tokens=MAX_NEW,
+                    do_sample=False,
+                    pad_token_id=bundle["tokenizer"].eos_token_id,
+                    logits_processor=LogitsProcessorList([_CaptureBTE()]),
+                )
+            bte_new_ids = gen_bte[0, len(compressed) :].detach().cpu().tolist()
+            bte_step_logits = captured_bte
+            model.zip2zip_config.position_mode = orig_mode
+            class_prepare = getattr(type(model.base_model), "prepare_inputs_for_generation", None)
+            if class_prepare is not None:
+                model.base_model.prepare_inputs_for_generation = class_prepare.__get__(
+                    model.base_model, type(model.base_model)
+                )
+
+            # Raw uncompressed baseline on model.base_model
+            captured_raw: list[torch.Tensor] = []
+
+            class _CaptureRaw(LogitsProcessor):
+                def __call__(self, input_ids, scores):
+                    captured_raw.append(scores[0].detach().float().cpu())
+                    return scores
+
+            with torch.no_grad():
+                gen_raw = model.base_model.generate(
+                    input_ids=torch.tensor([prompt_ids], dtype=torch.long, device="cuda"),
+                    max_new_tokens=MAX_NEW,
+                    do_sample=False,
+                    pad_token_id=bundle["tokenizer"].eos_token_id,
+                    logits_processor=LogitsProcessorList([_CaptureRaw()]),
+                )
+            raw_new_ids = gen_raw[0, len(prompt_ids) :].detach().cpu().tolist()
+            raw_step_logits = captured_raw
+
         manager.detach_from_model(model)
         model.codebook_manager.reset()
         torch.save(
-            {"h_input": h_in, "h_output": h_out, "positions": positions},
+            {
+                "h_input": h_in,
+                "h_output": h_out,
+                "positions": prefill_positions,
+                "actual_positions": prefill_positions,
+                "all_actual_positions": actual_hf_positions,
+            },
             root / f"hf_{prompt_id}.pt",
         )
         references.append(
             {
                 "prompt_id": prompt_id,
+                "raw_prompt_ids": prompt_ids,
                 "payload": payload,
                 "compressed_ids": [int(token) for token in compressed],
-                "positions": [int(pos) for pos in positions],
+                "positions": [int(pos) for pos in prefill_positions],
+                "actual_hf_positions": [int(pos) for pos in prefill_positions],
+                "all_actual_hf_positions": actual_hf_positions,
                 "new_ids": [int(token) for token in new_ids],
                 "setup_ms": setup_ms,
+                "step_logits": captured,
+                "bte_new_ids": bte_new_ids,
+                "bte_step_logits": bte_step_logits,
+                "raw_new_ids": raw_new_ids,
+                "raw_step_logits": raw_step_logits,
                 "first_logits_path": str(root / f"hf_{prompt_id}_logits.pt"),
             }
         )
         if captured:
             torch.save(captured[0], root / f"hf_{prompt_id}_logits.pt")
+            torch.save(torch.stack(captured), root / f"hf_{prompt_id}_all_logits.pt")
     # Keep encoders and save the already-merged base for vLLM.
     encoder_path = root / "encoders.pt"
     torch.save(
@@ -602,6 +692,12 @@ def _install_encoders(llm, encoder_path: str, *, root: Path | None = None) -> di
         model.pad_token_id = int(blob["pad_id"])
         model.h_enabled = True
         model.model.h_enabled = True
+        from tokens_vllm.contract import validate_position_mode
+        pos_mode = validate_position_mode(blob.get("position_mode", "compressed"))
+        model.position_mode = pos_mode
+        model.model.position_mode = pos_mode
+        if getattr(model, "predictive_state", None) is not None:
+            model.predictive_state.position_mode = pos_mode
 
         audit = {
             "max_subtokens": int(blob["max_subtokens"]),
@@ -631,8 +727,8 @@ def _compare_vectors(reference: torch.Tensor, actual: torch.Tensor) -> dict[str,
 
 
 def _install_debug_hooks(model):
-    """Record RoPE positions and the first logits on the worker model."""
-    debug: dict[str, Any] = {"rope_positions": [], "first_logits": None}
+    """Record RoPE positions and step logits on the worker model."""
+    debug: dict[str, Any] = {"rope_positions": [], "first_logits": None, "step_logits": []}
     model._tokens_debug = debug
 
     def pre_hook(_module, args, debug=debug):
@@ -646,8 +742,11 @@ def _install_debug_hooks(model):
 
     def wrapped(hidden, debug=debug, original=original):
         logits = original(hidden)
-        if logits is not None and debug["first_logits"] is None:
-            debug["first_logits"] = logits[0].detach().float().cpu()
+        if logits is not None:
+            detached = logits[0].detach().float().cpu()
+            debug["step_logits"].append(detached)
+            if debug["first_logits"] is None:
+                debug["first_logits"] = detached
         return logits
 
     model.compute_logits = wrapped
@@ -668,9 +767,11 @@ def _consume_debug(model):
     logits = debug.get("first_logits")
     if logits is not None:
         logits = logits.detach().float().cpu()
+    step_logits = [l.detach().float().cpu() for l in debug.get("step_logits") or []]
     return {
         "rope_positions": list(debug.get("rope_positions") or []),
         "first_logits": logits,
+        "step_logits": step_logits,
         "log": list(model.predictive_state.admission_log),
         "setup_ms": dict(model.predictive_state.setup_ms),
     }
@@ -784,7 +885,11 @@ def _run_request(
 ):
     from tokens_vllm.proof_harness import MAX_ENGINE_STEPS
 
-    params = _sampling({"predictive_codebook": payload}, max_tokens=max_tokens)
+    params = (
+        _sampling({"predictive_codebook": payload}, max_tokens=max_tokens)
+        if payload
+        else _sampling({}, max_tokens=max_tokens)
+    )
     _apply(llm, _install_debug_hooks)
     captured = None
     token_ids: list[int] = []
@@ -836,6 +941,7 @@ def _run_request(
         "positions": forwards[0] if forwards else [],
         "forwards": forwards,
         "logits": snap["first_logits"],
+        "step_logits": snap["step_logits"],
         "log": snap["log"],
         "setup_ms": snap["setup_ms"],
         "h_capture": captured,
@@ -860,8 +966,228 @@ def _logit_report(reference: torch.Tensor, actual: torch.Tensor) -> dict[str, An
         "act_margin": float((act_top2[0] - act_top2[1]).item()) if len(act_top2) > 1 else None,
         "ref_top5": ref.topk(5).indices.tolist(),
         "act_top5": act.topk(5).indices.tolist(),
-        "finite": bool(torch.isfinite(act).all()),
+def _step_parity_metric(
+    step: int,
+    pos_id: int | None,
+    hf_logits: torch.Tensor,
+    vllm_logits: torch.Tensor,
+) -> dict[str, Any]:
+    width = min(hf_logits.shape[-1], vllm_logits.shape[-1])
+    ref = hf_logits[:width].float()
+    act = vllm_logits[:width].float()
+    delta = (ref - act).abs()
+    h_delta = (
+        (ref[32011:32043] - act[32011:32043]).abs()
+        if width >= 32043
+        else torch.tensor([0.0])
+    )
+    base_delta = (ref[:32011] - act[:32011]).abs()
+
+    ref_top1 = int(ref.argmax())
+    act_top1 = int(act.argmax())
+    top1_match = bool(ref_top1 == act_top1)
+
+    ref_top2 = ref.topk(2).values
+    act_top2 = act.topk(2).values
+    ref_margin = float((ref_top2[0] - ref_top2[1]).item()) if len(ref_top2) > 1 else 0.0
+    act_margin = float((act_top2[0] - act_top2[1]).item()) if len(act_top2) > 1 else 0.0
+
+    ref_top5 = set(ref.topk(5).indices.tolist())
+    act_top5 = set(act.topk(5).indices.tolist())
+    top5_overlap = len(ref_top5.intersection(act_top5))
+
+    return {
+        "step": step,
+        "pos_id": pos_id,
+        "hf_top1": ref_top1,
+        "vllm_top1": act_top1,
+        "top1_match": top1_match,
+        "hf_margin": ref_margin,
+        "vllm_margin": act_margin,
+        "max_abs": float(delta.max().item()),
+        "mean_abs": float(delta.mean().item()),
+        "base_max_abs": float(base_delta.max().item()) if base_delta.numel() else 0.0,
+        "h_max_abs": float(h_delta.max().item()) if h_delta.numel() else 0.0,
+        "top5_overlap": top5_overlap,
     }
+
+
+def _run_diagnostic_parity(
+    llm,
+    prepared: dict[str, Any],
+    root: Path,
+) -> dict[str, Any]:
+    print("\n" + "=" * 80)
+    print("RUNNING TARGETED PHASE-5 PARITY DIAGNOSTICS")
+    print("=" * 80, flush=True)
+
+    primary = prepared["references"][0]
+    prompt_id = primary["prompt_id"]
+    compressed_ids = primary["compressed_ids"]
+    payload = primary["payload"]
+    raw_prompt_ids = primary["raw_prompt_ids"]
+
+    hf_compressed_logits = primary["step_logits"]
+    hf_bte_logits = primary.get("bte_step_logits")
+    hf_raw_logits = primary.get("raw_step_logits")
+
+    def _set_worker_mode(model, *, h_enabled: bool, position_mode: str):
+        model.h_enabled = h_enabled
+        model.model.h_enabled = h_enabled
+        model.position_mode = position_mode
+        model.model.position_mode = position_mode
+        if getattr(model, "predictive_state", None) is not None:
+            model.predictive_state.position_mode = position_mode
+
+    # 1. Cross-runtime numerical baseline (H-disabled, raw prompt)
+    print("-> 1. Cross-runtime numerical baseline (H-disabled, raw prompt)...", flush=True)
+    _apply(llm, lambda m: _set_worker_mode(m, h_enabled=False, position_mode="compressed"))
+    base_run = _run_request(
+        llm,
+        raw_prompt_ids,
+        payload={},
+        max_tokens=MAX_NEW,
+        request_id="diag-baseline",
+        root=root,
+        phase_name="diagnostic_baseline",
+    )
+    baseline_steps = []
+    if hf_raw_logits:
+        n_steps = min(len(hf_raw_logits), len(base_run["step_logits"]))
+        for i in range(n_steps):
+            baseline_steps.append(_step_parity_metric(i, i, hf_raw_logits[i], base_run["step_logits"][i]))
+    base_summary = {
+        "steps_evaluated": len(baseline_steps),
+        "top1_matches": sum(1 for s in baseline_steps if s["top1_match"]),
+        "max_abs": max((s["max_abs"] for s in baseline_steps), default=0.0),
+        "mean_abs": float(torch.tensor([s["mean_abs"] for s in baseline_steps]).mean().item()) if baseline_steps else 0.0,
+    }
+
+    # 2. Experiment A: Mismatch control (HF compressed vs vLLM base_token_end)
+    print("-> 2. Experiment A: Mismatch control (HF compressed vs vLLM base_token_end)...", flush=True)
+    _apply(llm, lambda m: _set_worker_mode(m, h_enabled=True, position_mode="base_token_end"))
+    exp_a_run = _run_request(
+        llm,
+        compressed_ids,
+        payload,
+        max_tokens=MAX_NEW,
+        request_id="diag-exp-a",
+        root=root,
+        phase_name="diagnostic_exp_a",
+    )
+    exp_a_steps = []
+    n_a = min(len(hf_compressed_logits), len(exp_a_run["step_logits"]))
+    for i in range(n_a):
+        pos_id = exp_a_run["forwards"][i][0] if i < len(exp_a_run["forwards"]) and exp_a_run["forwards"][i] else None
+        exp_a_steps.append(_step_parity_metric(i, pos_id, hf_compressed_logits[i], exp_a_run["step_logits"][i]))
+    exp_a_summary = {
+        "steps_evaluated": len(exp_a_steps),
+        "top1_matches": sum(1 for s in exp_a_steps if s["top1_match"]),
+        "max_abs": max((s["max_abs"] for s in exp_a_steps), default=0.0),
+        "mean_abs": float(torch.tensor([s["mean_abs"] for s in exp_a_steps]).mean().item()) if exp_a_steps else 0.0,
+    }
+
+    # 3. Experiment B: Step-100 contract (HF compressed vs vLLM compressed)
+    print("-> 3. Experiment B: Step-100 contract (HF compressed vs vLLM compressed)...", flush=True)
+    _apply(llm, lambda m: _set_worker_mode(m, h_enabled=True, position_mode="compressed"))
+    exp_b_run = _run_request(
+        llm,
+        compressed_ids,
+        payload,
+        max_tokens=MAX_NEW,
+        request_id="diag-exp-b",
+        root=root,
+        phase_name="diagnostic_exp_b",
+    )
+    exp_b_steps = []
+    n_b = min(len(hf_compressed_logits), len(exp_b_run["step_logits"]))
+    for i in range(n_b):
+        pos_id = exp_b_run["forwards"][i][0] if i < len(exp_b_run["forwards"]) and exp_b_run["forwards"][i] else None
+        exp_b_steps.append(_step_parity_metric(i, pos_id, hf_compressed_logits[i], exp_b_run["step_logits"][i]))
+    exp_b_summary = {
+        "steps_evaluated": len(exp_b_steps),
+        "top1_matches": sum(1 for s in exp_b_steps if s["top1_match"]),
+        "max_abs": max((s["max_abs"] for s in exp_b_steps), default=0.0),
+        "mean_abs": float(torch.tensor([s["mean_abs"] for s in exp_b_steps]).mean().item()) if exp_b_steps else 0.0,
+    }
+
+    # 4. Experiment C: Reverse matched control (HF base_token_end vs vLLM base_token_end)
+    print("-> 4. Experiment C: Reverse matched control (HF base_token_end vs vLLM base_token_end)...", flush=True)
+    _apply(llm, lambda m: _set_worker_mode(m, h_enabled=True, position_mode="base_token_end"))
+    exp_c_run = _run_request(
+        llm,
+        compressed_ids,
+        payload,
+        max_tokens=MAX_NEW,
+        request_id="diag-exp-c",
+        root=root,
+        phase_name="diagnostic_exp_c",
+    )
+    exp_c_steps = []
+    if hf_bte_logits:
+        n_c = min(len(hf_bte_logits), len(exp_c_run["step_logits"]))
+        for i in range(n_c):
+            pos_id = exp_c_run["forwards"][i][0] if i < len(exp_c_run["forwards"]) and exp_c_run["forwards"][i] else None
+            exp_c_steps.append(_step_parity_metric(i, pos_id, hf_bte_logits[i], exp_c_run["step_logits"][i]))
+    exp_c_summary = {
+        "steps_evaluated": len(exp_c_steps),
+        "top1_matches": sum(1 for s in exp_c_steps if s["top1_match"]),
+        "max_abs": max((s["max_abs"] for s in exp_c_steps), default=0.0),
+        "mean_abs": float(torch.tensor([s["mean_abs"] for s in exp_c_steps]).mean().item()) if exp_c_steps else 0.0,
+    }
+
+    # 5. Same-vLLM determinism check (Exp B run 2 vs Exp B run 1)
+    print("-> 5. Same-vLLM determinism check (Exp B run 2 vs Exp B run 1)...", flush=True)
+    _apply(llm, lambda m: _set_worker_mode(m, h_enabled=True, position_mode="compressed"))
+    exp_b2_run = _run_request(
+        llm,
+        compressed_ids,
+        payload,
+        max_tokens=MAX_NEW,
+        request_id="diag-exp-b2",
+        root=root,
+        phase_name="diagnostic_exp_b2",
+    )
+    det_steps = []
+    n_det = min(len(exp_b_run["step_logits"]), len(exp_b2_run["step_logits"]))
+    for i in range(n_det):
+        det_steps.append(_step_parity_metric(i, None, exp_b_run["step_logits"][i], exp_b2_run["step_logits"][i]))
+    det_tokens_match = exp_b2_run["token_ids"] == exp_b_run["token_ids"]
+    det_summary = {
+        "tokens_match": det_tokens_match,
+        "max_abs": max((s["max_abs"] for s in det_steps), default=0.0),
+    }
+
+    # Reset worker mode back to default compressed
+    _apply(llm, lambda m: _set_worker_mode(m, h_enabled=True, position_mode="compressed"))
+
+    # Format Markdown Table
+    print("\n" + "=" * 80)
+    print("DIAGNOSTIC PARITY RESULTS TABLE")
+    print("=" * 80)
+    header = f"{'Step':<5} | {'Exp A max_abs (Mismatch)':<25} | {'Exp B max_abs (Step100)':<25} | {'Exp B top1_match':<16} | {'Det max_abs':<12}"
+    print(header)
+    print("-" * len(header))
+    for i in range(max(len(exp_a_steps), len(exp_b_steps))):
+        a_val = f"{exp_a_steps[i]['max_abs']:.4f}" if i < len(exp_a_steps) else "N/A"
+        b_val = f"{exp_b_steps[i]['max_abs']:.4f}" if i < len(exp_b_steps) else "N/A"
+        b_match = str(exp_b_steps[i]["top1_match"]) if i < len(exp_b_steps) else "N/A"
+        det_val = f"{det_steps[i]['max_abs']:.6f}" if i < len(det_steps) else "N/A"
+        print(f"{i:<5} | {a_val:<25} | {b_val:<25} | {b_match:<16} | {det_val:<12}")
+    print("=" * 80, flush=True)
+
+    status = "PASS" if exp_b_summary["top1_matches"] == len(exp_b_steps) and det_tokens_match else "FAIL"
+    diag_data = {
+        "status": status,
+        "prompt_id": prompt_id,
+        "baseline": {"summary": base_summary, "steps": baseline_steps},
+        "experiment_a_mismatched": {"summary": exp_a_summary, "steps": exp_a_steps},
+        "experiment_b_step100_contract": {"summary": exp_b_summary, "steps": exp_b_steps},
+        "experiment_c_matched_bte": {"summary": exp_c_summary, "steps": exp_c_steps},
+        "vllm_determinism": {"summary": det_summary, "steps": det_steps},
+    }
+    write_json(root / "diagnostic_parity.json", diag_data)
+    return diag_data
 
 
 def main() -> None:
@@ -872,7 +1198,9 @@ def main() -> None:
 
         if not vllm.__version__.startswith("0.30.0"):
             raise RuntimeError(f"vLLM {vllm.__version__} is not 0.30.0")
+        diagnostic_mode = os.environ.get("VLLM_PROOF_DIAGNOSTIC_PARITY", "0") == "1"
         env = environment()
+        env["diagnostic_parity"] = diagnostic_mode
         write_json(root / "environment.json", env)
         write_json(root / "run_manifest.json", manifest)
 
@@ -880,7 +1208,7 @@ def main() -> None:
         manifest["phases"].update(early)
         write_json(root / "run_manifest.json", manifest)
 
-        prepared = _build_hf_references(root)
+        prepared = _build_hf_references(root, diagnostic_mode=diagnostic_mode)
         write_json(
             root / "phase_03_hf_reference.json",
             {
@@ -954,8 +1282,34 @@ def main() -> None:
 
         ref_positions = primary["positions"]
         got_positions = primary_run["positions"] or []
+        from tokens_vllm.contract import (
+            expected_hypertoken_spans,
+            hypertoken_slot,
+            semantic_positions,
+        )
+        logical_spans = []
+        for token_id in primary["compressed_ids"]:
+            slot = hypertoken_slot(token_id)
+            if slot is not None:
+                logical_spans.append(expected_spans[slot])
+            else:
+                logical_spans.append(1)
+        expected_positions = semantic_positions(
+            logical_spans,
+            [0] * len(logical_spans),
+            [0],
+            position_mode=prepared["position_mode"],
+        )
         phase4 = {
-            "status": "PASS" if got_positions[: len(ref_positions)] == ref_positions else "FAIL",
+            "status": (
+                "PASS"
+                if got_positions[: len(ref_positions)] == ref_positions == expected_positions
+                else "FAIL"
+            ),
+            "position_mode": prepared["position_mode"],
+            "expected_positions": expected_positions,
+            "actual_hf_positions": ref_positions,
+            "actual_vllm_positions": got_positions[: len(ref_positions)],
             "reference_positions": ref_positions,
             "rope_positions": got_positions[: len(ref_positions)],
             "rope_length": len(got_positions),
@@ -963,6 +1317,19 @@ def main() -> None:
         write_json(root / "phase_04_semantic_positions.json", phase4)
         if phase4["status"] != "PASS":
             raise RuntimeError(f"phase 4 positions diverged: {phase4}")
+
+        if diagnostic_mode:
+            diag = _run_diagnostic_parity(llm, prepared, root)
+            manifest["phases"]["diagnostic_parity"] = diag["status"]
+            manifest["status"] = diag["status"]
+            write_json(root / "run_manifest.json", manifest)
+            llm_shutdown = shutdown_vllm_engine(llm)
+            del llm
+            _record_teardown(root, "llm", llm_shutdown, cuda_after_collect())
+            if diag["status"] != "PASS":
+                raise RuntimeError(f"diagnostic parity failed: {diag['status']}")
+            print("\nDiagnostic parity run completed successfully.", flush=True)
+            return
 
         logits_path = root / f"hf_{primary['prompt_id']}_logits.pt"
         logit_info = {"status": "FAIL", "reason": "missing logits"}
@@ -1361,6 +1728,12 @@ def main() -> None:
             gpu_memory_utilization=PREDICTIVE_GPU_MEMORY_UTILIZATION,
         )
         _install_encoders(rope_llm, prepared["encoder_path"], root=root)
+        def _set_bte(model):
+            model.position_mode = "base_token_end"
+            model.model.position_mode = "base_token_end"
+            if getattr(model, "predictive_state", None) is not None:
+                model.predictive_state.position_mode = "base_token_end"
+        _apply(rope_llm, _set_bte)
         synthetic = []
         for slot in range(32):
             synthetic.append([100 + slot, 200 + slot, 300 + slot])

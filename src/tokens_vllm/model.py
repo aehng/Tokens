@@ -16,6 +16,7 @@ from tokens_vllm.contract import (
     BASE_VOCAB_SIZE,
     CODEBOOK_SIZE,
     LOGICAL_VOCAB_SIZE,
+    validate_position_mode,
 )
 from tokens_vllm.remap import insert_h_logits, remap_logical_ids
 from tokens_vllm.warmup import mask_inactive_h_logits
@@ -82,6 +83,10 @@ def _build_classes() -> None:
                 config.vocab_size = logical
             self.logical_vocab_size = logical
             self.physical_vocab_size = base_vocab
+            self.position_mode = validate_position_mode(
+                getattr(config, "position_mode", "compressed")
+            )
+            self.model.position_mode = self.position_mode
             self.h_enabled = _h_enabled_from_env()
             self.model.h_enabled = self.h_enabled
             self.predictive_state = None
