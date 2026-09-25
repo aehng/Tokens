@@ -966,6 +966,9 @@ def _logit_report(reference: torch.Tensor, actual: torch.Tensor) -> dict[str, An
         "act_margin": float((act_top2[0] - act_top2[1]).item()) if len(act_top2) > 1 else None,
         "ref_top5": ref.topk(5).indices.tolist(),
         "act_top5": act.topk(5).indices.tolist(),
+    }
+
+
 def _step_parity_metric(
     step: int,
     pos_id: int | None,
