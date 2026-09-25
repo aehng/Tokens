@@ -405,7 +405,7 @@ def _build_hf_references(root: Path) -> dict[str, Any]:
     os.environ.setdefault("PREDICTOR_PATH", str(_predictor_path()))
     # The benchmark loader reads its module-level predictor constant.
     import experiments.run_quality_benchmark as benchmark
-    from zip2zip import StaticCodebookManager
+    from zip2zip import StaticCodebookManager, prepare_model_for_inference
 
     benchmark.PREDICTOR_PATH = _predictor_path()
     checkpoint = _checkpoint_path()
@@ -413,10 +413,18 @@ def _build_hf_references(root: Path) -> dict[str, Any]:
         str(checkpoint), device="cuda", expected_step=100
     )
     model = bundle["model"]
+    # Use the official inference helper to merge LoRA adapters into the base
+    # model BEFORE generating reference tokens.
+    # Without this, the HF reference forward pass uses dynamic LoRA
+    # application (x @ W + scale * x @ A @ B), while vLLM loads the
+    # merged weights (x @ (W + scale * A @ B)).  FP16 rounding makes
+    # these numerically different, causing greedy decode divergence.
+    prepare_model_for_inference(model, merge_lora=True)
     max_subtokens = int(model.zip2zip_config.compression.max_subtokens)
     disabled_ids = list(model.zip2zip_config.compression.disabled_ids)
     pad_id = int(bundle["pad_id"])
     position_mode = model.zip2zip_config.position_mode
+
     samples = _load_samples()
     chosen = []
     for prompt_id in ("gsm_2956", "gsm_3022", "gsm_6613"):
@@ -502,7 +510,7 @@ def _build_hf_references(root: Path) -> dict[str, Any]:
         )
         if captured:
             torch.save(captured[0], root / f"hf_{prompt_id}_logits.pt")
-    # Keep encoders and merge the base for vLLM.
+    # Keep encoders and save the already-merged base for vLLM.
     encoder_path = root / "encoders.pt"
     torch.save(
         {
@@ -524,13 +532,9 @@ def _build_hf_references(root: Path) -> dict[str, Any]:
         predictive_utilization=PREDICTIVE_GPU_MEMORY_UTILIZATION,
     )
     write_json(root / "encoder_memory_plan.json", plan)
-    base = model.base_model
-    merged = base.merge_and_unload() if hasattr(base, "merge_and_unload") else base
     merged_dir = root / "merged_phi"
-    merged.save_pretrained(merged_dir, safe_serialization=True)
+    model.base_model.save_pretrained(merged_dir, safe_serialization=True)
     del model
-    del base
-    del merged
     cuda_after_collect()
     return {
         "references": references,
@@ -844,12 +848,16 @@ def _logit_report(reference: torch.Tensor, actual: torch.Tensor) -> dict[str, An
     act = actual[:width].float()
     delta = (ref - act).abs()
     h_delta = (ref[32011:32043] - act[32011:32043]).abs()
+    ref_top2 = ref.topk(2).values
+    act_top2 = act.topk(2).values
     return {
         "max_abs": float(delta.max()),
         "h_max_abs": float(h_delta.max()) if h_delta.numel() else None,
         "base_example_abs": float(delta[100].item()) if width > 100 else None,
         "ref_top1": int(ref.argmax()),
         "act_top1": int(act.argmax()),
+        "ref_margin": float((ref_top2[0] - ref_top2[1]).item()) if len(ref_top2) > 1 else None,
+        "act_margin": float((act_top2[0] - act_top2[1]).item()) if len(act_top2) > 1 else None,
         "ref_top5": ref.topk(5).indices.tolist(),
         "act_top5": act.topk(5).indices.tolist(),
         "finite": bool(torch.isfinite(act).all()),

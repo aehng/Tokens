@@ -151,3 +151,37 @@ def test_no_encoder_dtype_conversion_in_installer():
     assert ".float()" not in install_func
     assert "torch.float16" not in install_func
     assert "torch.bfloat16" not in install_func
+
+
+def test_hf_reference_model_inference_lifecycle():
+    """Verify that inference preparation occurs before HF reference generation,
+    no direct merge_adapter calls exist, and no redundant second merge occurs.
+    """
+    runner_text = RUNNER_PATH.read_text(encoding="utf-8")
+    ref_func = runner_text.split("def _build_hf_references", 1)[1].split("def _install_encoders", 1)[0]
+
+    # 1. Inference preparation occurs before the HF reference-generation loop
+    prep_pos = ref_func.find("prepare_model_for_inference(model, merge_lora=True)")
+    bundle_pos = ref_func.find("load_predictive_model_bundle")
+    loop_pos = ref_func.find("for prompt_id in chosen:")
+    assert prep_pos != -1, "prepare_model_for_inference must be called in _build_hf_references"
+    assert bundle_pos != -1, "load_predictive_model_bundle must be called"
+    assert loop_pos != -1, "reference generation loop must exist"
+    assert bundle_pos < prep_pos < loop_pos, (
+        "prepare_model_for_inference must be called immediately after loading bundle "
+        "and before the reference-generation loop"
+    )
+
+    # 2. The harness does not call merge_adapter() directly anywhere
+    assert "merge_adapter" not in runner_text, (
+        "harness must not call merge_adapter directly; use prepare_model_for_inference"
+    )
+
+    # 3. The model is not merged a second time before saving
+    assert "merge_and_unload" not in ref_func, (
+        "model is already merged and unloaded by prepare_model_for_inference; "
+        "no second merge_and_unload should be performed"
+    )
+    assert "model.base_model.save_pretrained" in ref_func, (
+        "merged base model must be saved directly to merged_dir"
+    )
