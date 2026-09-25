@@ -277,6 +277,82 @@ def pending_advances(
     return semantic, physical
 
 
+def chunk_positions_from_computed(
+    logical_ids: Sequence[int],
+    req_indices: Sequence[int],
+    num_computed: Mapping[int, int],
+    h_spans_by_req: Mapping[int, Sequence[int]] | None = None,
+    history_by_req: Mapping[int, Sequence[int]] | None = None,
+    *,
+    position_mode: str = "compressed",
+    use_hypertoken_spans: bool = False,
+    max_subtokens: int = MAX_SUBTOKENS,
+) -> list[int]:
+    """RoPE positions for one chunk from vLLM's computed-token counts.
+
+    ``num_computed[slot]`` is how many tokens of that request vLLM has already
+    computed before this chunk. Compressed mode starts there. ``base_token_end``
+    replays ``history_by_req[slot][:num_computed]`` when hypertoken spans are
+    in use. A private offset is not an input.
+    """
+    validate_position_mode(position_mode)
+    if len(logical_ids) != len(req_indices):
+        raise ValueError("logical ids and request indices must have the same length")
+    if use_hypertoken_spans and position_mode != "base_token_end":
+        raise ValueError("hypertoken spans are only used in base_token_end mode")
+    offsets: dict[int, int] = {}
+    spans: list[int] = []
+    for logical_id, req_index in zip(logical_ids, req_indices):
+        req_index = int(req_index)
+        logical_id = int(logical_id)
+        if req_index not in num_computed:
+            raise KeyError(f"request {req_index} has no computed-token count")
+        if req_index not in offsets:
+            computed = int(num_computed[req_index])
+            if computed < 0:
+                raise ValueError(f"request {req_index} computed count {computed} is negative")
+            if use_hypertoken_spans:
+                if history_by_req is None or req_index not in history_by_req:
+                    raise KeyError(f"request {req_index} has no token history")
+                if h_spans_by_req is None or req_index not in h_spans_by_req:
+                    raise KeyError(f"request {req_index} has no hypertoken spans")
+                history = list(history_by_req[req_index])[:computed]
+                if len(history) != computed:
+                    raise ValueError(
+                        f"request {req_index} history has {len(history)} tokens, "
+                        f"computed count is {computed}"
+                    )
+                offsets[req_index] = reconstruct_semantic_offset(
+                    history,
+                    h_spans_by_req[req_index],
+                    position_mode="base_token_end",
+                    max_subtokens=max_subtokens,
+                )
+            else:
+                offsets[req_index] = computed
+        if not use_hypertoken_spans:
+            spans.append(1)
+            continue
+        assert h_spans_by_req is not None
+        slot = hypertoken_slot(logical_id)
+        if slot is None:
+            spans.append(1)
+            continue
+        span = int(h_spans_by_req[req_index][slot])
+        if not (2 <= span <= max_subtokens):
+            raise ValueError(
+                f"request {req_index} slot {slot} has span {span}, "
+                f"expected between 2 and {max_subtokens}"
+            )
+        spans.append(span)
+    return semantic_positions(
+        spans,
+        req_indices,
+        offsets,
+        position_mode="base_token_end" if use_hypertoken_spans else "compressed",
+    )
+
+
 def reconstruct_semantic_offset(
     logical_ids: Sequence[int],
     h_spans_row: Sequence[int],

@@ -9,6 +9,7 @@ from tokens_vllm.contract import (
     H_START,
     INITIAL_VOCAB_SIZE,
     LOGICAL_VOCAB_SIZE,
+    chunk_positions_from_computed,
     codebook_sha256,
     expected_hypertoken_spans,
     expand_logical_id,
@@ -145,6 +146,101 @@ def test_semantic_positions_compressed_mode():
     assert physical[4] == 2
     assert semantic[9] == 1
     assert physical[9] == 1
+
+
+def _unit_spans():
+    return [1] * CODEBOOK_SIZE
+
+
+def test_compressed_chunks_follow_num_computed_across_restarts():
+    # Phase 8 shape: 16 + 16 + 10. A shadow offset left at 0 would restart
+    # every chunk. The computed-token count is the origin instead.
+    logical = list(range(42))
+    got: list[int] = []
+    for origin, length in ((0, 16), (16, 16), (32, 10)):
+        chunk = logical[origin : origin + length]
+        got.extend(
+            chunk_positions_from_computed(
+                chunk,
+                [4] * length,
+                {4: origin},
+                position_mode="compressed",
+            )
+        )
+    assert got == list(range(42))
+
+
+def test_base_token_end_chunks_span_an_h_on_each_side_of_the_boundary():
+    spans = _unit_spans()
+    spans[1] = 3
+    spans[2] = 4
+    before = [10, 11, H_START + 1]
+    after = [H_START + 2, 12]
+    history = before
+    first = chunk_positions_from_computed(
+        before,
+        [1] * len(before),
+        {1: 0},
+        {1: spans},
+        {1: []},
+        position_mode="base_token_end",
+        use_hypertoken_spans=True,
+    )
+    # 10, 11, then H3 ends at position 4.
+    assert first == [0, 1, 4]
+    second = chunk_positions_from_computed(
+        after,
+        [1] * len(after),
+        {1: len(history)},
+        {1: spans},
+        {1: history},
+        position_mode="base_token_end",
+        use_hypertoken_spans=True,
+    )
+    # Prefix is 1+1+3=5. H4 ends at 8. The next base token is 9.
+    assert second == [8, 9]
+
+
+def test_resume_starts_at_nonzero_num_computed():
+    positions = chunk_positions_from_computed(
+        [7, 8, 9],
+        [2, 2, 2],
+        {2: 20},
+        position_mode="compressed",
+    )
+    assert positions == [20, 21, 22]
+
+
+def test_h4_advance_is_four_positions_inside_one_chunk():
+    spans = _unit_spans()
+    spans[5] = 4
+    positions = chunk_positions_from_computed(
+        [3, H_START + 5, 4],
+        [0, 0, 0],
+        {0: 0},
+        {0: spans},
+        {0: []},
+        position_mode="base_token_end",
+        use_hypertoken_spans=True,
+    )
+    assert positions == [0, 4, 5]
+
+
+def test_slot_reuse_reads_the_new_request_computed_count():
+    first = chunk_positions_from_computed([1, 2], [6, 6], {6: 8}, position_mode="compressed")
+    second = chunk_positions_from_computed([1, 2], [6, 6], {6: 0}, position_mode="compressed")
+    assert first == [8, 9]
+    assert second == [0, 1]
+
+
+def test_two_requests_keep_separate_computed_origins():
+    positions = chunk_positions_from_computed(
+        [1, 2, 3, 4],
+        [0, 1, 0, 1],
+        {0: 10, 1: 0},
+        position_mode="compressed",
+    )
+    assert positions == [10, 0, 11, 1]
 
 
 def test_resume_reconstructs_the_semantic_offset_from_history():

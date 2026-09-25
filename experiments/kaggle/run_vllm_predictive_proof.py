@@ -920,6 +920,7 @@ def _consume_debug(model):
         "step_logits": step_logits,
         "log": list(model.predictive_state.admission_log),
         "setup_ms": dict(model.predictive_state.setup_ms),
+        "position_trace": list(getattr(model.predictive_state, "position_trace", [])),
     }
 
 
@@ -1090,6 +1091,7 @@ def _run_request(
         "step_logits": snap["step_logits"],
         "log": snap["log"],
         "setup_ms": snap["setup_ms"],
+        "position_trace": snap.get("position_trace") or [],
         "h_capture": captured,
     }
 
@@ -1995,12 +1997,20 @@ def main() -> None:
                 break
             chunk_positions.extend(int(pos) for pos in forward)
         chunk_positions = chunk_positions[: len(primary["positions"])]
+        prefill_trace = []
+        covered = 0
+        for step in chunk_run.get("position_trace") or []:
+            if covered >= len(primary["positions"]):
+                break
+            prefill_trace.append(step)
+            covered += len(step.get("positions") or [])
         phase8 = {
             "status": "PASS" if chunk_run["token_ids"] == primary["new_ids"] else "FAIL",
             "chunk_ids": chunk_run["token_ids"],
             "reference_ids": primary["new_ids"],
             "chunk_positions": chunk_positions,
             "reference_positions": primary["positions"],
+            "chunk_progress": prefill_trace,
         }
         if chunk_positions != primary["positions"]:
             phase8["status"] = "FAIL"

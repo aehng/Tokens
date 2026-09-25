@@ -14,6 +14,7 @@ from tokens_vllm.contract import (
     H_END,
     H_START,
     MAX_POSITION_EMBEDDINGS,
+    chunk_positions_from_computed,
     validate_codebook,
     validate_position_mode,
 )
@@ -76,8 +77,8 @@ def _build_state() -> None:
             self.codebook_sha: dict[int, str] = {}
             self.setup_ms: dict[int, float] = {}
             self.admission_log: list[dict[str, Any]] = []
-            self._commit_pending = False
             self.last_positions: torch.Tensor | None = None
+            self.position_trace: list[dict[str, Any]] = []
             self.position_mode = validate_position_mode(
                 getattr(model, "position_mode", "compressed")
             )
@@ -184,14 +185,10 @@ def _build_state() -> None:
             )
 
         def prepare_inputs(self, input_batch, req_states) -> dict[str, Any]:
-            del req_states
             req_ids = list(input_batch.req_ids)
             known = [req_id in self.req_id_to_index for req_id in req_ids]
             if not known or not all(known):
                 # Dummy / capture batches use unregistered request ids.
-                self._commit_pending = False
-                self.pending_semantic_advance.zero_()
-                self.pending_physical_advance.zero_()
                 self.token_req_indices[: input_batch.num_tokens_after_padding].zero_()
                 return {}
 
@@ -202,65 +199,75 @@ def _build_state() -> None:
             owners = np.zeros(n_pad, dtype=np.int64)
             query = input_batch.query_start_loc_np
             mapping = input_batch.idx_mapping_np
-            batch_rows = np.zeros(n, dtype=np.int64)
             for row in range(num_reqs):
                 start = int(query[row])
                 end = int(query[row + 1])
                 start_n = min(max(start, 0), n)
                 end_n = min(max(end, 0), n)
                 owners[start_n:end_n] = int(mapping[row])
-                batch_rows[start_n:end_n] = row
             self.token_req_indices[:n_pad].copy_(torch.from_numpy(owners))
             expanded = input_batch.expanded_idx_mapping
             self.logit_req_indices[: expanded.shape[0]].copy_(
                 expanded.to(dtype=torch.int64)
             )
 
-            logical = input_batch.input_ids[:n].to(dtype=torch.int64)
-            req = self.token_req_indices[:n]
-            is_h = (logical >= H_START) & (logical < H_END)
-            slots = (logical - H_START).clamp(0, CODEBOOK_SIZE - 1)
-            span = torch.ones(n, dtype=torch.int64, device=self.device)
-            if self.model.h_enabled and n > 0:
-                active = self.h_active[req]
-                span = torch.where(is_h & active, self.h_spans[req, slots], span)
             if n == 0:
-                self._commit_pending = True
                 return {"positions": self.positions_buffer[:n_pad]}
 
-            if self.position_mode == "compressed":
-                token_advance = torch.ones(n, dtype=torch.int64, device=self.device)
-            else:
-                token_advance = span
-
-            csum = torch.cumsum(token_advance, dim=0)
-            prev = torch.zeros_like(csum)
-            prev[1:] = csum[:-1]
-            starts = input_batch.query_start_loc[:num_reqs].to(dtype=torch.int64)
-            starts = starts.clamp(0, n - 1)
-            origin = prev[starts][torch.from_numpy(batch_rows).to(self.device)]
-            local = csum - origin
-            positions = self.semantic_offset[req] + local - 1
+            logical = input_batch.input_ids[:n].to(dtype=torch.int64)
+            computed_np = np.asarray(input_batch.num_computed_tokens_np)
+            if len(computed_np) < num_reqs:
+                raise RuntimeError(
+                    f"num_computed_tokens has {len(computed_np)} rows for {num_reqs} requests"
+                )
+            # Scheduler count of tokens already computed before this chunk.
+            # This is the batch snapshot, not semantic_offset.
+            num_computed = {
+                int(mapping[row]): int(computed_np[row]) for row in range(num_reqs)
+            }
+            use_spans = self.position_mode == "base_token_end" and bool(self.model.h_enabled)
+            h_spans_by_req: dict[int, list[int]] = {}
+            history_by_req: dict[int, list[int]] = {}
+            if use_spans:
+                token_table = req_states.all_token_ids.gpu
+                for slot, count in num_computed.items():
+                    h_spans_by_req[slot] = [
+                        int(span) for span in self.h_spans[slot].detach().cpu().tolist()
+                    ]
+                    if count <= 0:
+                        history_by_req[slot] = []
+                        continue
+                    history_by_req[slot] = [
+                        int(token)
+                        for token in token_table[slot, :count].detach().cpu().tolist()
+                    ]
+            positions_list = chunk_positions_from_computed(
+                [int(token) for token in logical.detach().cpu().tolist()],
+                [int(slot) for slot in owners[:n].tolist()],
+                num_computed,
+                h_spans_by_req if use_spans else None,
+                history_by_req if use_spans else None,
+                position_mode=self.position_mode,
+                use_hypertoken_spans=use_spans,
+            )
+            positions = torch.tensor(positions_list, dtype=torch.int64, device=self.device)
             self.positions_buffer[:n].copy_(positions)
             if n_pad > n:
                 self.positions_buffer[n:n_pad].zero_()
-
-            self.pending_semantic_advance.zero_()
-            self.pending_physical_advance.zero_()
-            ends = input_batch.query_start_loc[1 : num_reqs + 1].to(dtype=torch.int64) - 1
-            ends = ends.clamp(0, n - 1)
-            slot_idx = input_batch.idx_mapping[:num_reqs].to(dtype=torch.int64)
-            self.pending_semantic_advance[slot_idx] = local[ends]
-            scheduled = torch.from_numpy(
-                np.ascontiguousarray(input_batch.num_scheduled_tokens[:num_reqs])
-            ).to(device=self.device, dtype=torch.int64)
-            self.pending_physical_advance[slot_idx] = scheduled
-            self._commit_pending = True
             self.last_positions = self.positions_buffer[:n_pad]
+            self.position_trace.append(
+                {
+                    "requests": [
+                        {"slot": slot, "num_computed": count}
+                        for slot, count in num_computed.items()
+                    ],
+                    "positions": positions_list,
+                }
+            )
             return {"positions": self.positions_buffer[:n_pad]}
 
         def prepare_dummy_inputs(self, num_reqs: int, num_tokens: int) -> dict[str, Any]:
-            self._commit_pending = False
+            del num_reqs, num_tokens
             return {}
 
         def postprocess_state(
@@ -269,16 +276,9 @@ def _build_state() -> None:
             num_sampled: torch.Tensor,
             num_computed_tokens: torch.Tensor | None = None,
         ) -> None:
+            # Positions are rebuilt from the scheduler's computed-token count
+            # on the next prepare. There is no offset to commit here.
             del idx_mapping, num_sampled, num_computed_tokens
-            if not self._commit_pending:
-                self.pending_semantic_advance.zero_()
-                self.pending_physical_advance.zero_()
-                return
-            self.semantic_offset.add_(self.pending_semantic_advance)
-            self.physical_accounted.add_(self.pending_physical_advance)
-            self.pending_semantic_advance.zero_()
-            self.pending_physical_advance.zero_()
-            self._commit_pending = False
 
         def _synthesize(self, req_index: int, codebook) -> None:
             model = self.model
