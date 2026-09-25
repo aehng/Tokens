@@ -1,0 +1,13 @@
+{
+  "status": "PASS",
+  "position_mode": "compressed",
+  "max_subtokens": 4,
+  "prompts": [
+    "gsm_2956",
+    "gsm_3022"
+  ],
+  "hf_setup_ms": {
+    "gsm_2956": 131.51715900005456,
+    "gsm_3022": 30.918258000042442
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "status": "PASS",
+  "a_match": true,
+  "b_match": true,
+  "isolation": {
+    "slots": [
+      1,
+      0
+    ],
+    "row0_match": true,
+    "row1_match": true,
+    "rows_differ": true
+  }
+}

@@ -1,0 +1,111 @@
+{
+  "status": "FAIL",
+  "phases": {
+    "phase_01": {
+      "status": "PASS",
+      "stock_vocab": 32064,
+      "logical_vocab": 32096,
+      "stock_ids": [
+        3681,
+        29889,
+        13,
+        13,
+        2177,
+        275,
+        338,
+        278,
+        7483,
+        4272,
+        310,
+        3444,
+        29889,
+        739,
+        338,
+        5982
+      ],
+      "ours_logical_ids": [
+        3681,
+        29889,
+        13,
+        13,
+        2177,
+        275,
+        338,
+        278,
+        7483,
+        4272,
+        310,
+        3444,
+        29889,
+        739,
+        338,
+        5982
+      ],
+      "ours_base_ids": [
+        3681,
+        29889,
+        13,
+        13,
+        2177,
+        275,
+        338,
+        278,
+        7483,
+        4272,
+        310,
+        3444,
+        29889,
+        739,
+        338,
+        5982
+      ],
+      "base_conversion_error": null,
+      "greedy_match": true,
+      "embed_rows": 32064,
+      "head_rows": 32064,
+      "logits_width": 32096,
+      "h_masked": true,
+      "state": "_PredictiveModelState",
+      "hyperencoders_invoked": false,
+      "base_gpu_memory_utilization": 0.9,
+      "predictive_gpu_memory_utilization": 0.75,
+      "gpu_memory_utilization": 0.9,
+      "stock_shutdown": "engine_core.shutdown",
+      "ours_shutdown": "engine_core.shutdown",
+      "cuda_after_stock": {
+        "allocated": 8520704,
+        "reserved": 23068672
+      },
+      "cuda_after_ours": {
+        "allocated": 8520704,
+        "reserved": 23068672
+      }
+    },
+    "phase_02": {
+      "status": "PASS",
+      "logical_ids": [
+        32010,
+        32011,
+        32042,
+        32043,
+        32095
+      ],
+      "physical_ids": [
+        32010,
+        0,
+        0,
+        32011,
+        32063
+      ],
+      "expected_physical": [
+        32010,
+        0,
+        0,
+        32011,
+        32063
+      ],
+      "max_physical": 32063
+    }
+  },
+  "traceback": "Traceback (most recent call last):\n  File \"/kaggle/working/tokens_src/experiments/kaggle/run_vllm_predictive_proof.py\", line 2012, in main\n    raise RuntimeError(f\"phase 8 chunked prefill diverged: {phase8}\")\nRuntimeError: phase 8 chunked prefill diverged: {'status': 'FAIL', 'chunk_ids': [3824, 29892, 1284, 714, 920, 1784, 32040, 540, 1754, 29889, 4001, 540, 1754, 29871, 29947, 29900], 'reference_ids': [3824, 29892, 1284, 714, 920, 1784, 32040, 540, 1754, 29889, 4001, 540, 1754, 29871, 29947, 29900], 'chunk_positions': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 'reference_positions': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41]}\n"
+}
