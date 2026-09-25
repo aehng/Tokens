@@ -216,6 +216,9 @@ def preempted_request_ids(events: list[dict]) -> list[str]:
     return [req_id for req_id in ordered if preemption_cycle(events, req_id)]
 
 
+import contextlib
+
+
 def assert_lora_merged_and_unloaded(model: Any) -> None:
     """Assert that LoRA adapters have been merged and unloaded from the base model."""
     base = getattr(model, "base_model", model)
@@ -235,4 +238,157 @@ def assert_lora_merged_and_unloaded(model: Any) -> None:
                 raise AssertionError(f"module {name} still has active lora_A weights")
             if isinstance(lora_a, torch.nn.Module) and list(lora_a.parameters()):
                 raise AssertionError(f"module {name} still has active lora_A weights")
+
+
+@contextlib.contextmanager
+def disable_hyper_modules(model: Any):
+    """Temporarily replace HyperEmbedding and HyperLinear with standard PyTorch modules.
+
+    This ensures that forward passes and generation execute standard HuggingFace
+    base architecture without any hypertoken input embedding or output projection logic.
+    """
+    base_model = getattr(model, "base_model", model)
+    embed_parent = getattr(base_model, "model", base_model)
+    orig_embed = (
+        getattr(embed_parent, "embed_tokens", None)
+        or base_model.get_input_embeddings()
+    )
+    orig_lm_head = (
+        getattr(base_model, "lm_head", None)
+        or base_model.get_output_embeddings()
+    )
+
+    plain_embed = torch.nn.Embedding(
+        orig_embed.num_embeddings,
+        orig_embed.embedding_dim,
+        padding_idx=orig_embed.padding_idx,
+        _weight=orig_embed.weight,
+    )
+    plain_lm_head = torch.nn.Linear(
+        orig_lm_head.in_features,
+        orig_lm_head.out_features,
+        bias=(orig_lm_head.bias is not None),
+        device=orig_lm_head.weight.device,
+        dtype=orig_lm_head.weight.dtype,
+    )
+    plain_lm_head.weight = orig_lm_head.weight
+    if orig_lm_head.bias is not None:
+        plain_lm_head.bias = orig_lm_head.bias
+
+    if hasattr(embed_parent, "embed_tokens"):
+        embed_parent.embed_tokens = plain_embed
+    if hasattr(base_model, "set_input_embeddings"):
+        base_model.set_input_embeddings(plain_embed)
+
+    if hasattr(base_model, "lm_head"):
+        base_model.lm_head = plain_lm_head
+    if hasattr(base_model, "set_output_embeddings"):
+        base_model.set_output_embeddings(plain_lm_head)
+
+    try:
+        yield base_model
+    finally:
+        if hasattr(embed_parent, "embed_tokens"):
+            embed_parent.embed_tokens = orig_embed
+        if hasattr(base_model, "set_input_embeddings"):
+            base_model.set_input_embeddings(orig_embed)
+
+        if hasattr(base_model, "lm_head"):
+            base_model.lm_head = orig_lm_head
+        if hasattr(base_model, "set_output_embeddings"):
+            base_model.set_output_embeddings(orig_lm_head)
+
+
+def compute_step_parity_metric(
+    *,
+    step: int,
+    prefix_length: int,
+    hf_position: int,
+    vllm_position: int,
+    hf_logits: torch.Tensor,
+    vllm_logits: torch.Tensor,
+    is_predictive: bool = True,
+) -> dict[str, Any]:
+    """Compute exact parity metrics between HF and vLLM next-token logits for one step."""
+    ref = hf_logits.float()
+    act = vllm_logits.float()
+
+    if not is_predictive:
+        # Baseline must compare strictly physical/base vocabulary (32064)
+        if ref.shape[-1] != 32064 or act.shape[-1] != 32064:
+            raise ValueError(
+                f"baseline requires vocab width 32064, got HF={ref.shape[-1]} vLLM={act.shape[-1]}"
+            )
+        delta = (ref - act).abs()
+        max_abs = float(delta.max().item())
+        mean_abs = float(delta.mean().item())
+        base_max_abs = max_abs
+        h_max_abs = None
+    else:
+        # Predictive experiments compare logical vocabulary (32096)
+        width = min(ref.shape[-1], act.shape[-1])
+        ref = ref[:width]
+        act = act[:width]
+        delta = (ref - act).abs()
+        max_abs = float(delta.max().item())
+        mean_abs = float(delta.mean().item())
+        base_delta = (
+            torch.cat((delta[:32011], delta[32043:width]))
+            if width > 32043
+            else delta[:32011]
+        )
+        base_max_abs = float(base_delta.max().item()) if base_delta.numel() else 0.0
+        h_delta = (
+            delta[32011:32043]
+            if width >= 32043
+            else torch.tensor([0.0])
+        )
+        h_max_abs = float(h_delta.max().item()) if h_delta.numel() else 0.0
+
+    ref_top2 = ref.topk(2)
+    act_top2 = act.topk(2)
+    hf_top1_id = int(ref_top2.indices[0].item())
+    hf_top2_id = int(ref_top2.indices[1].item())
+    hf_top1_logit = float(ref_top2.values[0].item())
+    hf_top2_logit = float(ref_top2.values[1].item())
+    hf_margin = float(hf_top1_logit - hf_top2_logit)
+
+    vllm_top1_id = int(act_top2.indices[0].item())
+    vllm_top2_id = int(act_top2.indices[1].item())
+    vllm_top1_logit = float(act_top2.values[0].item())
+    vllm_top2_logit = float(act_top2.values[1].item())
+    vllm_margin = float(vllm_top1_logit - vllm_top2_logit)
+
+    top1_match = bool(hf_top1_id == vllm_top1_id)
+    position_match = bool(hf_position == vllm_position)
+
+    hf_top5_ids = ref.topk(5).indices.tolist()
+    vllm_top5_ids = act.topk(5).indices.tolist()
+    top5_overlap = len(set(hf_top5_ids).intersection(vllm_top5_ids))
+
+    return {
+        "step": step,
+        "reference_input_prefix_length": prefix_length,
+        "hf_position": hf_position,
+        "vllm_position": vllm_position,
+        "position_match": position_match,
+        "hf_top1_id": hf_top1_id,
+        "vllm_top1_id": vllm_top1_id,
+        "top1_match": top1_match,
+        "hf_top1_logit": hf_top1_logit,
+        "vllm_top1_logit": vllm_top1_logit,
+        "hf_top2_id": hf_top2_id,
+        "vllm_top2_id": vllm_top2_id,
+        "hf_margin": hf_margin,
+        "vllm_margin": vllm_margin,
+        "max_abs": max_abs,
+        "mean_abs": mean_abs,
+        "base_vocab_max_abs": base_max_abs,
+        "h_vocab_max_abs": h_max_abs,
+        "hf_top5_ids": hf_top5_ids,
+        "vllm_top5_ids": vllm_top5_ids,
+        "top5_overlap": top5_overlap,
+        "compared_vocab_width": ref.shape[-1],
+    }
+
 

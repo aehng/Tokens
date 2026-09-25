@@ -143,6 +143,29 @@ def insert_hypertoken_logits(
     )
 
 
+def extract_base_logits(logical_logits: torch.Tensor) -> torch.Tensor:
+    """Extract physical base logits [..., 32064] from logical logits [..., 32096].
+
+    If ``logical_logits`` already has width ``BASE_VOCAB_SIZE`` (32064), it is
+    returned directly. Any hypertoken rows in [32011:32043] are excluded.
+    """
+    width = logical_logits.shape[-1]
+    if width == BASE_VOCAB_SIZE:
+        return logical_logits
+    if width != LOGICAL_VOCAB_SIZE:
+        raise ValueError(
+            f"expected logits width {BASE_VOCAB_SIZE} or {LOGICAL_VOCAB_SIZE}, got {width}"
+        )
+    return torch.cat(
+        (
+            logical_logits[..., :INITIAL_VOCAB_SIZE],
+            logical_logits[..., INITIAL_VOCAB_SIZE + CODEBOOK_SIZE :],
+        ),
+        dim=-1,
+    )
+
+
+
 def token_request_indices(
     idx_mapping: Sequence[int], query_start_loc: Sequence[int]
 ) -> list[int]:
