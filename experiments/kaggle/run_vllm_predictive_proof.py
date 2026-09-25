@@ -401,6 +401,75 @@ def _codebook_payload(phrases: list[list[int]], *, max_subtokens: int, disabled_
     return payload
 
 
+def _make_pos_hook(target_list: list[list[int]]):
+    def _hook(_module, args, kwargs=None):
+        pos = None
+        if kwargs is not None and "position_ids" in kwargs and kwargs["position_ids"] is not None:
+            pos = kwargs["position_ids"]
+        elif len(args) > 2 and args[2] is not None:
+            pos = args[2]
+        if pos is not None:
+            p = pos.detach().cpu()
+            if p.ndim > 1:
+                p = p.squeeze(0)
+            target_list.append(p.tolist())
+    return _hook
+
+
+def _run_one_step_hf(
+    model: Any,
+    prefix_tokens: list[int],
+    *,
+    layer0: Any = None,
+    pad_token_id: int | None = None,
+) -> tuple[torch.Tensor, int]:
+    """Execute exactly one prefill step in HF for prefix_tokens to obtain next-token logits and position."""
+    from transformers import LogitsProcessor, LogitsProcessorList
+
+    captured: list[torch.Tensor] = []
+
+    class _Capture(LogitsProcessor):
+        def __call__(self, input_ids, scores):
+            captured.append(scores[0].detach().float().cpu())
+            return scores
+
+    if layer0 is None:
+        base = getattr(model, "base_model", model)
+        layers = getattr(getattr(base, "model", base), "layers", None)
+        layer0 = layers[0] if layers else None
+
+    actual_positions: list[list[int]] = []
+    hook_handle = None
+    if layer0 is not None:
+        hook_handle = layer0.register_forward_pre_hook(
+            _make_pos_hook(actual_positions), with_kwargs=True
+        )
+
+    device = next(model.parameters()).device
+    try:
+        with torch.no_grad():
+            model.generate(
+                input_ids=torch.tensor([prefix_tokens], dtype=torch.long, device=device),
+                max_new_tokens=1,
+                do_sample=False,
+                pad_token_id=pad_token_id,
+                logits_processor=LogitsProcessorList([_Capture()]),
+            )
+    finally:
+        if hook_handle is not None:
+            hook_handle.remove()
+
+    if not captured:
+        raise RuntimeError("HF forward prefill did not capture logits")
+    step_logits = captured[0]
+
+    last_position = -1
+    if actual_positions and actual_positions[0]:
+        last_position = int(actual_positions[0][-1])
+
+    return step_logits, last_position
+
+
 def _build_hf_references(root: Path, *, diagnostic_mode: bool = False) -> dict[str, Any]:
     os.environ.setdefault("PREDICTOR_PATH", str(_predictor_path()))
     # The benchmark loader reads its module-level predictor constant.
@@ -476,21 +545,6 @@ def _build_hf_references(root: Path, *, diagnostic_mode: bool = False) -> dict[s
         manager.base_position_offset = None
         manager.position_ids = None
 
-        # Helper to record layer 0 position_ids on each forward pass
-        def _make_pos_hook(target_list: list[list[int]]):
-            def _hook(_module, args, kwargs=None):
-                pos = None
-                if kwargs is not None and "position_ids" in kwargs and kwargs["position_ids"] is not None:
-                    pos = kwargs["position_ids"]
-                elif len(args) > 2 and args[2] is not None:
-                    pos = args[2]
-                if pos is not None:
-                    p = pos.detach().cpu()
-                    if p.ndim > 1:
-                        p = p.squeeze(0)
-                    target_list.append(p.tolist())
-            return _hook
-
         layer0 = model.base_model.model.layers[0]
 
         # 1. Main reference generation (compressed mode)
@@ -525,13 +579,33 @@ def _build_hf_references(root: Path, *, diagnostic_mode: bool = False) -> dict[s
             else list(range(len(compressed) - 1, len(compressed) + len(new_ids) - 1))
         )
 
+        tf_step_logits = None
+        tf_step_positions = None
         bte_step_logits = None
         bte_new_ids = None
         bte_step_positions = None
+        bte_tf_step_logits = None
+        bte_tf_step_positions = None
         raw_step_logits = None
         raw_new_ids = None
         raw_step_positions = None
+        raw_tf_step_logits = None
+        raw_tf_step_positions = None
         if diagnostic_mode and is_primary:
+            # Symmetrically evaluate HF teacher-forced fresh prefills for main compressed reference
+            tf_step_logits = []
+            tf_step_positions = []
+            for s in range(len(new_ids)):
+                prefix = list(compressed) + new_ids[:s]
+                s_logits, s_pos = _run_one_step_hf(
+                    model,
+                    prefix,
+                    layer0=layer0,
+                    pad_token_id=bundle["tokenizer"].eos_token_id,
+                )
+                tf_step_logits.append(s_logits)
+                tf_step_positions.append(s_pos)
+
             # 2. Base token end generation
             captured_bte: list[torch.Tensor] = []
 
@@ -564,6 +638,20 @@ def _build_hf_references(root: Path, *, diagnostic_mode: bool = False) -> dict[s
                 else []
             )
 
+            # Symmetrically evaluate HF teacher-forced fresh prefills for base_token_end mode
+            bte_tf_step_logits = []
+            bte_tf_step_positions = []
+            for s in range(len(bte_new_ids)):
+                prefix = list(compressed) + bte_new_ids[:s]
+                s_logits, s_pos = _run_one_step_hf(
+                    model,
+                    prefix,
+                    layer0=layer0,
+                    pad_token_id=bundle["tokenizer"].eos_token_id,
+                )
+                bte_tf_step_logits.append(s_logits)
+                bte_tf_step_positions.append(s_pos)
+
             model.zip2zip_config.position_mode = orig_mode
             class_prepare = getattr(type(model.base_model), "prepare_inputs_for_generation", None)
             if class_prepare is not None:
@@ -583,10 +671,9 @@ def _build_hf_references(root: Path, *, diagnostic_mode: bool = False) -> dict[s
                     captured_raw.append(scores[0].detach().float().cpu())
                     return scores
 
-            actual_raw_positions: list[list[int]] = []
-            hook_raw = layer0.register_forward_pre_hook(_make_pos_hook(actual_raw_positions), with_kwargs=True)
-
             with disable_hyper_modules(model) as plain_phi:
+                actual_raw_positions: list[list[int]] = []
+                hook_raw = layer0.register_forward_pre_hook(_make_pos_hook(actual_raw_positions), with_kwargs=True)
                 with torch.no_grad():
                     gen_raw = plain_phi.generate(
                         input_ids=torch.tensor([prompt_ids], dtype=torch.long, device="cuda"),
@@ -595,14 +682,28 @@ def _build_hf_references(root: Path, *, diagnostic_mode: bool = False) -> dict[s
                         pad_token_id=bundle["tokenizer"].eos_token_id,
                         logits_processor=LogitsProcessorList([_CaptureRaw()]),
                     )
-            hook_raw.remove()
-            raw_new_ids = gen_raw[0, len(prompt_ids) :].detach().cpu().tolist()
-            raw_step_logits = captured_raw
-            raw_step_positions = (
-                [actual_raw_positions[0][-1]] + [p[-1] for p in actual_raw_positions[1:]]
-                if actual_raw_positions
-                else list(range(len(prompt_ids) - 1, len(prompt_ids) + len(raw_new_ids) - 1))
-            )
+                hook_raw.remove()
+                raw_new_ids = gen_raw[0, len(prompt_ids) :].detach().cpu().tolist()
+                raw_step_logits = captured_raw
+                raw_step_positions = (
+                    [actual_raw_positions[0][-1]] + [p[-1] for p in actual_raw_positions[1:]]
+                    if actual_raw_positions
+                    else list(range(len(prompt_ids) - 1, len(prompt_ids) + len(raw_new_ids) - 1))
+                )
+
+                # Symmetrically evaluate HF teacher-forced fresh prefills for raw baseline
+                raw_tf_step_logits = []
+                raw_tf_step_positions = []
+                for s in range(len(raw_new_ids)):
+                    prefix = list(prompt_ids) + raw_new_ids[:s]
+                    s_logits, s_pos = _run_one_step_hf(
+                        plain_phi,
+                        prefix,
+                        layer0=layer0,
+                        pad_token_id=bundle["tokenizer"].eos_token_id,
+                    )
+                    raw_tf_step_logits.append(s_logits)
+                    raw_tf_step_positions.append(s_pos)
 
         torch.save(
             {
@@ -627,12 +728,18 @@ def _build_hf_references(root: Path, *, diagnostic_mode: bool = False) -> dict[s
                 "new_ids": [int(token) for token in new_ids],
                 "setup_ms": setup_ms,
                 "step_logits": captured,
+                "tf_step_logits": tf_step_logits,
+                "tf_step_positions": tf_step_positions,
                 "bte_new_ids": bte_new_ids,
                 "bte_step_logits": bte_step_logits,
                 "bte_step_positions": bte_step_positions,
+                "bte_tf_step_logits": bte_tf_step_logits,
+                "bte_tf_step_positions": bte_tf_step_positions,
                 "raw_new_ids": raw_new_ids,
                 "raw_step_logits": raw_step_logits,
                 "raw_step_positions": raw_step_positions,
+                "raw_tf_step_logits": raw_tf_step_logits,
+                "raw_tf_step_positions": raw_tf_step_positions,
                 "first_logits_path": str(root / f"hf_{prompt_id}_logits.pt"),
             }
         )
@@ -1085,14 +1192,20 @@ def _run_diagnostic_parity(
     hf_comp_tokens = primary["new_ids"]
     hf_comp_logits = primary["step_logits"]
     hf_comp_positions = primary["step_positions"]
+    hf_comp_tf_logits = primary.get("tf_step_logits") or hf_comp_logits
+    hf_comp_tf_positions = primary.get("tf_step_positions") or hf_comp_positions
 
     hf_bte_tokens = primary.get("bte_new_ids") or []
     hf_bte_logits = primary.get("bte_step_logits") or []
     hf_bte_positions = primary.get("bte_step_positions") or []
+    hf_bte_tf_logits = primary.get("bte_tf_step_logits") or hf_bte_logits
+    hf_bte_tf_positions = primary.get("bte_tf_step_positions") or hf_bte_positions
 
     hf_raw_tokens = primary.get("raw_new_ids") or []
     hf_raw_logits = primary.get("raw_step_logits") or []
     hf_raw_positions = primary.get("raw_step_positions") or []
+    hf_raw_tf_logits = primary.get("raw_tf_step_logits") or hf_raw_logits
+    hf_raw_tf_positions = primary.get("raw_tf_step_positions") or hf_raw_positions
 
     def _set_worker_mode(model, *, h_enabled: bool, position_mode: str):
         model.h_enabled = h_enabled
@@ -1146,9 +1259,13 @@ def _run_diagnostic_parity(
             root=root,
             phase_name=f"diagnostic_baseline_tf_step_{i}",
         )
-        h_log = extract_base_logits(hf_raw_logits[i])
+        raw_hf_log = hf_raw_tf_logits[i]
+        assert raw_hf_log.shape[-1] == 32064, f"HF baseline logit width {raw_hf_log.shape[-1]} != 32064"
+        h_log = extract_base_logits(raw_hf_log)
         v_base_log = extract_base_logits(v_log)
-        h_pos = hf_raw_positions[i] if i < len(hf_raw_positions) else -1
+        assert h_log.shape[-1] == 32064, f"extracted HF baseline logit width {h_log.shape[-1]} != 32064"
+        assert v_base_log.shape[-1] == 32064, f"vLLM baseline logit width {v_base_log.shape[-1]} != 32064"
+        h_pos = hf_raw_tf_positions[i] if i < len(hf_raw_tf_positions) else -1
         metric = compute_step_parity_metric(
             step=i,
             prefix_length=len(prefix),
@@ -1209,8 +1326,8 @@ def _run_diagnostic_parity(
             root=root,
             phase_name=f"diagnostic_exp_a_tf_step_{i}",
         )
-        h_log = hf_comp_logits[i]
-        h_pos = hf_comp_positions[i] if i < len(hf_comp_positions) else -1
+        h_log = hf_comp_tf_logits[i]
+        h_pos = hf_comp_tf_positions[i] if i < len(hf_comp_tf_positions) else -1
         metric = compute_step_parity_metric(
             step=i,
             prefix_length=len(prefix),
@@ -1271,8 +1388,8 @@ def _run_diagnostic_parity(
             root=root,
             phase_name=f"diagnostic_exp_b_tf_step_{i}",
         )
-        h_log = hf_comp_logits[i]
-        h_pos = hf_comp_positions[i] if i < len(hf_comp_positions) else -1
+        h_log = hf_comp_tf_logits[i]
+        h_pos = hf_comp_tf_positions[i] if i < len(hf_comp_tf_positions) else -1
         metric = compute_step_parity_metric(
             step=i,
             prefix_length=len(prefix),
@@ -1333,8 +1450,8 @@ def _run_diagnostic_parity(
             root=root,
             phase_name=f"diagnostic_exp_c_tf_step_{i}",
         )
-        h_log = hf_bte_logits[i]
-        h_pos = hf_bte_positions[i] if i < len(hf_bte_positions) else -1
+        h_log = hf_bte_tf_logits[i]
+        h_pos = hf_bte_tf_positions[i] if i < len(hf_bte_tf_positions) else -1
         metric = compute_step_parity_metric(
             step=i,
             prefix_length=len(prefix),

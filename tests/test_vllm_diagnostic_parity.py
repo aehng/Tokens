@@ -300,3 +300,107 @@ def test_assert_lora_merged_and_unloaded():
     fake_model = FakeLoraModule()
     with pytest.raises(AssertionError, match="still has active lora_A"):
         assert_lora_merged_and_unloaded(fake_model)
+
+
+def test_predictive_vocabulary_requires_logical_width():
+    """Predictive parity comparison strictly requires 32096 logical width without truncation."""
+    base_logits = torch.randn(BASE_VOCAB_SIZE)  # 32064
+    logical_logits = torch.randn(LOGICAL_VOCAB_SIZE)  # 32096
+
+    # Reject HF width 32064 with vLLM 32096
+    with pytest.raises(ValueError, match="predictive requires vocab width 32096"):
+        compute_step_parity_metric(
+            step=0,
+            prefix_length=10,
+            hf_position=9,
+            vllm_position=9,
+            hf_logits=base_logits,
+            vllm_logits=logical_logits,
+            is_predictive=True,
+        )
+
+    # Reject HF width 32096 with vLLM 32064
+    with pytest.raises(ValueError, match="predictive requires vocab width 32096"):
+        compute_step_parity_metric(
+            step=0,
+            prefix_length=10,
+            hf_position=9,
+            vllm_position=9,
+            hf_logits=logical_logits,
+            vllm_logits=base_logits,
+            is_predictive=True,
+        )
+
+    # Valid 32096 logical logits computes cleanly with both base and H sub-metrics
+    metric = compute_step_parity_metric(
+        step=0,
+        prefix_length=10,
+        hf_position=9,
+        vllm_position=9,
+        hf_logits=logical_logits,
+        vllm_logits=logical_logits + 0.02,
+        is_predictive=True,
+    )
+    assert metric["compared_vocab_width"] == LOGICAL_VOCAB_SIZE
+    assert metric["base_vocab_max_abs"] == pytest.approx(0.02, abs=1e-5)
+    assert metric["h_vocab_max_abs"] == pytest.approx(0.02, abs=1e-5)
+    assert metric["max_abs"] == pytest.approx(0.02, abs=1e-5)
+
+
+def test_baseline_strict_shape_and_extraction():
+    """Verify runtime shape assertions on baseline logits before parity calculation."""
+    raw_hf_logits = torch.randn(BASE_VOCAB_SIZE)
+    vllm_logical_logits = torch.randn(LOGICAL_VOCAB_SIZE)
+
+    assert raw_hf_logits.shape[-1] == 32064
+    h_log = extract_base_logits(raw_hf_logits)
+    v_base_log = extract_base_logits(vllm_logical_logits)
+    assert h_log.shape[-1] == 32064
+    assert v_base_log.shape[-1] == 32064
+
+    metric = compute_step_parity_metric(
+        step=0,
+        prefix_length=5,
+        hf_position=4,
+        vllm_position=4,
+        hf_logits=h_log,
+        vllm_logits=v_base_log,
+        is_predictive=False,
+    )
+    assert metric["compared_vocab_width"] == 32064
+    assert metric["h_vocab_max_abs"] is None
+
+
+def test_run_one_step_hf_captures_prefill_logits_and_position():
+    """Verify _run_one_step_hf executes 1-token prefill and captures logits and position."""
+    from experiments.kaggle.run_vllm_predictive_proof import _run_one_step_hf
+
+    class DummyLayer(nn.Module):
+        def forward(self, x, *args, **kwargs):
+            return x
+
+    class DummyHFModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.param = nn.Parameter(torch.zeros(1))
+            self.layer0 = DummyLayer()
+
+        def generate(self, input_ids, max_new_tokens=1, do_sample=False, pad_token_id=None, logits_processor=None):
+            seq_len = input_ids.shape[1]
+            positions = torch.arange(seq_len, dtype=torch.long)
+            # Call layer0 with position_ids as arg 2 to activate _make_pos_hook
+            self.layer0(input_ids, None, positions)
+            if logits_processor is not None:
+                mock_scores = torch.zeros(1, LOGICAL_VOCAB_SIZE)
+                mock_scores[0, 123] = 5.0
+                for proc in logits_processor:
+                    proc(input_ids, mock_scores)
+            return input_ids
+
+    model = DummyHFModel()
+    prefix = [10, 20, 30, 40, 50]
+    logits, pos = _run_one_step_hf(model, prefix, layer0=model.layer0)
+    assert logits.shape[-1] == LOGICAL_VOCAB_SIZE
+    assert pos == len(prefix) - 1
+    assert int(logits.argmax().item()) == 123
+

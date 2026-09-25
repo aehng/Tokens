@@ -11,6 +11,13 @@ from typing import Any, Mapping
 
 import torch
 
+from .contract import (
+    BASE_VOCAB_SIZE,
+    CODEBOOK_SIZE,
+    INITIAL_VOCAB_SIZE,
+    LOGICAL_VOCAB_SIZE,
+)
+
 NULL_KV_BLOCKS = 1
 DEFAULT_BLOCK_SIZE = 16
 MAX_ENGINE_STEPS = 500
@@ -313,11 +320,16 @@ def compute_step_parity_metric(
     ref = hf_logits.float()
     act = vllm_logits.float()
 
+    if ref.ndim > 1:
+        ref = ref.squeeze(0)
+    if act.ndim > 1:
+        act = act.squeeze(0)
+
     if not is_predictive:
         # Baseline must compare strictly physical/base vocabulary (32064)
-        if ref.shape[-1] != 32064 or act.shape[-1] != 32064:
+        if ref.shape[-1] != BASE_VOCAB_SIZE or act.shape[-1] != BASE_VOCAB_SIZE:
             raise ValueError(
-                f"baseline requires vocab width 32064, got HF={ref.shape[-1]} vLLM={act.shape[-1]}"
+                f"baseline requires vocab width {BASE_VOCAB_SIZE}, got HF={ref.shape[-1]} vLLM={act.shape[-1]}"
             )
         delta = (ref - act).abs()
         max_abs = float(delta.max().item())
@@ -325,24 +337,22 @@ def compute_step_parity_metric(
         base_max_abs = max_abs
         h_max_abs = None
     else:
-        # Predictive experiments compare logical vocabulary (32096)
-        width = min(ref.shape[-1], act.shape[-1])
-        ref = ref[:width]
-        act = act[:width]
+        # Predictive experiments compare strictly logical vocabulary (32096)
+        if ref.shape[-1] != LOGICAL_VOCAB_SIZE or act.shape[-1] != LOGICAL_VOCAB_SIZE:
+            raise ValueError(
+                f"predictive requires vocab width {LOGICAL_VOCAB_SIZE}, got HF={ref.shape[-1]} vLLM={act.shape[-1]}"
+            )
         delta = (ref - act).abs()
         max_abs = float(delta.max().item())
         mean_abs = float(delta.mean().item())
-        base_delta = (
-            torch.cat((delta[:32011], delta[32043:width]))
-            if width > 32043
-            else delta[:32011]
+        base_delta = torch.cat(
+            (
+                delta[:INITIAL_VOCAB_SIZE],
+                delta[INITIAL_VOCAB_SIZE + CODEBOOK_SIZE :],
+            )
         )
         base_max_abs = float(base_delta.max().item()) if base_delta.numel() else 0.0
-        h_delta = (
-            delta[32011:32043]
-            if width >= 32043
-            else torch.tensor([0.0])
-        )
+        h_delta = delta[INITIAL_VOCAB_SIZE : INITIAL_VOCAB_SIZE + CODEBOOK_SIZE]
         h_max_abs = float(h_delta.max().item()) if h_delta.numel() else 0.0
 
     ref_top2 = ref.topk(2)
