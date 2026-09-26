@@ -1,0 +1,10 @@
+{
+  "events": [
+    {
+      "engine": "phase8_chunk_llm",
+      "shutdown": "engine_core.shutdown",
+      "allocated": 8520704,
+      "reserved": 23068672
+    }
+  ]
+}

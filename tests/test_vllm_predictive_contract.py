@@ -284,6 +284,11 @@ def test_fake_model_handoff_passes_semantic_override_through_layer0_rope():
             super().__init__()
             self.layers = torch.nn.ModuleList([Layer()])
 
+        def __call__(self, *args, **kwargs):
+            # Match vLLM 0.30's eager support_torch_compile path, which calls
+            # self.forward directly and therefore bypasses Module call hooks.
+            return self.forward(*args, **kwargs)
+
         def forward(self, input_ids, positions):
             del input_ids
             return self.layers[0](positions).unsqueeze(0)
@@ -313,6 +318,10 @@ def test_fake_model_handoff_passes_semantic_override_through_layer0_rope():
     semantic_positions = torch.tensor([12, 13, 14], dtype=torch.int64)
 
     _install_debug_hooks(model, "phase8-chunk")
+    module_hook_calls = []
+    skipped_module_hook = model.model.register_forward_pre_hook(
+        lambda *_args: module_hook_calls.append(True)
+    )
     returned_positions = write_semantic_positions(
         model_position_buffer,
         semantic_positions,
@@ -341,6 +350,13 @@ def test_fake_model_handoff_passes_semantic_override_through_layer0_rope():
     assert captured["position_trace"][0]["handoff"]["D"][0]["target_values"] == [12, 13, 14]
     assert captured["position_trace"][0]["handoff"]["E"][0]["target_values"] == [12, 13, 14]
     assert captured["position_trace"][0]["handoff"]["F"][0]["target_values"] == [12, 13, 14]
+    assert module_hook_calls == []
+    skipped_module_hook.remove()
+    assert "forward" not in vars(model.model)
+    assert (
+        captured["position_trace"][0]["handoff"]["E"][0]["data_ptr"]
+        == returned_positions.data_ptr()
+    )
 
 
 def test_phase8_report_requires_request_scoped_chunks_and_all_handoff_stages():

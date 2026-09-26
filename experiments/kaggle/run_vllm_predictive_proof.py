@@ -890,6 +890,7 @@ def _install_debug_hooks(model, request_id: str):
         "first_logits": None,
         "step_logits": [],
         "position_handoff": {},
+        "llama_forward_restore": None,
     }
     model._tokens_debug = debug
 
@@ -926,9 +927,29 @@ def _install_debug_hooks(model, request_id: str):
             # Later dummy/capture forwards must not reuse it.
             state.position_trace.clear_active()
 
+    llama_model = model.model
+    had_instance_forward = "forward" in vars(llama_model)
+    previous_instance_forward = vars(llama_model).get("forward")
+    original_llama_forward = llama_model.forward
+
+    def traced_llama_forward(*args, **kwargs):
+        # vLLM 0.30's support_torch_compile wrapper directly calls forward()
+        # in eager mode, bypassing nn.Module.__call__ and its forward hooks.
+        # Wrap the method itself so E remains the exact LlamaModel.forward
+        # boundary even when that custom call path is active.
+        positions = _positions_argument(args, kwargs, index=1)
+        _record_position_stage("E", positions)
+        return original_llama_forward(*args, **kwargs)
+
+    llama_model.forward = traced_llama_forward
+    debug["llama_forward_restore"] = (
+        llama_model,
+        had_instance_forward,
+        previous_instance_forward,
+    )
+
     handles = [
         model.register_forward_pre_hook(_forward_pre_hook("D"), with_kwargs=True),
-        model.model.register_forward_pre_hook(_forward_pre_hook("E"), with_kwargs=True),
         model.model.layers[0].self_attn.rotary_emb.register_forward_pre_hook(
             rope_pre_hook, with_kwargs=True
         ),
@@ -954,6 +975,15 @@ def _install_debug_hooks(model, request_id: str):
 def _consume_debug(model):
     """Return CPU copies of worker debug state and remove the hooks."""
     debug = getattr(model, "_tokens_debug", None) or {}
+    llama_forward_restore = debug.get("llama_forward_restore")
+    if llama_forward_restore is not None:
+        llama_model, had_instance_forward, previous_instance_forward = (
+            llama_forward_restore
+        )
+        if had_instance_forward:
+            llama_model.forward = previous_instance_forward
+        else:
+            delattr(llama_model, "forward")
     handles = getattr(model, "_tokens_debug_handles", None) or []
     for handle in handles:
         handle.remove()

@@ -1,0 +1,31 @@
+{
+  "max_subtokens": 4,
+  "position_mode": "compressed",
+  "input_parameter_count": 226529280,
+  "output_parameter_count": 226529280,
+  "input_parameter_bytes": 906117120,
+  "output_parameter_bytes": 906117120,
+  "total_parameter_bytes": 1812234240,
+  "dtypes": [
+    "torch.float32"
+  ],
+  "safety_margin_bytes": 536870912,
+  "cuda_memory_before": {
+    "free": 3744268288,
+    "total": 15636037632,
+    "allocated": 11714544640,
+    "reserved": 11729371136
+  },
+  "cuda_memory_after_input_encoder": {
+    "free": 2838298624,
+    "total": 15636037632,
+    "allocated": 12620661760,
+    "reserved": 12635340800
+  },
+  "cuda_memory_after_output_encoder": {
+    "free": 1932328960,
+    "total": 15636037632,
+    "allocated": 13526778880,
+    "reserved": 13541310464
+  }
+}

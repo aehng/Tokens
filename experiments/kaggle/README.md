@@ -35,3 +35,14 @@ only that script. The proof archive is the private dataset
 `SOURCE_SHA.txt` matches the packed commit. Kaggle extracts an uploaded
 `.tar.gz`, so the dataset also stores those bytes as `proof_source.bin`.
 The archive is not stored in git.
+
+## Latest targeted result
+
+Kernel v12 used source commit `03261da32e81981ef596403dd0f38e80f8fea45d`
+and is recorded in [the v12 result folder](results/vllm_predictive_proof_v12/README.md).
+The Phase 8 report was marked FAIL because the LlamaModel forward pre-hook
+missed stage E; the captured layer-0 rotary positions and generated IDs matched
+the reference. The probe now wraps the exact `LlamaModel.forward` boundary
+and restores it after each request. A new targeted Phase 8 T4 run is required
+to close that instrumentation gate. The full Phases 1–10 proof has not been
+launched.
