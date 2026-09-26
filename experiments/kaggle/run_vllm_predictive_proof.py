@@ -2038,7 +2038,10 @@ def main() -> None:
                 "rows_differ": bool((embedded[0] - embedded[1]).abs().max().item() > 1e-4),
             }
 
-        from tokens_vllm.proof_harness import MAX_ENGINE_STEPS
+        from tokens_vllm.proof_harness import (
+            MAX_ENGINE_STEPS,
+            two_codebook_isolation_passes,
+        )
 
         engine = llm.llm_engine
         # Two tokens so the first scheduled step cannot finish and clear the slots.
@@ -2108,7 +2111,13 @@ def main() -> None:
             "b_match": pair_ab[1] == alone_b and pair_ba[0] == alone_b,
             "isolation": isolated,
         }
-        if not (phase6["a_match"] and phase6["b_match"] and isolated["row0_match"] and isolated["row1_match"]):
+        if not two_codebook_isolation_passes(
+            a_match=phase6["a_match"],
+            b_match=phase6["b_match"],
+            row0_match=isolated["row0_match"],
+            row1_match=isolated["row1_match"],
+            rows_differ=isolated["rows_differ"],
+        ):
             phase6["status"] = "FAIL"
         write_json(root / "phase_06_two_codebooks.json", phase6)
         if phase6["status"] != "PASS":
@@ -2231,7 +2240,11 @@ def main() -> None:
         if phase8["status"] != "PASS":
             raise RuntimeError(f"phase 8 chunked prefill diverged: {phase8}")
 
-        from tokens_vllm.proof_harness import preemption_block_budget, preempted_request_ids
+        from tokens_vllm.proof_harness import (
+            preemption_block_budget,
+            preemption_rebuild_report,
+            preempted_request_ids,
+        )
 
         budget = preemption_block_budget(
             len(primary["compressed_ids"]),
@@ -2329,7 +2342,7 @@ def main() -> None:
         }
 
         def preempt_log(model):
-            return list(model.predictive_state.admission_log)
+            return [dict(event) for event in model.predictive_state.admission_log]
 
         events = _apply(preempt_llm, preempt_log)
         victims = [
@@ -2337,22 +2350,37 @@ def main() -> None:
             for req_id in ("pre-A", "pre-B")
             if req_id in preempted_request_ids(events)
         ]
-        trajectories_match = bool(victims) and all(
-            final_ids[req_id] == solo_ids[req_id] for req_id in victims
+        trajectory_matches = {
+            req_id: bool(final_ids[req_id])
+            and bool(solo_ids[req_id])
+            and final_ids[req_id] == solo_ids[req_id]
+            for req_id in ("pre-A", "pre-B")
+        }
+        trajectories_match = all(trajectory_matches.values())
+        rebuild_state = {
+            req_id: preemption_rebuild_report(events, req_id) for req_id in victims
+        }
+        rebuilds_match = bool(victims) and all(
+            report["state_rebuilt"] for report in rebuild_state.values()
         )
         if not victims:
             reason = "preemption not exercised"
         elif not trajectories_match:
-            reason = "preempted trajectory diverged"
+            reason = "concurrent trajectory diverged from uninterrupted run"
+        elif not rebuilds_match:
+            reason = "preempted predictive state was not rebuilt consistently"
         else:
             reason = None
         phase9 = {
             "status": "PASS" if reason is None else "FAIL",
             "reason": reason,
             "preempted_request_ids": victims,
+            "preemption_events": events,
+            "rebuild_state": rebuild_state,
             "steps": preempt_steps,
             "final_ids": final_ids,
             "uninterrupted": solo_ids,
+            "trajectory_matches": trajectory_matches,
             **budget_report,
         }
         write_json(root / "phase_09_preemption.json", phase9)
@@ -2397,16 +2425,38 @@ def main() -> None:
             root=root,
             phase_name="phase_10_semantic_rope",
         )
-        rope_positions = rope_run["positions"] or []
-        phase10 = {
-            "status": "FAIL",
-            "max_model_len": 8,
-            "physical_tokens": len(rope_ids),
-            "rope_positions": rope_positions,
-            "max_semantic": max(rope_positions) if rope_positions else None,
-        }
-        if rope_positions and max(rope_positions) > 8 and max(rope_positions) < 131072:
-            phase10["status"] = "PASS"
+        from tokens_vllm.contract import MAX_POSITION_EMBEDDINGS
+        from tokens_vllm.proof_harness import (
+            position_values_for_stage,
+            request_prefill_trace,
+            semantic_kv_rope_contract_report,
+        )
+
+        rope_model_len = 8
+        rope_prefill_trace = request_prefill_trace(
+            rope_run["position_trace"], "phase10-rope", len(rope_ids)
+        )
+        physical_positions = position_values_for_stage(rope_prefill_trace, "A")
+        semantic_positions = position_values_for_stage(rope_prefill_trace, "F")
+        expected_semantic_positions = [2 + 3 * index for index in range(len(rope_ids))]
+        phase10 = semantic_kv_rope_contract_report(
+            physical_positions=physical_positions,
+            semantic_positions=semantic_positions,
+            expected_semantic_positions=expected_semantic_positions,
+            physical_token_count=len(rope_ids),
+            max_new_tokens=1,
+            max_model_len=rope_model_len,
+            max_rope_position=MAX_POSITION_EMBEDDINGS,
+        )
+        direct_rope_match = (rope_run["positions"] or []) == semantic_positions
+        phase10["request_id"] = "phase10-rope"
+        phase10["position_mode"] = "base_token_end"
+        phase10["max_new_tokens"] = 1
+        phase10["rope_prefill_trace"] = rope_prefill_trace
+        phase10["direct_rope_capture"] = rope_run["positions"] or []
+        phase10["checks"]["direct_rope_capture_matches_prefill_trace"] = direct_rope_match
+        if not direct_rope_match:
+            phase10["status"] = "FAIL"
         write_json(root / "phase_10_semantic_rope.json", phase10)
         rope_shutdown = shutdown_vllm_engine(rope_llm)
         del rope_llm

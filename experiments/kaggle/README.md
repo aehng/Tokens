@@ -47,6 +47,12 @@ Stages A–F each matched reference positions `0..41`, scheduler progress was
 instrumentation-only failure is preserved in
 [the v12 result folder](results/vllm_predictive_proof_v12/README.md).
 
-The full Phases 1–10 proof has not yet been launched. Its next-run plan calls
-for stronger evidence gates around codebook isolation, preemption/resume, and
-physical KV versus semantic RoPE positions.
+The full Phases 1–10 proof has not yet been launched. The next run will require
+distinct and correctly owned codebook rows in Phase 6; a recorded add/remove/
+re-add cycle, rebuilt state, and matching concurrent and uninterrupted token
+trajectories in Phase 9; and separate physical-KV and semantic-RoPE bounds in
+Phase 10. For six H3 tokens, physical KV positions must stay at `0..5` within
+`max_model_len=8`, while semantic RoPE positions must match `[2, 5, 8, 11,
+14, 17]` and remain below Phi's exclusive limit of `131072`. The engine's
+`max_model_len` constrains the physical KV sequence, not the semantic RoPE
+coordinates.

@@ -271,6 +271,123 @@ def preempted_request_ids(events: list[dict]) -> list[str]:
     return [req_id for req_id in ordered if preemption_cycle(events, req_id)]
 
 
+def two_codebook_isolation_passes(
+    *,
+    a_match: bool,
+    b_match: bool,
+    row0_match: bool,
+    row1_match: bool,
+    rows_differ: bool,
+) -> bool:
+    """Require concurrent codebook rows to stay distinct and match their owners."""
+    return bool(a_match and b_match and row0_match and row1_match and rows_differ)
+
+
+def preemption_rebuild_report(events: list[dict], request_id: str) -> dict[str, Any]:
+    """Summarize whether preemption re-admitted the same predictive state."""
+    request_events = [event for event in events if event.get("req_id") == request_id]
+    additions = [event for event in request_events if event.get("event") == "add"]
+    cycle = preemption_cycle(events, request_id)
+    initial = additions[0] if additions else None
+    resumed = additions[-1] if cycle and len(additions) >= 2 else None
+    identity_fields = ("h_enabled", "position_mode", "sha256", "h_input_hash", "spans")
+    identity_recorded = bool(
+        initial
+        and resumed
+        and all(
+            initial.get(field) is not None and resumed.get(field) is not None
+            for field in identity_fields
+        )
+    )
+    codebook_state_matches = bool(
+        identity_recorded
+        and all(initial[field] == resumed[field] for field in identity_fields)
+    )
+    semantic_state_recorded = bool(
+        resumed
+        and resumed.get("position_mode") is not None
+        and resumed.get("already") is not None
+        and int(resumed.get("already", 0)) > 0
+        and resumed.get("semantic_offset") is not None
+    )
+    state_rebuilt = bool(
+        cycle
+        and codebook_state_matches
+        and semantic_state_recorded
+        and resumed.get("was_clear") is True
+    ) if resumed else False
+    return {
+        "request_id": request_id,
+        "add_remove_add_cycle": cycle,
+        "admission_events": request_events,
+        "initial_add": initial,
+        "resumed_add": resumed,
+        "codebook_identity_fields": list(identity_fields),
+        "codebook_identity_recorded": identity_recorded,
+        "codebook_state_matches": codebook_state_matches,
+        "semantic_position_state": {
+            "position_mode": resumed.get("position_mode") if resumed else None,
+            "num_computed_tokens_on_readmission": resumed.get("already") if resumed else None,
+            "reconstructed_semantic_offset": resumed.get("semantic_offset") if resumed else None,
+            "prepare_inputs_position_source": "scheduler num_computed_tokens",
+        },
+        "semantic_state_recorded": semantic_state_recorded,
+        "resumed_slot_was_clear": bool(resumed and resumed.get("was_clear") is True),
+        "state_rebuilt": state_rebuilt,
+    }
+
+
+def semantic_kv_rope_contract_report(
+    *,
+    physical_positions: list[int],
+    semantic_positions: list[int],
+    expected_semantic_positions: list[int],
+    physical_token_count: int,
+    max_new_tokens: int,
+    max_model_len: int,
+    max_rope_position: int,
+) -> dict[str, Any]:
+    """Check physical KV bounds separately from extended semantic RoPE positions."""
+    physical = [int(position) for position in physical_positions]
+    semantic = [int(position) for position in semantic_positions]
+    expected_semantic = [int(position) for position in expected_semantic_positions]
+    physical_positions_match = physical == list(range(physical_token_count))
+    physical_positions_within_model_len = bool(physical) and all(
+        0 <= position < max_model_len for position in physical
+    )
+    physical_sequence_fits = physical_token_count + max_new_tokens <= max_model_len
+    semantic_positions_match = semantic == expected_semantic
+    semantic_positions_exceed_model_len = bool(semantic) and max(semantic) > max_model_len
+    semantic_positions_within_rope_limit = bool(semantic) and all(
+        0 <= position < max_rope_position for position in semantic
+    )
+    checks = {
+        "physical_positions_match_zero_based_kv_slots": physical_positions_match,
+        "physical_positions_within_max_model_len": physical_positions_within_model_len,
+        "physical_prompt_plus_generation_fits_max_model_len": physical_sequence_fits,
+        "semantic_positions_match_expected_bte_positions": semantic_positions_match,
+        "semantic_positions_exceed_max_model_len": semantic_positions_exceed_model_len,
+        "semantic_positions_within_rope_limit": semantic_positions_within_rope_limit,
+    }
+    return {
+        "status": "PASS" if all(checks.values()) else "FAIL",
+        "physical_kv": {
+            "positions": physical,
+            "token_count": physical_token_count,
+            "max_model_len": max_model_len,
+            "prompt_plus_generation_tokens": physical_token_count + max_new_tokens,
+        },
+        "semantic_rope": {
+            "positions": semantic,
+            "expected_positions": expected_semantic,
+            "max_position": max(semantic) if semantic else None,
+            "max_model_len": max_model_len,
+            "max_rope_position_exclusive": max_rope_position,
+        },
+        "checks": checks,
+    }
+
+
 import contextlib
 
 

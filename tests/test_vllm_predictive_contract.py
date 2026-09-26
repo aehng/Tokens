@@ -33,9 +33,12 @@ from tokens_vllm.proof_harness import (
     engine_step_decision,
     preemption_block_budget,
     preemption_cycle,
+    preemption_rebuild_report,
     preempted_request_ids,
     position_values_for_stage,
     request_prefill_trace,
+    semantic_kv_rope_contract_report,
+    two_codebook_isolation_passes,
 )
 from tokens_vllm.state import RequestScopedPositionTrace, write_semantic_positions
 
@@ -668,3 +671,85 @@ def test_preemption_cycle_requires_add_remove_readd():
     assert preemption_cycle(events, "pre-A")
     assert not preemption_cycle(events, "pre-B")
     assert preempted_request_ids(events) == ["pre-A"]
+
+
+def test_preemption_rebuild_report_records_codebook_and_semantic_state():
+    initial = {
+        "event": "add",
+        "req_id": "pre-A",
+        "req_index": 2,
+        "h_enabled": True,
+        "position_mode": "compressed",
+        "was_clear": True,
+        "already": 0,
+        "semantic_offset": 0,
+        "sha256": "codebook-sha",
+        "h_input_hash": "h-input-hash",
+        "spans": [1, 3],
+    }
+    resumed = {
+        **initial,
+        "was_clear": True,
+        "already": 20,
+        "semantic_offset": 20,
+    }
+    events = [
+        initial,
+        {"event": "remove", "req_id": "pre-A", "req_index": 2},
+        resumed,
+    ]
+
+    report = preemption_rebuild_report(events, "pre-A")
+
+    assert report["add_remove_add_cycle"]
+    assert report["codebook_identity_recorded"]
+    assert report["codebook_state_matches"]
+    assert report["semantic_position_state"]["num_computed_tokens_on_readmission"] == 20
+    assert report["semantic_position_state"]["reconstructed_semantic_offset"] == 20
+    assert report["resumed_slot_was_clear"]
+    assert report["state_rebuilt"]
+
+
+def test_two_codebook_isolation_requires_distinct_matching_rows():
+    assert two_codebook_isolation_passes(
+        a_match=True,
+        b_match=True,
+        row0_match=True,
+        row1_match=True,
+        rows_differ=True,
+    )
+    assert not two_codebook_isolation_passes(
+        a_match=True,
+        b_match=True,
+        row0_match=True,
+        row1_match=True,
+        rows_differ=False,
+    )
+
+
+def test_semantic_rope_positions_use_the_rope_bound_not_the_kv_limit():
+    report = semantic_kv_rope_contract_report(
+        physical_positions=[0, 1, 2, 3, 4, 5],
+        semantic_positions=[2, 5, 8, 11, 14, 17],
+        expected_semantic_positions=[2, 5, 8, 11, 14, 17],
+        physical_token_count=6,
+        max_new_tokens=1,
+        max_model_len=8,
+        max_rope_position=131072,
+    )
+    assert report["status"] == "PASS"
+    assert report["checks"]["physical_positions_within_max_model_len"]
+    assert report["checks"]["physical_prompt_plus_generation_fits_max_model_len"]
+    assert report["checks"]["semantic_positions_exceed_max_model_len"]
+    assert report["checks"]["semantic_positions_within_rope_limit"]
+
+    bad_physical = semantic_kv_rope_contract_report(
+        physical_positions=[0, 1, 2, 3, 4, 8],
+        semantic_positions=[2, 5, 8, 11, 14, 17],
+        expected_semantic_positions=[2, 5, 8, 11, 14, 17],
+        physical_token_count=6,
+        max_new_tokens=1,
+        max_model_len=8,
+        max_rope_position=131072,
+    )
+    assert bad_physical["status"] == "FAIL"
