@@ -1,0 +1,9 @@
+{
+  "status": "PASS",
+  "mode": "phase8_only",
+  "phases": {
+    "08": "PASS"
+  },
+  "source_sha": "255e692d3612dcfc23f9c4122d66e8ad70f86d6d",
+  "source_archive_sha256": "c557ae5ece1b4ae60d0b35d7d1d65947a963aaace6b8c6b3ff470a238ebc6051"
+}

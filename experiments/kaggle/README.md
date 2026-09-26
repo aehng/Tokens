@@ -38,11 +38,15 @@ The archive is not stored in git.
 
 ## Latest targeted result
 
-Kernel v12 used source commit `03261da32e81981ef596403dd0f38e80f8fea45d`
-and is recorded in [the v12 result folder](results/vllm_predictive_proof_v12/README.md).
-The Phase 8 report was marked FAIL because the LlamaModel forward pre-hook
-missed stage E; the captured layer-0 rotary positions and generated IDs matched
-the reference. The probe now wraps the exact `LlamaModel.forward` boundary
-and restores it after each request. A new targeted Phase 8 T4 run is required
-to close that instrumentation gate. The full Phases 1–10 proof has not been
-launched.
+Kernel v13 passed the targeted Phase 8 proof on source commit
+`255e692d3612dcfc23f9c4122d66e8ad70f86d6d`, archive SHA-256
+`c557ae5ece1b4ae60d0b35d7d1d65947a963aaace6b8c6b3ff470a238ebc6051`.
+The complete reports are in [the v13 result folder](results/vllm_predictive_proof_v13/README.md).
+Stages A–F each matched reference positions `0..41`, scheduler progress was
+`0, 16, 32`, and generated IDs matched `16/16`. Kernel v12's prior
+instrumentation-only failure is preserved in
+[the v12 result folder](results/vllm_predictive_proof_v12/README.md).
+
+The full Phases 1–10 proof has not yet been launched. Its next-run plan calls
+for stronger evidence gates around codebook isolation, preemption/resume, and
+physical KV versus semantic RoPE positions.

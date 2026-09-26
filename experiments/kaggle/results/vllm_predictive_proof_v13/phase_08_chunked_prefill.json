@@ -1,0 +1,1446 @@
+{
+  "status": "PASS",
+  "request_id": "phase8-chunk",
+  "chunk_ids": [
+    3824,
+    29892,
+    1284,
+    714,
+    920,
+    1784,
+    32040,
+    540,
+    1754,
+    29889,
+    4001,
+    540,
+    1754,
+    29871,
+    29947,
+    29900
+  ],
+  "reference_ids": [
+    3824,
+    29892,
+    1284,
+    714,
+    920,
+    1784,
+    32040,
+    540,
+    1754,
+    29889,
+    4001,
+    540,
+    1754,
+    29871,
+    29947,
+    29900
+  ],
+  "generated_tokens_match": true,
+  "chunk_positions": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41
+  ],
+  "reference_positions": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41
+  ],
+  "calculated_semantic_positions": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41
+  ],
+  "scheduler_progress": [
+    0,
+    16,
+    32
+  ],
+  "expected_scheduler_progress": [
+    0,
+    16,
+    32
+  ],
+  "scheduler_progress_match": true,
+  "stage_positions": {
+    "A": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41
+    ],
+    "B": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41
+    ],
+    "C": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41
+    ],
+    "D": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41
+    ],
+    "E": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41
+    ],
+    "F": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41
+    ]
+  },
+  "stage_matches_reference": {
+    "A": true,
+    "B": true,
+    "C": true,
+    "D": true,
+    "E": true,
+    "F": true
+  },
+  "rotary_positions_match_reference": true,
+  "request_scoped_prefill_only": true,
+  "chunk_progress": [
+    {
+      "req_ids": [
+        "phase8-chunk"
+      ],
+      "slots": [
+        0
+      ],
+      "requests": [
+        {
+          "request_id": "phase8-chunk",
+          "slot": 0,
+          "num_computed_tokens": 0,
+          "num_scheduled_tokens": 16,
+          "query_token_slice": [
+            0,
+            16
+          ]
+        }
+      ],
+      "target_query_slice": [
+        0,
+        16
+      ],
+      "input_batch_num_tokens": 16,
+      "input_batch_num_tokens_after_padding": 16,
+      "target_token_ids": [
+        4956,
+        345,
+        278,
+        1494,
+        5844,
+        1108,
+        4331,
+        491,
+        4331,
+        29901,
+        13,
+        797,
+        263,
+        20305,
+        3748,
+        29892
+      ],
+      "stock_input_batch_positions": {
+        "values": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "target_values": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "target_slice": [
+          0,
+          16
+        ],
+        "shape": [
+          16
+        ],
+        "dtype": "torch.int64",
+        "device": "cuda:0",
+        "data_ptr": 135908401613312
+      },
+      "calculated_semantic_positions": {
+        "values": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "target_values": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "target_slice": [
+          0,
+          16
+        ],
+        "shape": [
+          16
+        ],
+        "dtype": "torch.int64",
+        "device": "cuda:0",
+        "data_ptr": 135908401833472
+      },
+      "returned_positions": {
+        "values": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "target_values": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "target_slice": [
+          0,
+          16
+        ],
+        "shape": [
+          16
+        ],
+        "dtype": "torch.int64",
+        "device": "cuda:0",
+        "data_ptr": 135908401679872
+      },
+      "position_mode": "compressed",
+      "target_request_id": "phase8-chunk",
+      "trace_id": "phase8-chunk:1",
+      "handoff": {
+        "D": [
+          {
+            "values": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "target_values": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "target_slice": [
+              0,
+              16
+            ],
+            "shape": [
+              16
+            ],
+            "dtype": "torch.int64",
+            "device": "cuda:0",
+            "data_ptr": 135908401679872
+          }
+        ],
+        "E": [
+          {
+            "values": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "target_values": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "target_slice": [
+              0,
+              16
+            ],
+            "shape": [
+              16
+            ],
+            "dtype": "torch.int64",
+            "device": "cuda:0",
+            "data_ptr": 135908401679872
+          }
+        ],
+        "F": [
+          {
+            "values": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "target_values": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "target_slice": [
+              0,
+              16
+            ],
+            "shape": [
+              16
+            ],
+            "dtype": "torch.int64",
+            "device": "cuda:0",
+            "data_ptr": 135908401679872
+          }
+        ]
+      }
+    },
+    {
+      "req_ids": [
+        "phase8-chunk"
+      ],
+      "slots": [
+        0
+      ],
+      "requests": [
+        {
+          "request_id": "phase8-chunk",
+          "slot": 0,
+          "num_computed_tokens": 16,
+          "num_scheduled_tokens": 16,
+          "query_token_slice": [
+            0,
+            16
+          ]
+        }
+      ],
+      "target_query_slice": [
+        0,
+        16
+      ],
+      "input_batch_num_tokens": 16,
+      "input_batch_num_tokens_after_padding": 16,
+      "target_token_ids": [
+        315,
+        29646,
+        1754,
+        3721,
+        9475,
+        29891,
+        10151,
+        310,
+        32034,
+        540,
+        16388,
+        29889,
+        940,
+        16388,
+        10081,
+        32040
+      ],
+      "stock_input_batch_positions": {
+        "values": [
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31
+        ],
+        "target_values": [
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31
+        ],
+        "target_slice": [
+          0,
+          16
+        ],
+        "shape": [
+          16
+        ],
+        "dtype": "torch.int64",
+        "device": "cuda:0",
+        "data_ptr": 135908401613312
+      },
+      "calculated_semantic_positions": {
+        "values": [
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31
+        ],
+        "target_values": [
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31
+        ],
+        "target_slice": [
+          0,
+          16
+        ],
+        "shape": [
+          16
+        ],
+        "dtype": "torch.int64",
+        "device": "cuda:0",
+        "data_ptr": 135908401818624
+      },
+      "returned_positions": {
+        "values": [
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31
+        ],
+        "target_values": [
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31
+        ],
+        "target_slice": [
+          0,
+          16
+        ],
+        "shape": [
+          16
+        ],
+        "dtype": "torch.int64",
+        "device": "cuda:0",
+        "data_ptr": 135908401679872
+      },
+      "position_mode": "compressed",
+      "target_request_id": "phase8-chunk",
+      "trace_id": "phase8-chunk:2",
+      "handoff": {
+        "D": [
+          {
+            "values": [
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31
+            ],
+            "target_values": [
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31
+            ],
+            "target_slice": [
+              0,
+              16
+            ],
+            "shape": [
+              16
+            ],
+            "dtype": "torch.int64",
+            "device": "cuda:0",
+            "data_ptr": 135908401679872
+          }
+        ],
+        "E": [
+          {
+            "values": [
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31
+            ],
+            "target_values": [
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31
+            ],
+            "target_slice": [
+              0,
+              16
+            ],
+            "shape": [
+              16
+            ],
+            "dtype": "torch.int64",
+            "device": "cuda:0",
+            "data_ptr": 135908401679872
+          }
+        ],
+        "F": [
+          {
+            "values": [
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31
+            ],
+            "target_values": [
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31
+            ],
+            "target_slice": [
+              0,
+              16
+            ],
+            "shape": [
+              16
+            ],
+            "dtype": "torch.int64",
+            "device": "cuda:0",
+            "data_ptr": 135908401679872
+          }
+        ]
+      }
+    },
+    {
+      "req_ids": [
+        "phase8-chunk"
+      ],
+      "slots": [
+        0
+      ],
+      "requests": [
+        {
+          "request_id": "phase8-chunk",
+          "slot": 0,
+          "num_computed_tokens": 32,
+          "num_scheduled_tokens": 10,
+          "query_token_slice": [
+            0,
+            10
+          ]
+        }
+      ],
+      "target_query_slice": [
+        0,
+        10
+      ],
+      "input_batch_num_tokens": 10,
+      "input_batch_num_tokens_after_padding": 10,
+      "target_token_ids": [
+        29889,
+        1128,
+        1784,
+        3064,
+        1258,
+        540,
+        3052,
+        32034,
+        29973,
+        13
+      ],
+      "stock_input_batch_positions": {
+        "values": [
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41
+        ],
+        "target_values": [
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41
+        ],
+        "target_slice": [
+          0,
+          10
+        ],
+        "shape": [
+          10
+        ],
+        "dtype": "torch.int64",
+        "device": "cuda:0",
+        "data_ptr": 135908401613312
+      },
+      "calculated_semantic_positions": {
+        "values": [
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41
+        ],
+        "target_values": [
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41
+        ],
+        "target_slice": [
+          0,
+          10
+        ],
+        "shape": [
+          10
+        ],
+        "dtype": "torch.int64",
+        "device": "cuda:0",
+        "data_ptr": 135908401818624
+      },
+      "returned_positions": {
+        "values": [
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41
+        ],
+        "target_values": [
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41
+        ],
+        "target_slice": [
+          0,
+          10
+        ],
+        "shape": [
+          10
+        ],
+        "dtype": "torch.int64",
+        "device": "cuda:0",
+        "data_ptr": 135908401679872
+      },
+      "position_mode": "compressed",
+      "target_request_id": "phase8-chunk",
+      "trace_id": "phase8-chunk:3",
+      "handoff": {
+        "D": [
+          {
+            "values": [
+              32,
+              33,
+              34,
+              35,
+              36,
+              37,
+              38,
+              39,
+              40,
+              41
+            ],
+            "target_values": [
+              32,
+              33,
+              34,
+              35,
+              36,
+              37,
+              38,
+              39,
+              40,
+              41
+            ],
+            "target_slice": [
+              0,
+              10
+            ],
+            "shape": [
+              10
+            ],
+            "dtype": "torch.int64",
+            "device": "cuda:0",
+            "data_ptr": 135908401679872
+          }
+        ],
+        "E": [
+          {
+            "values": [
+              32,
+              33,
+              34,
+              35,
+              36,
+              37,
+              38,
+              39,
+              40,
+              41
+            ],
+            "target_values": [
+              32,
+              33,
+              34,
+              35,
+              36,
+              37,
+              38,
+              39,
+              40,
+              41
+            ],
+            "target_slice": [
+              0,
+              10
+            ],
+            "shape": [
+              10
+            ],
+            "dtype": "torch.int64",
+            "device": "cuda:0",
+            "data_ptr": 135908401679872
+          }
+        ],
+        "F": [
+          {
+            "values": [
+              32,
+              33,
+              34,
+              35,
+              36,
+              37,
+              38,
+              39,
+              40,
+              41
+            ],
+            "target_values": [
+              32,
+              33,
+              34,
+              35,
+              36,
+              37,
+              38,
+              39,
+              40,
+              41
+            ],
+            "target_slice": [
+              0,
+              10
+            ],
+            "shape": [
+              10
+            ],
+            "dtype": "torch.int64",
+            "device": "cuda:0",
+            "data_ptr": 135908401679872
+          }
+        ]
+      }
+    }
+  ],
+  "source_sha": "255e692d3612dcfc23f9c4122d66e8ad70f86d6d",
+  "source_archive_sha256": "c557ae5ece1b4ae60d0b35d7d1d65947a963aaace6b8c6b3ff470a238ebc6051",
+  "encoder_memory": {
+    "max_subtokens": 4,
+    "position_mode": "compressed",
+    "input_parameter_count": 226529280,
+    "output_parameter_count": 226529280,
+    "input_parameter_bytes": 906117120,
+    "output_parameter_bytes": 906117120,
+    "total_parameter_bytes": 1812234240,
+    "dtypes": [
+      "torch.float32"
+    ],
+    "safety_margin_bytes": 536870912,
+    "cuda_memory_before": {
+      "free": 3744268288,
+      "total": 15636037632,
+      "allocated": 11714544640,
+      "reserved": 11729371136
+    },
+    "cuda_memory_after_input_encoder": {
+      "free": 2838298624,
+      "total": 15636037632,
+      "allocated": 12620661760,
+      "reserved": 12635340800
+    },
+    "cuda_memory_after_output_encoder": {
+      "free": 1932328960,
+      "total": 15636037632,
+      "allocated": 13526778880,
+      "reserved": 13541310464
+    }
+  }
+}
