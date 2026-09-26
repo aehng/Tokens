@@ -2093,7 +2093,7 @@ def _run_phase9(root: Path, manifest: dict[str, Any], prepared: dict[str, Any]) 
     _record_teardown(root, "preempt_llm", preempt_shutdown, cuda_after_collect())
     if phase9["status"] != "PASS":
         raise RuntimeError(f"phase 9 preemption failed: {phase9}")
-
+    return phase9
 
 
 def main() -> None:
