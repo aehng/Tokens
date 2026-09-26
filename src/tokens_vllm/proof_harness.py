@@ -111,15 +111,20 @@ def blocks_for_tokens(num_tokens: int, block_size: int) -> int:
 
 
 def new_tokens_to_cross_block(prompt_len: int, block_size: int) -> int:
-    """Smallest generation length that allocates one block past the prompt."""
+    """Smallest output length whose cached prefix crosses a KV block boundary.
+
+    The final sampled output token is not fed through the model and therefore
+    is not part of the KV cache. A request that emits ``n`` tokens caches at
+    most ``prompt_len + n - 1`` tokens.
+    """
     if prompt_len <= 0 or block_size <= 0:
         raise ValueError(
             f"prompt_len={prompt_len} block_size={block_size} is not usable"
         )
     remainder = prompt_len % block_size
     if remainder == 0:
-        return 1
-    return block_size - remainder + 1
+        return 2
+    return block_size - remainder + 2
 
 
 def preemption_block_budget(
@@ -135,11 +140,12 @@ def preemption_block_budget(
 
     - the block pool holds one unusable null block
     - a waiting request is admitted only when its prompt fits
-    - a later token that crosses a block boundary allocates one more block
+    - the final sampled output token is not fed back into the KV cache
+    - generation crosses the next block boundary before the final output
     - a running request that cannot allocate preempts another running request
 
     Usable blocks equal the sum of the two prompt block counts. Generation
-    is long enough that each sequence needs one extra block, so the pair
+    is long enough that each cached prefix needs one extra block, so the pair
     does not fit and one request is preempted.
     """
     if null_blocks < 1:
@@ -152,15 +158,17 @@ def preemption_block_budget(
         new_tokens_to_cross_block(prompt_a, block_size),
         new_tokens_to_cross_block(prompt_b, block_size),
     )
-    a_full = blocks_for_tokens(prompt_a + max_new, block_size)
-    b_full = blocks_for_tokens(prompt_b + max_new, block_size)
+    a_peak_tokens = prompt_a + max_new - 1
+    b_peak_tokens = prompt_b + max_new - 1
+    a_peak_blocks = blocks_for_tokens(a_peak_tokens, block_size)
+    b_peak_blocks = blocks_for_tokens(b_peak_tokens, block_size)
     usable = a_prompt_blocks + b_prompt_blocks
     max_model_len = max(prompt_a, prompt_b) + max_new
     if blocks_for_tokens(max_model_len, block_size) > usable:
         raise ValueError("max_model_len does not fit in the usable block pool")
-    if a_full > usable or b_full > usable:
+    if a_peak_blocks > usable or b_peak_blocks > usable:
         raise ValueError("a request alone does not fit in the usable block pool")
-    if a_full + b_full <= usable:
+    if a_peak_blocks + b_peak_blocks <= usable:
         raise ValueError("both full sequences fit; preemption is not forced")
     return {
         "block_size": block_size,
@@ -172,11 +180,29 @@ def preemption_block_budget(
         "a_prompt_blocks": a_prompt_blocks,
         "b_prompt_blocks": b_prompt_blocks,
         "max_new_tokens": max_new,
-        "a_full_blocks": a_full,
-        "b_full_blocks": b_full,
-        "combined_full_blocks": a_full + b_full,
+        "a_peak_kv_tokens": a_peak_tokens,
+        "b_peak_kv_tokens": b_peak_tokens,
+        "a_peak_kv_blocks": a_peak_blocks,
+        "b_peak_kv_blocks": b_peak_blocks,
+        "combined_peak_kv_blocks": a_peak_blocks + b_peak_blocks,
         "max_model_len": max_model_len,
     }
+
+
+def max_scheduler_preemptions(
+    observations: list[Mapping[str, Any]], request_ids: tuple[str, ...]
+) -> dict[str, int]:
+    """Return the largest scheduler preemption count observed per request."""
+    counts = {request_id: 0 for request_id in request_ids}
+    for observation in observations:
+        for queue_name in ("running", "waiting"):
+            for request in observation.get(queue_name, ()):
+                request_id = request.get("request_id")
+                if request_id in counts:
+                    counts[request_id] = max(
+                        counts[request_id], int(request.get("num_preemptions", 0))
+                    )
+    return counts
 
 
 def engine_step_decision(step_index: int, max_steps: int, unfinished: bool) -> str:

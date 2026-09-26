@@ -30,7 +30,9 @@ from tokens_vllm.contract import (
 from tokens_vllm.proof_harness import (
     MAX_ENGINE_STEPS,
     assert_lora_merged_and_unloaded,
+    blocks_for_tokens,
     engine_step_decision,
+    max_scheduler_preemptions,
     preemption_block_budget,
     preemption_cycle,
     preemption_rebuild_report,
@@ -653,11 +655,59 @@ def test_preemption_budget_fits_each_prompt_and_not_the_pair():
     assert budget["b_prompt_blocks"] == 2
     assert budget["usable_blocks"] == 4
     assert budget["num_gpu_blocks"] == 5
-    assert budget["a_full_blocks"] <= budget["usable_blocks"]
-    assert budget["b_full_blocks"] <= budget["usable_blocks"]
-    assert budget["combined_full_blocks"] > budget["usable_blocks"]
+    assert budget["a_peak_kv_blocks"] <= budget["usable_blocks"]
+    assert budget["b_peak_kv_blocks"] <= budget["usable_blocks"]
+    assert budget["combined_peak_kv_blocks"] > budget["usable_blocks"]
     assert budget["a_prompt_blocks"] + budget["b_prompt_blocks"] <= budget["usable_blocks"]
-    assert budget["max_new_tokens"] == 13
+    assert budget["max_new_tokens"] == 14
+
+
+def test_preemption_budget_does_not_count_the_final_output_as_cached():
+    budget = preemption_block_budget(42, 74, block_size=16)
+
+    assert budget["max_new_tokens"] == 8
+    assert budget["a_peak_kv_tokens"] == 49
+    assert budget["b_peak_kv_tokens"] == 81
+    assert budget["a_peak_kv_blocks"] == 4
+    assert budget["b_peak_kv_blocks"] == 6
+    assert budget["usable_blocks"] == 8
+    assert budget["num_gpu_blocks"] == 9
+    assert budget["combined_peak_kv_blocks"] == 10
+    assert (
+        blocks_for_tokens(42 + 7 - 1, 16)
+        + blocks_for_tokens(74 + 7 - 1, 16)
+        == budget["usable_blocks"]
+    )
+    assert (
+        blocks_for_tokens(42 + 8 - 1, 16)
+        + blocks_for_tokens(74 + 8 - 1, 16)
+        == budget["combined_peak_kv_blocks"]
+    )
+
+
+def test_scheduler_preemption_counts_keep_the_maximum_seen_per_request():
+    snapshots = [
+        {
+            "running": [
+                {"request_id": "pre-A", "num_preemptions": 0},
+                {"request_id": "pre-B", "num_preemptions": 0},
+            ],
+            "waiting": [],
+        },
+        {
+            "running": [{"request_id": "pre-B", "num_preemptions": 0}],
+            "waiting": [{"request_id": "pre-A", "num_preemptions": 1}],
+        },
+        {
+            "running": [],
+            "waiting": [{"request_id": "pre-A", "num_preemptions": 2}],
+        },
+    ]
+
+    assert max_scheduler_preemptions(snapshots, ("pre-A", "pre-B")) == {
+        "pre-A": 2,
+        "pre-B": 0,
+    }
 
 
 def test_preemption_cycle_requires_add_remove_readd():

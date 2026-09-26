@@ -136,12 +136,18 @@ def _record_teardown(root: Path, engine_name: str, method: str, cuda: dict[str, 
     write_json(path, {"events": events})
 
 
-def _sampling(extra: dict | None = None, max_tokens: int = MAX_NEW):
+def _sampling(
+    extra: dict | None = None,
+    max_tokens: int = MAX_NEW,
+    *,
+    ignore_eos: bool = False,
+):
     from vllm import SamplingParams
 
     return SamplingParams(
         temperature=0.0,
         max_tokens=max_tokens,
+        ignore_eos=ignore_eos,
         detokenize=False,
         logprobs=None,
         extra_args=extra,
@@ -1078,6 +1084,7 @@ def _bounded_steps(
     phase_name: str,
     max_steps: int,
     stop_when=None,
+    step_observer=None,
 ):
     from tokens_vllm.proof_harness import engine_step_decision
 
@@ -1093,6 +1100,8 @@ def _bounded_steps(
             _fail_step_budget(root, phase_name, llm, steps, max_steps)
         collected.extend(engine.step())
         steps += 1
+        if step_observer is not None:
+            step_observer(steps)
         if stop_when is not None and stop_when(collected):
             return collected, steps
 
@@ -1118,13 +1127,15 @@ def _run_request(
     root: Path,
     phase_name: str,
     capture_h: bool = False,
+    ignore_eos: bool = False,
 ):
     from tokens_vllm.proof_harness import MAX_ENGINE_STEPS
 
-    params = (
-        _sampling({"predictive_codebook": payload}, max_tokens=max_tokens)
-        if payload
-        else _sampling({}, max_tokens=max_tokens)
+    extra = {"predictive_codebook": payload} if payload else {}
+    params = _sampling(
+        extra,
+        max_tokens=max_tokens,
+        ignore_eos=ignore_eos,
     )
     _apply(llm, lambda model: _install_debug_hooks(model, request_id))
     captured = None
@@ -2241,6 +2252,7 @@ def main() -> None:
             raise RuntimeError(f"phase 8 chunked prefill diverged: {phase8}")
 
         from tokens_vllm.proof_harness import (
+            max_scheduler_preemptions,
             preemption_block_budget,
             preemption_rebuild_report,
             preempted_request_ids,
@@ -2267,11 +2279,13 @@ def main() -> None:
             "block_size": int(preempt_llm.llm_engine.vllm_config.cache_config.block_size),
             "available_blocks": idle.get("free_blocks"),
             "num_gpu_blocks": idle.get("num_gpu_blocks"),
-            "a_required_blocks": budget["a_full_blocks"],
-            "b_required_blocks": budget["b_full_blocks"],
+            "a_peak_kv_tokens": budget["a_peak_kv_tokens"],
+            "b_peak_kv_tokens": budget["b_peak_kv_tokens"],
+            "a_peak_kv_blocks": budget["a_peak_kv_blocks"],
+            "b_peak_kv_blocks": budget["b_peak_kv_blocks"],
             "a_prompt_blocks": budget["a_prompt_blocks"],
             "b_prompt_blocks": budget["b_prompt_blocks"],
-            "combined_requirement": budget["combined_full_blocks"],
+            "combined_peak_kv_blocks": budget["combined_peak_kv_blocks"],
             "max_new_tokens": budget["max_new_tokens"],
             "prompt_a_tokens": budget["prompt_a_tokens"],
             "prompt_b_tokens": budget["prompt_b_tokens"],
@@ -2280,9 +2294,9 @@ def main() -> None:
             budget_report["block_size"] == PROOF_BLOCK_SIZE
             and budget_report["num_gpu_blocks"] == budget["num_gpu_blocks"]
             and budget_report["available_blocks"] == budget["usable_blocks"]
-            and budget["a_full_blocks"] <= budget["usable_blocks"]
-            and budget["b_full_blocks"] <= budget["usable_blocks"]
-            and budget["combined_full_blocks"] > budget["usable_blocks"]
+            and budget["a_peak_kv_blocks"] <= budget["usable_blocks"]
+            and budget["b_peak_kv_blocks"] <= budget["usable_blocks"]
+            and budget["combined_peak_kv_blocks"] > budget["usable_blocks"]
         )
         if not budget_ok:
             phase9 = {
@@ -2304,6 +2318,7 @@ def main() -> None:
             request_id="pre-A-solo",
             root=root,
             phase_name="phase_09_preemption",
+            ignore_eos=True,
         )
         uninterrupted_b = _run_request(
             preempt_llm,
@@ -2313,17 +2328,34 @@ def main() -> None:
             request_id="pre-B-solo",
             root=root,
             phase_name="phase_09_preemption",
+            ignore_eos=True,
         )
         engine = preempt_llm.llm_engine
+        request_ids = ("pre-A", "pre-B")
+        preemption_observations = []
+
+        def observe_scheduler_preemptions(step):
+            preemption_observations.append(
+                {"step": step, **_scheduler_diagnostics(preempt_llm)}
+            )
+
         engine.add_request(
             "pre-A",
             {"prompt_token_ids": primary["compressed_ids"]},
-            _sampling({"predictive_codebook": primary["payload"]}, max_tokens=max_new),
+            _sampling(
+                {"predictive_codebook": primary["payload"]},
+                max_tokens=max_new,
+                ignore_eos=True,
+            ),
         )
         engine.add_request(
             "pre-B",
             {"prompt_token_ids": secondary["compressed_ids"]},
-            _sampling({"predictive_codebook": secondary["payload"]}, max_tokens=max_new),
+            _sampling(
+                {"predictive_codebook": secondary["payload"]},
+                max_tokens=max_new,
+                ignore_eos=True,
+            ),
         )
         preempt_collected, preempt_steps = _bounded_steps(
             engine,
@@ -2331,6 +2363,7 @@ def main() -> None:
             root=root,
             phase_name="phase_09_preemption",
             max_steps=MAX_ENGINE_STEPS,
+            step_observer=observe_scheduler_preemptions,
         )
         final_ids = {
             "pre-A": _finished_ids(preempt_collected, "pre-A"),
@@ -2345,10 +2378,14 @@ def main() -> None:
             return [dict(event) for event in model.predictive_state.admission_log]
 
         events = _apply(preempt_llm, preempt_log)
+        admission_cycles = preempted_request_ids(events)
+        scheduler_preemption_counts = max_scheduler_preemptions(
+            preemption_observations, request_ids
+        )
         victims = [
             req_id
-            for req_id in ("pre-A", "pre-B")
-            if req_id in preempted_request_ids(events)
+            for req_id in admission_cycles
+            if scheduler_preemption_counts[req_id] > 0
         ]
         trajectory_matches = {
             req_id: bool(final_ids[req_id])
@@ -2363,8 +2400,10 @@ def main() -> None:
         rebuilds_match = bool(victims) and all(
             report["state_rebuilt"] for report in rebuild_state.values()
         )
-        if not victims:
-            reason = "preemption not exercised"
+        if not admission_cycles:
+            reason = "predictive admission log did not show an add-remove-readd cycle"
+        elif not victims:
+            reason = "scheduler did not record preemption for a re-admitted request"
         elif not trajectories_match:
             reason = "concurrent trajectory diverged from uninterrupted run"
         elif not rebuilds_match:
@@ -2375,6 +2414,9 @@ def main() -> None:
             "status": "PASS" if reason is None else "FAIL",
             "reason": reason,
             "preempted_request_ids": victims,
+            "admission_cycle_request_ids": admission_cycles,
+            "scheduler_preemption_counts": scheduler_preemption_counts,
+            "scheduler_preemption_observations": preemption_observations,
             "preemption_events": events,
             "rebuild_state": rebuild_state,
             "steps": preempt_steps,

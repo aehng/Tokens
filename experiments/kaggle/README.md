@@ -47,11 +47,26 @@ Stages A–F each matched reference positions `0..41`, scheduler progress was
 instrumentation-only failure is preserved in
 [the v12 result folder](results/vllm_predictive_proof_v12/README.md).
 
-The full Phases 1–10 proof has not yet been launched. The next run will require
-distinct and correctly owned codebook rows in Phase 6; a recorded add/remove/
-re-add cycle, rebuilt state, and matching concurrent and uninterrupted token
-trajectories in Phase 9; and separate physical-KV and semantic-RoPE bounds in
-Phase 10. For six H3 tokens, physical KV positions must stay at `0..5` within
+The full Phases 1–10 proof ran as kernel v14 on source commit
+`28da08d370d3f5ac8a91ccd526b0935ae9fd551d` (archive SHA-256
+`a35f001b7d2acc594742b82a716cf5234df5c977e498b5900f11675d17f084ab`). The
+runner reached Phase 9, then failed because preemption was not exercised. The
+budget requested seven output tokens for 42- and 74-token prompts with
+16-token blocks. The final sampled output is not fed back into the KV cache,
+so those requests only used 48 and 80 cached tokens: 3 + 5 blocks, exactly the
+eight usable blocks. The test therefore did not force eviction. The recorded
+solo and concurrent token trajectories matched, but no request was preempted
+or rebuilt; Phase 10 did not run. See the [v14 run note](results/vllm_predictive_proof_v14/README.md).
+
+The next full run will use eight output tokens in Phase 9, ignore EOS for both
+the solo and concurrent requests, and record each request's scheduler
+preemption counter while stepping. Phase 9 will pass only when the same request
+has a positive scheduler preemption count, an admission add/remove/re-add
+cycle, rebuilt predictive state, and an exact concurrent/uninterrupted token
+trajectory match. The Phase 9 report will include cached-token and KV-block
+counts explicitly. Phase 6 still requires distinct and correctly owned
+codebook rows; Phase 10 still checks physical-KV and semantic-RoPE bounds
+separately. For six H3 tokens, physical KV positions must stay at `0..5` within
 `max_model_len=8`, while semantic RoPE positions must match `[2, 5, 8, 11,
 14, 17]` and remain below Phi's exclusive limit of `131072`. The engine's
 `max_model_len` constrains the physical KV sequence, not the semantic RoPE
