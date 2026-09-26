@@ -1,5 +1,7 @@
 """CPU checks for the logical vocabulary and semantic-position contract."""
 
+from types import SimpleNamespace
+
 import torch
 
 from tokens_vllm.contract import (
@@ -32,7 +34,10 @@ from tokens_vllm.proof_harness import (
     preemption_block_budget,
     preemption_cycle,
     preempted_request_ids,
+    position_values_for_stage,
+    request_prefill_trace,
 )
+from tokens_vllm.state import RequestScopedPositionTrace, write_semantic_positions
 
 
 def test_tensor_remap_matches_the_boundary_table():
@@ -152,7 +157,7 @@ def _unit_spans():
     return [1] * CODEBOOK_SIZE
 
 
-def test_compressed_chunks_follow_num_computed_across_restarts():
+def test_compressed_chunks_follow_num_computed_without_postprocess_state():
     # Phase 8 shape: 16 + 16 + 10. A shadow offset left at 0 would restart
     # every chunk. The computed-token count is the origin instead.
     logical = list(range(42))
@@ -168,6 +173,227 @@ def test_compressed_chunks_follow_num_computed_across_restarts():
             )
         )
     assert got == list(range(42))
+
+
+def test_request_scoped_position_trace_resets_and_rejects_other_requests():
+    trace = RequestScopedPositionTrace()
+    trace.begin("old-request")
+    old = trace.capture({"req_ids": ["old-request"]})
+    assert old is not None
+
+    trace.begin("phase8-chunk")
+    assert trace.records == []
+    assert trace.active_record is None
+    assert trace.capture({"req_ids": ["warmup-request"]}) is None
+    target = trace.capture({"req_ids": ["phase8-chunk"]})
+    assert target is not None
+    assert target["target_request_id"] == "phase8-chunk"
+    assert target["trace_id"] == "phase8-chunk:1"
+    assert trace.records == [target]
+
+
+def test_semantic_model_positions_do_not_mutate_physical_kv_positions():
+    physical_kv_positions = torch.tensor([0, 1, 2, 3], dtype=torch.int64)
+    physical_before = physical_kv_positions.clone()
+    model_position_buffer = torch.tensor([90, 91, 92, 93], dtype=torch.int64)
+    stale_default_positions = model_position_buffer.tolist()
+    semantic_positions = torch.tensor([12, 13, 14], dtype=torch.int64)
+
+    model_positions = write_semantic_positions(
+        model_position_buffer,
+        semantic_positions,
+        num_tokens=3,
+        num_tokens_after_padding=4,
+    )
+
+    assert model_positions.tolist() == [12, 13, 14, 0]
+    assert model_positions.tolist()[:3] != stale_default_positions[:3]
+    assert physical_kv_positions.tolist() == physical_before.tolist()
+
+    bte_buffer = torch.full((3,), -1, dtype=torch.int64)
+    bte_positions = write_semantic_positions(
+        bte_buffer,
+        torch.tensor([2, 5, 8], dtype=torch.int64),
+        num_tokens=3,
+        num_tokens_after_padding=3,
+    )
+    assert bte_positions.tolist() == [2, 5, 8]
+    assert physical_kv_positions.tolist() == physical_before.tolist()
+
+
+def test_request_prefill_trace_and_stage_values_ignore_unrelated_and_decode_events():
+    positions = list(range(16))
+    unrelated = {
+        "target_request_id": "old-request",
+        "requests": [{"request_id": "old-request", "num_computed_tokens": 0}],
+        "handoff": {"F": [{"target_values": [700]}]},
+    }
+    first = {
+        "target_request_id": "phase8-chunk",
+        "requests": [{"request_id": "phase8-chunk", "num_computed_tokens": 0}],
+        "handoff": {"F": [{"target_values": positions}]},
+    }
+    second = {
+        "target_request_id": "phase8-chunk",
+        "requests": [{"request_id": "phase8-chunk", "num_computed_tokens": 16}],
+        "handoff": {"F": [{"target_values": list(range(16, 32))}]},
+    }
+    decode = {
+        "target_request_id": "phase8-chunk",
+        "requests": [{"request_id": "phase8-chunk", "num_computed_tokens": 42}],
+        "handoff": {"F": [{"target_values": [42]}]},
+    }
+
+    prefill = request_prefill_trace(
+        [unrelated, first, second, decode], "phase8-chunk", prefill_token_count=42
+    )
+
+    assert prefill == [first, second]
+    assert position_values_for_stage(prefill, "F") == list(range(32))
+
+
+def test_fake_model_handoff_passes_semantic_override_through_layer0_rope():
+    from experiments.kaggle.run_vllm_predictive_proof import (
+        _consume_debug,
+        _install_debug_hooks,
+    )
+
+    class Rotary(torch.nn.Module):
+        def forward(self, positions, query, key):
+            return query, key
+
+    class Attention(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.rotary_emb = Rotary()
+
+        def forward(self, positions):
+            self.rotary_emb(positions, torch.zeros(1), torch.zeros(1))
+            return positions
+
+    class Layer(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.self_attn = Attention()
+
+        def forward(self, positions):
+            return self.self_attn(positions)
+
+    class LlamaModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.layers = torch.nn.ModuleList([Layer()])
+
+        def forward(self, input_ids, positions):
+            del input_ids
+            return self.layers[0](positions).unsqueeze(0)
+
+    class PredictiveModel(torch.nn.Module):
+        def __init__(self, state):
+            super().__init__()
+            self.model = LlamaModel()
+            self.predictive_state = state
+
+        def compute_logits(self, hidden):
+            return hidden
+
+        def forward(self, input_ids, positions):
+            return self.compute_logits(self.model(input_ids, positions))
+
+    trace = RequestScopedPositionTrace()
+    state = SimpleNamespace(
+        position_trace=trace,
+        admission_log=[],
+        setup_ms={},
+    )
+    model = PredictiveModel(state)
+    physical_positions = torch.tensor([0, 1, 2], dtype=torch.int64)
+    original_physical = physical_positions.clone()
+    model_position_buffer = torch.tensor([90, 91, 92], dtype=torch.int64)
+    semantic_positions = torch.tensor([12, 13, 14], dtype=torch.int64)
+
+    _install_debug_hooks(model, "phase8-chunk")
+    returned_positions = write_semantic_positions(
+        model_position_buffer,
+        semantic_positions,
+        num_tokens=3,
+        num_tokens_after_padding=3,
+    )
+    trace.capture(
+        {
+            "req_ids": ["phase8-chunk"],
+            "requests": [{"request_id": "phase8-chunk", "num_computed_tokens": 0}],
+            "target_query_slice": [0, 3],
+            "stock_input_batch_positions": {"target_values": physical_positions.tolist()},
+            "calculated_semantic_positions": {"target_values": semantic_positions.tolist()},
+            "returned_positions": {"target_values": returned_positions.tolist()},
+        }
+    )
+    model_inputs = {"input_ids": torch.tensor([1, 2, 3]), "positions": physical_positions}
+    model_inputs.update({"positions": returned_positions})
+    model(**model_inputs)
+    captured = _consume_debug(model)
+
+    assert physical_positions.tolist() == original_physical.tolist()
+    assert position_values_for_stage(captured["position_trace"], "A") == [0, 1, 2]
+    assert position_values_for_stage(captured["position_trace"], "B") == [12, 13, 14]
+    assert position_values_for_stage(captured["position_trace"], "C") == [12, 13, 14]
+    assert captured["position_trace"][0]["handoff"]["D"][0]["target_values"] == [12, 13, 14]
+    assert captured["position_trace"][0]["handoff"]["E"][0]["target_values"] == [12, 13, 14]
+    assert captured["position_trace"][0]["handoff"]["F"][0]["target_values"] == [12, 13, 14]
+
+
+def test_phase8_report_requires_request_scoped_chunks_and_all_handoff_stages():
+    from experiments.kaggle.run_vllm_predictive_proof import _phase8_report
+
+    prompt_positions = list(range(42))
+    events = []
+    for index, (computed, length) in enumerate(((0, 16), (16, 16), (32, 10))):
+        chunk_positions = prompt_positions[computed : computed + length]
+        snapshots = {
+            "stock_input_batch_positions": {"target_values": chunk_positions},
+            "calculated_semantic_positions": {"target_values": chunk_positions},
+            "returned_positions": {"target_values": chunk_positions},
+            "handoff": {
+                stage: [{"target_values": chunk_positions}]
+                for stage in ("D", "E", "F")
+            },
+        }
+        events.append(
+            {
+                "target_request_id": "phase8-chunk",
+                "requests": [
+                    {
+                        "request_id": "phase8-chunk",
+                        "num_computed_tokens": computed,
+                        "num_scheduled_tokens": length,
+                    }
+                ],
+                **snapshots,
+                "trace_id": f"phase8-chunk:{index + 1}",
+            }
+        )
+    events.append(
+        {
+            "target_request_id": "phase8-chunk",
+            "requests": [{"request_id": "phase8-chunk", "num_computed_tokens": 42}],
+            "handoff": {"F": [{"target_values": [42]}]},
+        }
+    )
+
+    report = _phase8_report(
+        {"token_ids": [99, 100], "position_trace": events},
+        {
+            "compressed_ids": list(range(42)),
+            "positions": prompt_positions,
+            "new_ids": [99, 100],
+        },
+    )
+
+    assert report["status"] == "PASS"
+    assert report["scheduler_progress"] == [0, 16, 32]
+    assert report["stage_matches_reference"] == {stage: True for stage in "ABCDEF"}
+    assert report["chunk_positions"] == prompt_positions
 
 
 def test_base_token_end_chunks_span_an_h_on_each_side_of_the_boundary():

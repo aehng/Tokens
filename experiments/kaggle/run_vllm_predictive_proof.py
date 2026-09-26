@@ -470,7 +470,14 @@ def _run_one_step_hf(
     return step_logits, last_position
 
 
-def _build_hf_references(root: Path, *, diagnostic_mode: bool = False) -> dict[str, Any]:
+def _build_hf_references(
+    root: Path,
+    *,
+    diagnostic_mode: bool = False,
+    reference_count: int = 2,
+) -> dict[str, Any]:
+    if reference_count < 1:
+        raise ValueError("reference_count must be positive")
     os.environ.setdefault("PREDICTOR_PATH", str(_predictor_path()))
     # The benchmark loader reads its module-level predictor constant.
     import experiments.run_quality_benchmark as benchmark
@@ -504,10 +511,10 @@ def _build_hf_references(root: Path, *, diagnostic_mode: bool = False) -> dict[s
     for prompt_id in ("gsm_2956", "gsm_3022", "gsm_6613"):
         if prompt_id in samples:
             chosen.append(prompt_id)
-        if len(chosen) == 2:
+        if len(chosen) == reference_count:
             break
-    if len(chosen) < 2:
-        raise RuntimeError(f"need two prompts, found {chosen}")
+    if len(chosen) < reference_count:
+        raise RuntimeError(f"need {reference_count} prompts, found {chosen}")
 
     from transformers import LogitsProcessor, LogitsProcessorList
 
@@ -872,16 +879,61 @@ def _compare_vectors(reference: torch.Tensor, actual: torch.Tensor) -> dict[str,
     return {"max_abs": float(delta.max()), "mean_abs": float(delta.mean())}
 
 
-def _install_debug_hooks(model):
-    """Record RoPE positions and step logits on the worker model."""
-    debug: dict[str, Any] = {"rope_positions": [], "first_logits": None, "step_logits": []}
+def _install_debug_hooks(model, request_id: str):
+    """Record request-scoped model positions at the wrapper, Llama, and RoPE."""
+    from tokens_vllm.state import position_tensor_snapshot
+
+    state = model.predictive_state
+    state.position_trace.begin(request_id)
+    debug: dict[str, Any] = {
+        "rope_positions": [],
+        "first_logits": None,
+        "step_logits": [],
+        "position_handoff": {},
+    }
     model._tokens_debug = debug
 
-    def pre_hook(_module, args, debug=debug):
-        debug["rope_positions"].append(args[0].detach().to("cpu").tolist())
+    def _record_position_stage(stage: str, positions):
+        active = state.position_trace.active_record
+        if active is None or not isinstance(positions, torch.Tensor):
+            return None
+        target_slice = tuple(active["target_query_slice"])
+        snapshot = position_tensor_snapshot(positions, target_slice=target_slice)
+        calls = debug["position_handoff"].setdefault(active["trace_id"], {})
+        calls.setdefault(stage, []).append(snapshot)
+        return snapshot
 
-    handle = model.model.layers[0].self_attn.rotary_emb.register_forward_pre_hook(pre_hook)
-    model._tokens_debug_handle = handle
+    def _positions_argument(args, kwargs, *, index: int):
+        if kwargs and isinstance(kwargs.get("positions"), torch.Tensor):
+            return kwargs["positions"]
+        if len(args) > index and isinstance(args[index], torch.Tensor):
+            return args[index]
+        return None
+
+    def _forward_pre_hook(stage: str):
+        def pre_hook(_module, args, kwargs):
+            positions = _positions_argument(args, kwargs, index=1)
+            _record_position_stage(stage, positions)
+
+        return pre_hook
+
+    def rope_pre_hook(_module, args, kwargs):
+        positions = _positions_argument(args, kwargs, index=0)
+        snapshot = _record_position_stage("F", positions)
+        if snapshot is not None:
+            debug["rope_positions"].append(snapshot["target_values"])
+            # Scope one captured model-input record to its layer-0 RoPE call.
+            # Later dummy/capture forwards must not reuse it.
+            state.position_trace.clear_active()
+
+    handles = [
+        model.register_forward_pre_hook(_forward_pre_hook("D"), with_kwargs=True),
+        model.model.register_forward_pre_hook(_forward_pre_hook("E"), with_kwargs=True),
+        model.model.layers[0].self_attn.rotary_emb.register_forward_pre_hook(
+            rope_pre_hook, with_kwargs=True
+        ),
+    ]
+    model._tokens_debug_handles = handles
     if not hasattr(model, "_orig_compute_logits"):
         model._orig_compute_logits = model.compute_logits
     original = model._orig_compute_logits
@@ -902,11 +954,11 @@ def _install_debug_hooks(model):
 def _consume_debug(model):
     """Return CPU copies of worker debug state and remove the hooks."""
     debug = getattr(model, "_tokens_debug", None) or {}
-    handle = getattr(model, "_tokens_debug_handle", None)
-    if handle is not None:
+    handles = getattr(model, "_tokens_debug_handles", None) or []
+    for handle in handles:
         handle.remove()
     model._tokens_debug = None
-    model._tokens_debug_handle = None
+    model._tokens_debug_handles = None
     if hasattr(model, "_orig_compute_logits"):
         model.compute_logits = model._orig_compute_logits
         delattr(model, "_orig_compute_logits")
@@ -914,13 +966,20 @@ def _consume_debug(model):
     if logits is not None:
         logits = logits.detach().float().cpu()
     step_logits = [l.detach().float().cpu() for l in debug.get("step_logits") or []]
+    trace = []
+    for event in model.predictive_state.position_trace.records:
+        copied = dict(event)
+        copied["handoff"] = debug.get("position_handoff", {}).get(
+            event["trace_id"], {}
+        )
+        trace.append(copied)
     return {
         "rope_positions": list(debug.get("rope_positions") or []),
         "first_logits": logits,
         "step_logits": step_logits,
         "log": list(model.predictive_state.admission_log),
         "setup_ms": dict(model.predictive_state.setup_ms),
-        "position_trace": list(getattr(model.predictive_state, "position_trace", [])),
+        "position_trace": trace,
     }
 
 
@@ -1037,7 +1096,7 @@ def _run_request(
         if payload
         else _sampling({}, max_tokens=max_tokens)
     )
-    _apply(llm, _install_debug_hooks)
+    _apply(llm, lambda model: _install_debug_hooks(model, request_id))
     captured = None
     token_ids: list[int] = []
     try:
@@ -1096,6 +1155,70 @@ def _run_request(
     }
 
 
+def _phase8_report(chunk_run: dict[str, Any], primary: dict[str, Any]) -> dict[str, Any]:
+    from tokens_vllm.proof_harness import (
+        position_values_for_stage,
+        request_prefill_trace,
+    )
+
+    request_id = "phase8-chunk"
+    reference_positions = [int(value) for value in primary["positions"]]
+    prompt_token_count = len(primary["compressed_ids"])
+    prefill_trace = request_prefill_trace(
+        chunk_run.get("position_trace") or [], request_id, prompt_token_count
+    )
+    stage_positions = {
+        stage: position_values_for_stage(prefill_trace, stage)
+        for stage in ("A", "B", "C", "D", "E", "F")
+    }
+    scheduler_progress = [
+        int(row["num_computed_tokens"])
+        for event in prefill_trace
+        for row in event.get("requests", [])
+        if row.get("request_id") == request_id
+    ]
+    expected_progress = list(range(0, prompt_token_count, 16))
+    request_scoped = bool(prefill_trace) and all(
+        event.get("target_request_id") == request_id
+        and any(
+            row.get("request_id") == request_id
+            for row in event.get("requests", [])
+        )
+        for event in prefill_trace
+    )
+    stages_match = {
+        stage: positions == reference_positions
+        for stage, positions in stage_positions.items()
+    }
+    token_match = chunk_run["token_ids"] == primary["new_ids"]
+    scheduler_match = scheduler_progress == expected_progress
+    rotary_match = stages_match["F"]
+    status = "PASS" if (
+        token_match
+        and scheduler_match
+        and request_scoped
+        and all(stages_match.values())
+    ) else "FAIL"
+    return {
+        "status": status,
+        "request_id": request_id,
+        "chunk_ids": chunk_run["token_ids"],
+        "reference_ids": primary["new_ids"],
+        "generated_tokens_match": token_match,
+        "chunk_positions": stage_positions["F"],
+        "reference_positions": reference_positions,
+        "calculated_semantic_positions": stage_positions["B"],
+        "scheduler_progress": scheduler_progress,
+        "expected_scheduler_progress": expected_progress,
+        "scheduler_progress_match": scheduler_match,
+        "stage_positions": stage_positions,
+        "stage_matches_reference": stages_match,
+        "rotary_positions_match_reference": rotary_match,
+        "request_scoped_prefill_only": request_scoped,
+        "chunk_progress": prefill_trace,
+    }
+
+
 def _logit_report(reference: torch.Tensor, actual: torch.Tensor) -> dict[str, Any]:
     width = min(reference.shape[-1], actual.shape[-1])
     ref = reference[:width].float()
@@ -1134,7 +1257,7 @@ def _run_one_step_vllm(
         if payload
         else _sampling({}, max_tokens=1)
     )
-    _apply(llm, _install_debug_hooks)
+    _apply(llm, lambda model: _install_debug_hooks(model, request_id))
     try:
         assigned = llm.llm_engine.add_request(
             request_id,
@@ -1616,9 +1739,76 @@ def _run_diagnostic_parity(
     return diag_data
 
 
+def _run_phase8_only(root: Path, manifest: dict[str, Any]) -> None:
+    prepared = _build_hf_references(
+        root,
+        diagnostic_mode=False,
+        reference_count=1,
+    )
+    primary = prepared["references"][0]
+    write_json(
+        root / "phase8_preparation.json",
+        {
+            "status": "PASS",
+            "mode": "phase8_only",
+            "prompt_id": primary["prompt_id"],
+            "prompt_token_count": len(primary["compressed_ids"]),
+            "expected_generated_ids": primary["new_ids"],
+            "expected_reference_positions": primary["positions"],
+            "source_sha": manifest.get("source_sha"),
+            "source_archive_sha256": manifest.get("source_archive_sha256"),
+            "engine": {
+                "max_num_seqs": 2,
+                "max_num_batched_tokens": 16,
+                "enable_chunked_prefill": True,
+            },
+        },
+    )
+
+    llm = None
+    try:
+        llm = _make_llm(
+            prepared["merged_dir"],
+            h_enabled=True,
+            max_model_len=512,
+            max_num_seqs=2,
+            max_num_batched_tokens=16,
+            enable_chunked_prefill=True,
+            gpu_memory_utilization=PREDICTIVE_GPU_MEMORY_UTILIZATION,
+        )
+        encoder_info = _install_encoders(llm, prepared["encoder_path"], root=root)
+        chunk_run = _run_request(
+            llm,
+            primary["compressed_ids"],
+            primary["payload"],
+            request_id="phase8-chunk",
+            root=root,
+            phase_name="phase_08_chunked_prefill",
+        )
+        phase8 = _phase8_report(chunk_run, primary)
+        phase8["source_sha"] = manifest.get("source_sha")
+        phase8["source_archive_sha256"] = manifest.get("source_archive_sha256")
+        phase8["encoder_memory"] = encoder_info
+        write_json(root / "phase_08_chunked_prefill.json", phase8)
+        manifest["phases"]["08"] = phase8["status"]
+        write_json(root / "run_manifest.json", manifest)
+        if phase8["status"] != "PASS":
+            raise RuntimeError(f"targeted phase 8 chunked prefill failed: {phase8}")
+    finally:
+        if llm is not None:
+            shutdown = shutdown_vllm_engine(llm)
+            del llm
+            _record_teardown(root, "phase8_chunk_llm", shutdown, cuda_after_collect())
+
+
 def main() -> None:
     root = _result_root()
-    manifest: dict[str, Any] = {"status": "RUNNING", "phases": {}}
+    phase8_only = os.environ.get("VLLM_PROOF_PHASE8_ONLY", "0") == "1"
+    manifest: dict[str, Any] = {
+        "status": "RUNNING",
+        "mode": "phase8_only" if phase8_only else "full",
+        "phases": {},
+    }
     try:
         import vllm
 
@@ -1627,8 +1817,18 @@ def main() -> None:
         diagnostic_mode = os.environ.get("VLLM_PROOF_DIAGNOSTIC_PARITY", "0") == "1"
         env = environment()
         env["diagnostic_parity"] = diagnostic_mode
+        env["phase8_only"] = phase8_only
+        manifest["source_sha"] = env.get("source_sha")
+        manifest["source_archive_sha256"] = env.get("source_archive_sha256")
         write_json(root / "environment.json", env)
         write_json(root / "run_manifest.json", manifest)
+
+        if phase8_only:
+            _run_phase8_only(root, manifest)
+            manifest["status"] = "PASS"
+            write_json(root / "run_manifest.json", manifest)
+            print("Targeted Phase 8 run completed successfully.", flush=True)
+            return
 
         early = phase_01_and_02(root)
         manifest["phases"].update(early)
@@ -1991,30 +2191,10 @@ def main() -> None:
             root=root,
             phase_name="phase_08_chunked_prefill",
         )
-        chunk_positions: list[int] = []
-        for forward in chunk_run["forwards"]:
-            if len(chunk_positions) >= len(primary["positions"]):
-                break
-            chunk_positions.extend(int(pos) for pos in forward)
-        chunk_positions = chunk_positions[: len(primary["positions"])]
-        prefill_trace = []
-        covered = 0
-        for step in chunk_run.get("position_trace") or []:
-            if covered >= len(primary["positions"]):
-                break
-            prefill_trace.append(step)
-            covered += len(step.get("positions") or [])
-        phase8 = {
-            "status": "PASS" if chunk_run["token_ids"] == primary["new_ids"] else "FAIL",
-            "chunk_ids": chunk_run["token_ids"],
-            "reference_ids": primary["new_ids"],
-            "chunk_positions": chunk_positions,
-            "reference_positions": primary["positions"],
-            "chunk_progress": prefill_trace,
-        }
-        if chunk_positions != primary["positions"]:
-            phase8["status"] = "FAIL"
+        phase8 = _phase8_report(chunk_run, primary)
         write_json(root / "phase_08_chunked_prefill.json", phase8)
+        manifest["phases"]["08"] = phase8["status"]
+        write_json(root / "run_manifest.json", manifest)
         chunk_shutdown = shutdown_vllm_engine(chunk_llm)
         del chunk_llm
         _record_teardown(root, "chunk_llm", chunk_shutdown, cuda_after_collect())

@@ -12,6 +12,22 @@ inputs are still:
 `phase_*.json` under `/kaggle/working/vllm_predictive_proof/` and stops on
 the first failed phase. It does not relaunch itself.
 
+Set `VLLM_PROOF_PHASE8_ONLY=1` to run the targeted chunked-prefill proof
+without executing Phases 1–7 or 9–10. It prepares one HF reference, runs the
+real 16-token-chunk Phase 8 request, and exits. The report records scheduler
+progress and request-scoped position snapshots at A–F: vLLM's physical batch
+positions, calculated semantic positions, returned model positions, the
+predictive wrapper, nested Llama model, and layer-0 RoPE. The run passes only
+when the target request reports progress `0, 16, 32`, every captured stage
+matches the reference positions, and generated token IDs match.
+
+Semantic RoPE positions are written to the model-state position buffer. The
+separate `input_batch.positions` tensor remains the physical position source
+for vLLM's cache bookkeeping. In `base_token_end` mode those two position
+sequences can differ. The current BTE history reconstruction copies token
+history from GPU to CPU in the proof path; this is correct but not yet the
+optimized decode implementation.
+
 The kernel bootstrap is `bootstrap_kaggle.py`. `kaggle kernels push` uploads
 only that script. The proof archive is the private dataset
 `elikearl/tokens-vllm-predictive-source` (`source.tar.gz` and

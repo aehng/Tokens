@@ -196,6 +196,54 @@ def engine_step_decision(step_index: int, max_steps: int, unfinished: bool) -> s
     return "continue"
 
 
+def request_prefill_trace(
+    position_trace: list[dict[str, Any]],
+    request_id: str,
+    prefill_token_count: int,
+) -> list[dict[str, Any]]:
+    """Select only prefill batches for one request, excluding prior and decode rows."""
+    selected = []
+    for event in position_trace:
+        if event.get("target_request_id") != request_id:
+            continue
+        target_rows = [
+            row
+            for row in event.get("requests", [])
+            if row.get("request_id") == request_id
+        ]
+        if not target_rows:
+            continue
+        if all(
+            int(row.get("num_computed_tokens", prefill_token_count))
+            >= prefill_token_count
+            for row in target_rows
+        ):
+            continue
+        selected.append(event)
+    return selected
+
+
+def position_values_for_stage(
+    position_trace: list[dict[str, Any]], stage: str
+) -> list[int]:
+    """Flatten the target-request values captured at one handoff stage."""
+    values: list[int] = []
+    source_keys = {
+        "A": "stock_input_batch_positions",
+        "B": "calculated_semantic_positions",
+        "C": "returned_positions",
+    }
+    for event in position_trace:
+        if stage in source_keys:
+            snapshot = event.get(source_keys[stage]) or {}
+            values.extend(int(value) for value in snapshot.get("target_values") or [])
+            continue
+        calls = (event.get("handoff") or {}).get(stage) or []
+        for call in calls:
+            values.extend(int(value) for value in call.get("target_values") or [])
+    return values
+
+
 def preemption_cycle(events: list[dict], request_id: str) -> bool:
     """True when ``request_id`` was added, removed, then added again."""
     seen_add = False
@@ -400,5 +448,3 @@ def compute_step_parity_metric(
         "top5_overlap": top5_overlap,
         "compared_vocab_width": ref.shape[-1],
     }
-
-

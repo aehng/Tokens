@@ -26,6 +26,79 @@ from tokens_vllm.warmup import (
 )
 
 
+class RequestScopedPositionTrace:
+    """Keep position diagnostics limited to one explicitly selected request."""
+
+    def __init__(self) -> None:
+        self.target_request_id: str | None = None
+        self.records: list[dict[str, Any]] = []
+        self.active_record: dict[str, Any] | None = None
+        self._sequence = 0
+
+    def begin(self, request_id: str) -> None:
+        self.target_request_id = str(request_id)
+        self.records.clear()
+        self.active_record = None
+        self._sequence = 0
+
+    def clear_active(self) -> None:
+        self.active_record = None
+
+    def capture(self, record: dict[str, Any]) -> dict[str, Any] | None:
+        self.active_record = None
+        target = self.target_request_id
+        request_ids = [str(req_id) for req_id in record.get("req_ids", [])]
+        if target is None or target not in request_ids:
+            return None
+        self._sequence += 1
+        record["target_request_id"] = target
+        record["trace_id"] = f"{target}:{self._sequence}"
+        self.records.append(record)
+        self.active_record = record
+        return record
+
+
+def position_tensor_snapshot(
+    tensor: torch.Tensor,
+    *,
+    target_slice: tuple[int, int] | None = None,
+) -> dict[str, Any]:
+    """Copy a position tensor immediately and retain its storage metadata."""
+    flat = tensor.detach().reshape(-1)
+    values = flat.to(device="cpu").tolist()
+    start, end = target_slice if target_slice is not None else (0, len(values))
+    return {
+        "values": values,
+        "target_values": values[start:end],
+        "target_slice": [int(start), int(end)],
+        "shape": [int(size) for size in tensor.shape],
+        "dtype": str(tensor.dtype),
+        "device": str(tensor.device),
+        "data_ptr": int(tensor.data_ptr()),
+    }
+
+
+def write_semantic_positions(
+    buffer: torch.Tensor,
+    semantic_positions: torch.Tensor,
+    *,
+    num_tokens: int,
+    num_tokens_after_padding: int,
+) -> torch.Tensor:
+    """Return the model-position buffer without changing vLLM's physical positions."""
+    if not 0 <= num_tokens <= num_tokens_after_padding <= buffer.numel():
+        raise ValueError("position buffer lengths are inconsistent")
+    semantic = semantic_positions.reshape(-1)
+    if semantic.numel() != num_tokens:
+        raise ValueError(
+            f"semantic position count {semantic.numel()} != num_tokens {num_tokens}"
+        )
+    buffer[:num_tokens].copy_(semantic)
+    if num_tokens_after_padding > num_tokens:
+        buffer[num_tokens:num_tokens_after_padding].zero_()
+    return buffer[:num_tokens_after_padding]
+
+
 class PredictiveModelState:
     """Filled in by ``_build_state`` once vLLM can be imported."""
 
@@ -78,7 +151,7 @@ def _build_state() -> None:
             self.setup_ms: dict[int, float] = {}
             self.admission_log: list[dict[str, Any]] = []
             self.last_positions: torch.Tensor | None = None
-            self.position_trace: list[dict[str, Any]] = []
+            self.position_trace = RequestScopedPositionTrace()
             self.position_mode = validate_position_mode(
                 getattr(model, "position_mode", "compressed")
             )
@@ -185,6 +258,7 @@ def _build_state() -> None:
             )
 
         def prepare_inputs(self, input_batch, req_states) -> dict[str, Any]:
+            self.position_trace.clear_active()
             req_ids = list(input_batch.req_ids)
             known = [req_id in self.req_id_to_index for req_id in req_ids]
             if not known or not all(known):
@@ -229,6 +303,8 @@ def _build_state() -> None:
             h_spans_by_req: dict[int, list[int]] = {}
             history_by_req: dict[int, list[int]] = {}
             if use_spans:
+                # TODO: replace this proof-path GPU-to-CPU history replay with
+                # an optimized request-local span prefix structure for decode.
                 token_table = req_states.all_token_ids.gpu
                 for slot, count in num_computed.items():
                     h_spans_by_req[slot] = [
@@ -251,20 +327,63 @@ def _build_state() -> None:
                 use_hypertoken_spans=use_spans,
             )
             positions = torch.tensor(positions_list, dtype=torch.int64, device=self.device)
-            self.positions_buffer[:n].copy_(positions)
-            if n_pad > n:
-                self.positions_buffer[n:n_pad].zero_()
-            self.last_positions = self.positions_buffer[:n_pad]
-            self.position_trace.append(
-                {
-                    "requests": [
-                        {"slot": slot, "num_computed": count}
-                        for slot, count in num_computed.items()
-                    ],
-                    "positions": positions_list,
-                }
+            returned_positions = write_semantic_positions(
+                self.positions_buffer,
+                positions,
+                num_tokens=n,
+                num_tokens_after_padding=n_pad,
             )
-            return {"positions": self.positions_buffer[:n_pad]}
+            self.last_positions = returned_positions
+            query = input_batch.query_start_loc_np
+            scheduled = input_batch.num_scheduled_tokens
+            request_rows = []
+            target_slice = None
+            for row, req_id in enumerate(req_ids):
+                slot = int(mapping[row])
+                start = int(query[row])
+                end = int(query[row + 1])
+                request_rows.append(
+                    {
+                        "request_id": str(req_id),
+                        "slot": slot,
+                        "num_computed_tokens": int(computed_np[row]),
+                        "num_scheduled_tokens": int(scheduled[row]),
+                        "query_token_slice": [start, end],
+                    }
+                )
+                if req_id == self.position_trace.target_request_id:
+                    target_slice = (start, end)
+
+            if target_slice is not None:
+                trace_entry = {
+                    "req_ids": [str(req_id) for req_id in req_ids],
+                    "slots": [int(mapping[row]) for row in range(num_reqs)],
+                    "requests": request_rows,
+                    "target_query_slice": [int(target_slice[0]), int(target_slice[1])],
+                    "input_batch_num_tokens": n,
+                    "input_batch_num_tokens_after_padding": n_pad,
+                    "target_token_ids": [
+                        int(token)
+                        for token in (
+                            logical[target_slice[0] : target_slice[1]]
+                            .detach()
+                            .cpu()
+                            .tolist()
+                        )
+                    ],
+                    "stock_input_batch_positions": position_tensor_snapshot(
+                        input_batch.positions[:n], target_slice=target_slice
+                    ),
+                    "calculated_semantic_positions": position_tensor_snapshot(
+                        positions, target_slice=target_slice
+                    ),
+                    "returned_positions": position_tensor_snapshot(
+                        returned_positions, target_slice=target_slice
+                    ),
+                    "position_mode": self.position_mode,
+                }
+                self.position_trace.capture(trace_entry)
+            return {"positions": returned_positions}
 
         def prepare_dummy_inputs(self, num_reqs: int, num_tokens: int) -> dict[str, Any]:
             del num_reqs, num_tokens
