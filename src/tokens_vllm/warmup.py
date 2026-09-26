@@ -62,6 +62,30 @@ def clear_predictive_slot(state, req_index: int) -> None:
         state.pending_physical_advance[req_index] = 0
 
 
+def predictive_slot_clear_report(state, req_index: int) -> dict:
+    """Audit that every predictive tensor and activity flag is clear.
+
+    This performs device reductions and is intended for explicitly enabled proof
+    instrumentation only; ordinary request admission should not call it.
+    """
+    checks = {
+        "h_spans_clear": bool(torch.count_nonzero(state.h_spans[req_index]).item() == 0),
+        "h_input_clear": bool(torch.count_nonzero(state.h_input[req_index]).item() == 0),
+        "h_output_clear": bool(torch.count_nonzero(state.h_output[req_index]).item() == 0),
+        "h_active_false": not bool(state.h_active[req_index].item()),
+    }
+    for name in (
+        "semantic_offset",
+        "physical_accounted",
+        "pending_semantic_advance",
+        "pending_physical_advance",
+    ):
+        tensor = getattr(state, name, None)
+        if tensor is not None:
+            checks[f"{name}_zero"] = bool(torch.count_nonzero(tensor[req_index]).item() == 0)
+    return {"valid": all(checks.values()), "checks": checks}
+
+
 def mask_inactive_h_logits(h_logits: torch.Tensor, active: torch.Tensor) -> torch.Tensor:
     """Keep H logits for active rows and set inactive rows to -inf."""
     gate = active.to(dtype=torch.bool).unsqueeze(-1)

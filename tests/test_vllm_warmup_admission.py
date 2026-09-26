@@ -78,7 +78,10 @@ def test_removal_clears_h_active():
     clear_predictive_slot(state, 0)
     assert state.h_active[0].item() is False
     assert torch.count_nonzero(state.h_spans[0]) == 0
+    assert torch.count_nonzero(state.h_input[0]) == 0
+    assert torch.count_nonzero(state.h_output[0]) == 0
     assert int(state.semantic_offset[0]) == 0
+    assert int(state.physical_accounted[0]) == 0
     assert int(state.pending_semantic_advance[0]) == 0
     assert int(state.pending_physical_advance[0]) == 0
     assert state.h_active[1].item() is True

@@ -1,5 +1,6 @@
 """CPU checks for the logical vocabulary and semantic-position contract."""
 
+import hashlib
 from types import SimpleNamespace
 
 import torch
@@ -39,6 +40,7 @@ from tokens_vllm.proof_harness import (
     preempted_request_ids,
     position_values_for_stage,
     request_prefill_trace,
+    resume_position_contract_report,
     semantic_kv_rope_contract_report,
     two_codebook_isolation_passes,
 )
@@ -195,6 +197,27 @@ def test_request_scoped_position_trace_resets_and_rejects_other_requests():
     assert target["target_request_id"] == "phase8-chunk"
     assert target["trace_id"] == "phase8-chunk:1"
     assert trace.records == [target]
+
+
+def test_request_scoped_position_trace_captures_both_potential_victims():
+    trace = RequestScopedPositionTrace()
+    trace.begin(("pre-A", "pre-B"))
+    captured = trace.capture(
+        {
+            "req_ids": ["pre-A", "pre-B"],
+            "request_snapshots": {
+                "pre-A": {"slot": 1, "target_query_slice": [0, 2]},
+                "pre-B": {"slot": 3, "target_query_slice": [2, 5]},
+            },
+        }
+    )
+    assert captured["target_request_id"] == "pre-A"
+    assert trace.active_record is None
+    assert [record["target_request_id"] for record in trace.active_records] == [
+        "pre-A",
+        "pre-B",
+    ]
+    assert [record["slot"] for record in trace.records] == [1, 3]
 
 
 def test_semantic_model_positions_do_not_mutate_physical_kv_positions():
@@ -723,41 +746,210 @@ def test_preemption_cycle_requires_add_remove_readd():
     assert preempted_request_ids(events) == ["pre-A"]
 
 
-def test_preemption_rebuild_report_records_codebook_and_semantic_state():
+def _phase9_token_hash(token_ids):
+    payload = b"".join(int(token).to_bytes(8, "little", signed=True) for token in token_ids)
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _phase9_rebuild_events(*, resumed_count=0, dirty_resumed_slot=False, changes=None):
+    identity = {
+        "h_enabled": True,
+        "position_mode": "compressed",
+        "sha256": "codebook-sha",
+        "h_input_hash": "h-input-hash",
+        "h_output_hash": "h-output-hash",
+        "spans": [1, 3],
+        "h_active_after_synthesis": True,
+    }
     initial = {
         "event": "add",
         "req_id": "pre-A",
         "req_index": 2,
-        "h_enabled": True,
-        "position_mode": "compressed",
         "was_clear": True,
         "already": 0,
         "semantic_offset": 0,
-        "sha256": "codebook-sha",
-        "h_input_hash": "h-input-hash",
-        "spans": [1, 3],
+        "admission_generation": 1,
+        "prefill_token_count": 32,
+        "prefill_token_ids_sha256": _phase9_token_hash(range(32)),
+        "slot_clear_before_synthesis": {"valid": True},
+        **identity,
     }
     resumed = {
         **initial,
-        "was_clear": True,
-        "already": 20,
-        "semantic_offset": 20,
+        "already": resumed_count,
+        "semantic_offset": resumed_count,
+        "admission_generation": 2,
+        "was_clear": not dirty_resumed_slot,
+        "slot_clear_before_synthesis": {"valid": not dirty_resumed_slot},
     }
+    for field, value in (changes or {}).items():
+        resumed[field] = value
     events = [
         initial,
-        {"event": "remove", "req_id": "pre-A", "req_index": 2},
+        {
+            "event": "remove",
+            "req_id": "pre-A",
+            "req_index": 2,
+            "admission_generation": 1,
+            "slot_clear_after_remove": {"valid": True},
+        },
         resumed,
     ]
+    return events
 
-    report = preemption_rebuild_report(events, "pre-A")
+
+def _phase9_resume_trace(*, chunks=((0, 16), (16, 16)), generation=2, corrupt_stage=None):
+    trace = []
+    for computed, scheduled in chunks:
+        expected = list(range(computed, computed + scheduled))
+        stage_positions = list(expected)
+        event = {
+            "target_request_id": "pre-A",
+            "request_id": "pre-A",
+            "admission_generation": generation,
+            "slot": 2,
+            "num_computed_tokens_on_batch": computed,
+            "num_computed_tokens_source": "input_batch.num_computed_tokens_np[row]",
+            "target_query_slice": [0, scheduled],
+            "target_token_ids": list(range(computed, computed + scheduled)),
+            "position_mode": "compressed",
+            "requests": [
+                {
+                    "request_id": "pre-A",
+                    "slot": 2,
+                    "num_computed_tokens": computed,
+                    "num_computed_tokens_source": "input_batch.num_computed_tokens_np[row]",
+                    "num_scheduled_tokens": scheduled,
+                    "query_token_slice": [0, scheduled],
+                    "admission_generation": generation,
+                }
+            ],
+            "stock_input_batch_positions": {"target_values": list(stage_positions)},
+            "calculated_semantic_positions": {"target_values": list(stage_positions)},
+            "returned_positions": {"target_values": list(stage_positions)},
+            "handoff": {
+                stage: [{"target_values": list(stage_positions)}]
+                for stage in ("D", "E", "F")
+            },
+        }
+        if corrupt_stage == "restart" and computed > 0:
+            event["stock_input_batch_positions"]["target_values"] = list(range(scheduled))
+            event["calculated_semantic_positions"]["target_values"] = list(range(scheduled))
+            event["returned_positions"]["target_values"] = list(range(scheduled))
+            event["handoff"] = {
+                stage: [{"target_values": list(range(scheduled))}]
+                for stage in ("D", "E", "F")
+            }
+        trace.append(event)
+    return trace
+
+
+def _phase9_position_report(*, chunks=((0, 16), (16, 16)), expected_count=0, corrupt_stage=None):
+    return resume_position_contract_report(
+        _phase9_resume_trace(chunks=chunks, corrupt_stage=corrupt_stage),
+        "pre-A",
+        admission_generation=2,
+        prefill_token_count=32,
+        position_mode="compressed",
+        expected_readmission_count=expected_count,
+        expected_prefill_token_ids_sha256=_phase9_token_hash(range(32)) if expected_count == 0 else None,
+    )
+
+
+def test_preemption_rebuild_report_accepts_zero_count_recompute_resume():
+    events = _phase9_rebuild_events(resumed_count=0)
+    position_resume = _phase9_position_report()
+
+    report = preemption_rebuild_report(
+        events,
+        "pre-A",
+        scheduler_preemption_count=1,
+        position_resume=position_resume,
+        trajectory_match=True,
+        expected_readmission_count=0,
+    )
 
     assert report["add_remove_add_cycle"]
     assert report["codebook_identity_recorded"]
-    assert report["codebook_state_matches"]
-    assert report["semantic_position_state"]["num_computed_tokens_on_readmission"] == 20
-    assert report["semantic_position_state"]["reconstructed_semantic_offset"] == 20
+    assert report["resume_strategy"] == "recompute_from_zero"
+    assert report["num_computed_tokens_on_readmission"] == 0
+    assert report["predictive_rebuild"]["valid"]
     assert report["resumed_slot_was_clear"]
+    assert report["position_resume"]["trace_complete"]
+    assert report["position_resume"]["all_model_positions_match_expected"]
     assert report["state_rebuilt"]
+
+
+def test_preemption_rebuild_rejects_predictive_identity_mismatch():
+    for field, bad_value in (
+        ("sha256", "different-codebook"),
+        ("h_input_hash", "different-input"),
+        ("h_output_hash", "different-output"),
+        ("spans", [1, 4]),
+    ):
+        report = preemption_rebuild_report(
+            _phase9_rebuild_events(resumed_count=0, changes={field: bad_value}),
+            "pre-A",
+            scheduler_preemption_count=1,
+            position_resume=_phase9_position_report(),
+            trajectory_match=True,
+            expected_readmission_count=0,
+        )
+        assert not report["state_rebuilt"], field
+
+
+def test_preemption_rebuild_rejects_dirty_resumed_slot():
+    report = preemption_rebuild_report(
+        _phase9_rebuild_events(resumed_count=0, dirty_resumed_slot=True),
+        "pre-A",
+        scheduler_preemption_count=1,
+        position_resume=_phase9_position_report(),
+        trajectory_match=True,
+        expected_readmission_count=0,
+    )
+    assert not report["slot_clear"]["valid"]
+    assert not report["state_rebuilt"]
+
+
+def test_preemption_rebuild_requires_scheduler_preemption_count():
+    report = preemption_rebuild_report(
+        _phase9_rebuild_events(resumed_count=0),
+        "pre-A",
+        scheduler_preemption_count=0,
+        position_resume=_phase9_position_report(),
+        trajectory_match=True,
+        expected_readmission_count=0,
+    )
+    assert not report["scheduler_preemption_confirmed"]
+    assert not report["state_rebuilt"]
+
+
+def test_resume_position_contract_accepts_contiguous_recompute_chunks():
+    report = _phase9_position_report()
+    assert report["resume_strategy"] == "recompute_from_zero"
+    assert report["valid"]
+    assert report["trace_complete"]
+    assert report["all_model_positions_match_expected"]
+
+
+def test_resume_position_contract_rejects_positions_restarting_after_first_chunk():
+    report = _phase9_position_report(corrupt_stage="restart")
+    assert not report["valid"]
+    assert not report["all_model_positions_match_expected"]
+
+
+def test_resume_position_contract_represents_cached_prefix_origin():
+    report = resume_position_contract_report(
+        _phase9_resume_trace(chunks=((16, 16),)),
+        "pre-A",
+        admission_generation=2,
+        prefill_token_count=32,
+        position_mode="compressed",
+        expected_readmission_count=None,
+    )
+    assert report["resume_strategy"] == "cached_prefix"
+    assert report["num_computed_tokens_on_readmission"] == 16
+    assert report["valid"]
 
 
 def test_two_codebook_isolation_requires_distinct_matching_rows():

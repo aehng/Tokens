@@ -6,6 +6,7 @@ pool and to stop a manual engine loop.
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -309,14 +310,220 @@ def two_codebook_isolation_passes(
     return bool(a_match and b_match and row0_match and row1_match and rows_differ)
 
 
-def preemption_rebuild_report(events: list[dict], request_id: str) -> dict[str, Any]:
-    """Summarize whether preemption re-admitted the same predictive state."""
+def _int_list(values: Any) -> list[int]:
+    if not isinstance(values, (list, tuple)):
+        return []
+    return [int(value) for value in values]
+
+
+def _token_ids_sha256(token_ids: list[int]) -> str:
+    packed = b"".join(int(token).to_bytes(8, "little", signed=True) for token in token_ids)
+    return hashlib.sha256(packed).hexdigest()
+
+
+def resume_position_contract_report(
+    position_trace: list[dict[str, Any]],
+    request_id: str,
+    *,
+    admission_generation: int | None,
+    prefill_token_count: int,
+    position_mode: str,
+    expected_readmission_count: int | None = None,
+    expected_prefill_token_ids_sha256: str | None = None,
+) -> dict[str, Any]:
+    """Prove prefill positions follow the exact scheduler row after readmission.
+
+    This Phase 9 contract is for compressed positions. Its expected model and
+    RoPE positions are the scheduler's physical prefill interval. A future
+    cached-prefix admission can start at a positive computed-token count.
+    """
+    prompt_count = int(prefill_token_count)
+    failures: list[str] = []
+    if admission_generation is None:
+        failures.append("resumed admission generation is missing")
+    req_events = [
+        event
+        for event in position_trace
+        if event.get("target_request_id") == request_id
+        and event.get("admission_generation") == admission_generation
+    ]
+    batches: list[dict[str, Any]] = []
+    for event in req_events:
+        rows = [
+            row for row in event.get("requests", [])
+            if row.get("request_id") == request_id
+        ]
+        if len(rows) != 1:
+            failures.append("trace row is not uniquely bound to request_id")
+            continue
+        row = rows[0]
+        computed = int(row.get("num_computed_tokens", -1))
+        scheduled = int(row.get("num_scheduled_tokens", -1))
+        if computed < 0 or scheduled < 1:
+            failures.append("scheduler computed/scheduled counts are missing or invalid")
+            continue
+        if computed >= prompt_count:
+            # Decode records are not part of prompt recomputation.
+            continue
+        expected = list(range(computed, computed + scheduled))
+        query_slice = _int_list(row.get("query_token_slice"))
+        token_ids = _int_list(event.get("target_token_ids"))
+        checks = {
+            "request_id_bound": event.get("request_id") == request_id,
+            "generation_bound": event.get("admission_generation") == admission_generation,
+            "slot_bound": event.get("slot") == row.get("slot"),
+            "row_generation_bound": row.get("admission_generation") == admission_generation,
+            "scheduler_count_matches_batch_snapshot": (
+                event.get("num_computed_tokens_on_batch") == computed
+            ),
+            "scheduler_source_bound": (
+                row.get("num_computed_tokens_source")
+                == "input_batch.num_computed_tokens_np[row]"
+                and event.get("num_computed_tokens_source")
+                == "input_batch.num_computed_tokens_np[row]"
+            ),
+            "query_slice_matches_scheduled": (
+                len(query_slice) == 2
+                and query_slice[1] - query_slice[0] == scheduled
+                and event.get("target_query_slice") == query_slice
+            ),
+            "target_token_count_matches_scheduled": len(token_ids) == scheduled,
+            "trace_position_mode_matches_admission": event.get("position_mode") == position_mode,
+            "scheduled_interval_stays_inside_prefill": computed + scheduled <= prompt_count,
+        }
+        if not all(checks.values()):
+            failures.extend(name for name, ok in checks.items() if not ok)
+
+        stage_values: dict[str, list[int]] = {}
+        for stage, key in (
+            ("A", "stock_input_batch_positions"),
+            ("B", "calculated_semantic_positions"),
+            ("C", "returned_positions"),
+        ):
+            stage_values[stage] = _int_list((event.get(key) or {}).get("target_values"))
+        for stage in ("D", "E", "F"):
+            calls = (event.get("handoff") or {}).get(stage) or []
+            stage_values[stage] = [
+                int(value)
+                for call in calls
+                for value in (call.get("target_values") or [])
+            ]
+        stage_matches = {
+            stage: values == expected for stage, values in stage_values.items()
+        }
+        if position_mode != "compressed":
+            failures.append("Phase 9 scheduler-position proof requires compressed mode")
+        if not all(stage_matches.values()):
+            failures.extend(f"stage_{stage}_positions_do_not_match_scheduler" for stage, ok in stage_matches.items() if not ok)
+        batches.append(
+            {
+                "num_computed_tokens": computed,
+                "num_scheduled_tokens": scheduled,
+                "expected_positions": expected,
+                "stage_positions": stage_values,
+                "stage_matches": stage_matches,
+                "checks": checks,
+            }
+        )
+
+    readmission_count = (
+        int(batches[0]["num_computed_tokens"]) if batches else None
+    )
+    resume_strategy = (
+        "recompute_from_zero"
+        if readmission_count == 0
+        else "cached_prefix"
+        if readmission_count is not None and readmission_count > 0
+        else None
+    )
+    trace_complete = False
+    trace_token_ids: list[int] = []
+    cursor = readmission_count
+    if batches and cursor is not None:
+        for batch in batches:
+            if batch["num_computed_tokens"] != cursor:
+                failures.append("scheduler prefill chunks are not contiguous")
+            cursor = batch["num_computed_tokens"] + batch["num_scheduled_tokens"]
+        trace_complete = cursor == prompt_count
+        if not trace_complete:
+            failures.append("resumed prefill trace does not reach full prompt length")
+        for event in req_events:
+            rows = [row for row in event.get("requests", []) if row.get("request_id") == request_id]
+            if rows and int(rows[0].get("num_computed_tokens", -1)) < prompt_count:
+                trace_token_ids.extend(_int_list(event.get("target_token_ids")))
+    if expected_readmission_count is not None and readmission_count != int(expected_readmission_count):
+        failures.append("readmission scheduler count differs from configured expectation")
+    if readmission_count is None:
+        failures.append("no resumed prefill position trace was captured")
+    if (
+        expected_prefill_token_ids_sha256
+        and readmission_count == 0
+        and _token_ids_sha256(trace_token_ids) != expected_prefill_token_ids_sha256
+    ):
+        failures.append("zero-count recompute trace does not cover the admitted token history")
+
+    stage_names = ("A", "B", "C", "D", "E", "F")
+    all_positions_match = bool(batches) and all(
+        all(batch["stage_matches"].get(stage) is True for stage in stage_names)
+        for batch in batches
+    )
+    return {
+        "resume_strategy": resume_strategy,
+        "num_computed_tokens_on_readmission": readmission_count,
+        "source": "scheduler num_computed_tokens",
+        "trace_complete": trace_complete,
+        "all_model_positions_match_expected": all_positions_match,
+        "prefill_token_history_hash_match": (
+            expected_prefill_token_ids_sha256 is None
+            or readmission_count != 0
+            or _token_ids_sha256(trace_token_ids) == expected_prefill_token_ids_sha256
+        ),
+        "batches": batches,
+        "failures": sorted(set(failures)),
+        "valid": bool(
+            trace_complete
+            and all_positions_match
+            and not failures
+            and (expected_readmission_count is None or readmission_count == int(expected_readmission_count))
+        ),
+    }
+
+
+def preemption_rebuild_report(
+    events: list[dict],
+    request_id: str,
+    *,
+    scheduler_preemption_count: int = 0,
+    position_resume: dict[str, Any] | None = None,
+    trajectory_match: bool = False,
+    expected_readmission_count: int | None = None,
+) -> dict[str, Any]:
+    """Prove a preempted request rebuilt predictive state and replayed positions."""
     request_events = [event for event in events if event.get("req_id") == request_id]
     additions = [event for event in request_events if event.get("event") == "add"]
     cycle = preemption_cycle(events, request_id)
     initial = additions[0] if additions else None
-    resumed = additions[-1] if cycle and len(additions) >= 2 else None
-    identity_fields = ("h_enabled", "position_mode", "sha256", "h_input_hash", "spans")
+    resumed = additions[1] if cycle and len(additions) >= 2 else None
+    removal = None
+    if initial is not None and resumed is not None:
+        initial_index = events.index(initial)
+        resumed_index = events.index(resumed)
+        removal = next(
+            (
+                event for event in events[initial_index + 1 : resumed_index]
+                if event.get("req_id") == request_id and event.get("event") == "remove"
+            ),
+            None,
+        )
+    identity_fields = (
+        "h_enabled",
+        "position_mode",
+        "sha256",
+        "h_input_hash",
+        "h_output_hash",
+        "spans",
+        "h_active_after_synthesis",
+    )
     identity_recorded = bool(
         initial
         and resumed
@@ -325,40 +532,89 @@ def preemption_rebuild_report(events: list[dict], request_id: str) -> dict[str, 
             for field in identity_fields
         )
     )
-    codebook_state_matches = bool(
-        identity_recorded
-        and all(initial[field] == resumed[field] for field in identity_fields)
+    predictive_checks = {
+        "codebook_sha_match": bool(identity_recorded and initial["sha256"] == resumed["sha256"]),
+        "spans_match": bool(identity_recorded and initial["spans"] == resumed["spans"]),
+        "h_input_match": bool(identity_recorded and initial["h_input_hash"] == resumed["h_input_hash"]),
+        "h_output_match": bool(identity_recorded and initial["h_output_hash"] == resumed["h_output_hash"]),
+        "position_mode_match": bool(identity_recorded and initial["position_mode"] == resumed["position_mode"]),
+        "h_enabled": bool(
+            identity_recorded
+            and initial["h_enabled"] is True
+            and resumed["h_enabled"] is True
+        ),
+        "h_active": bool(
+            identity_recorded
+            and initial["h_active_after_synthesis"] is True
+            and resumed["h_active_after_synthesis"] is True
+        ),
+    }
+    predictive_rebuild_valid = all(predictive_checks.values())
+    initial_clear = bool(
+        initial
+        and initial.get("slot_clear_before_synthesis", {}).get("valid") is True
     )
-    semantic_state_recorded = bool(
+    removal_clear = bool(
+        removal
+        and removal.get("slot_clear_after_remove", {}).get("valid") is True
+    )
+    resumed_clear = bool(
         resumed
-        and resumed.get("position_mode") is not None
-        and resumed.get("already") is not None
-        and int(resumed.get("already", 0)) > 0
-        and resumed.get("semantic_offset") is not None
+        and resumed.get("slot_clear_before_synthesis", {}).get("valid") is True
     )
+    slot_clear = {
+        "valid": bool(initial_clear and removal_clear and resumed_clear),
+        "initial_admission_clear": initial_clear,
+        "clear_after_remove": removal_clear,
+        "clear_before_resynthesis": resumed_clear,
+        "resumed_slot_was_clear": bool(resumed and resumed.get("was_clear") is True),
+    }
+    already = int(resumed.get("already", -1)) if resumed else None
+    resume_strategy = (
+        "recompute_from_zero"
+        if already == 0
+        else "cached_prefix"
+        if already is not None and already > 0
+        else None
+    )
+    readmission_count_valid = bool(
+        already is not None
+        and already >= 0
+        and (expected_readmission_count is None or already == int(expected_readmission_count))
+        and position_resume is not None
+        and position_resume.get("num_computed_tokens_on_readmission") == already
+    )
+    scheduler_confirmed = int(scheduler_preemption_count) > 0
+    position_valid = bool(position_resume and position_resume.get("valid") is True)
     state_rebuilt = bool(
-        cycle
-        and codebook_state_matches
-        and semantic_state_recorded
-        and resumed.get("was_clear") is True
-    ) if resumed else False
+        scheduler_confirmed
+        and cycle
+        and slot_clear["valid"]
+        and predictive_rebuild_valid
+        and readmission_count_valid
+        and position_valid
+        and trajectory_match
+    )
     return {
         "request_id": request_id,
+        "resume_strategy": resume_strategy,
+        "num_computed_tokens_on_readmission": already,
+        "expected_readmission_count": expected_readmission_count,
+        "scheduler_preemption_count": int(scheduler_preemption_count),
+        "scheduler_preemption_confirmed": scheduler_confirmed,
         "add_remove_add_cycle": cycle,
         "admission_events": request_events,
         "initial_add": initial,
         "resumed_add": resumed,
+        "remove_event": removal,
         "codebook_identity_fields": list(identity_fields),
         "codebook_identity_recorded": identity_recorded,
-        "codebook_state_matches": codebook_state_matches,
-        "semantic_position_state": {
-            "position_mode": resumed.get("position_mode") if resumed else None,
-            "num_computed_tokens_on_readmission": resumed.get("already") if resumed else None,
-            "reconstructed_semantic_offset": resumed.get("semantic_offset") if resumed else None,
-            "prepare_inputs_position_source": "scheduler num_computed_tokens",
-        },
-        "semantic_state_recorded": semantic_state_recorded,
-        "resumed_slot_was_clear": bool(resumed and resumed.get("was_clear") is True),
+        "predictive_rebuild": {**predictive_checks, "valid": predictive_rebuild_valid},
+        "slot_clear": slot_clear,
+        "resumed_slot_was_clear": slot_clear["resumed_slot_was_clear"],
+        "position_resume": position_resume,
+        "readmission_count_valid": readmission_count_valid,
+        "trajectory_match": bool(trajectory_match),
         "state_rebuilt": state_rebuilt,
     }
 

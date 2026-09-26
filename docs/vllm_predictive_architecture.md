@@ -337,47 +337,45 @@ of this proof; a later API can put one JSON string in that field.
 It builds the padded codebook, runs the existing input hyperencoder
 once and the existing output hyperencoder once, and writes
 `h_input[req_index]`, `h_output[req_index]`, and `h_spans[req_index]`.
-It stores the codebook hash and sets the semantic offset from the
-logical token history on the new request (zero for a fresh prompt,
-reconstructed after preemption).
+It stores the codebook hash. The legacy `semantic_offset`,
+`physical_accounted`, `pending_semantic_advance`, and
+`pending_physical_advance` buffers remain for compatibility and cleanup
+audits, but they are not authoritative for RoPE progression. In
+particular, a zero `semantic_offset` on preemption readmission is valid.
 
 Tensor-parallel size is 1, so the encoders read the full physical
 embedding and LM head. Setup time is recorded for time-to-first-token
 accounting. The encoders do not run again during decode.
 
-`remove_request` invalidates that slot. The next `add_request` that
-receives the same `req_index` overwrites every H vector, span, hash,
-and semantic counter before the new request runs.
+`remove_request` clears that slot's H vectors, spans, activity flag, and
+legacy counters. The next `add_request` that receives the same `req_index`
+rebuilds the codebook H state before the new request runs.
 
 ### Positions
 
-For each scheduled logical token:
+`prepare_inputs` reads each request's `input_batch.num_computed_tokens_np`
+row from the current vLLM scheduler batch. That count is the position
+origin. In compressed mode, model positions are the contiguous interval
+from that origin for the scheduled tokens. In `base_token_end` mode, the
+state replays the logical history up to the scheduler count and rebuilds
+the semantic origin from the current H spans, then advances by each
+token's span. A base or shifted-tail id has span 1; a hypertoken has
+`h_spans[req_idx, h_slot]`.
 
-- a base or shifted-tail id has span 1
-- a hypertoken has span `h_spans[req_idx, h_slot]`
+vLLM owns physical KV progress and supplies physical batch positions.
+The predictive position contract supplies model/RoPE positions. They are
+equal in compressed mode and can differ in `base_token_end` mode. Semantic
+positions are written to the model-state position buffer; they are not
+written into vLLM's physical KV addressing state.
 
-```
-semantic_position =
-    semantic_offset[req] + cumsum(spans in this request chunk) - 1
-```
-
-`prepare_inputs` writes `pending_semantic_advance` and
-`pending_physical_advance` and returns positions from the current
-offset plus the pending spans. It does not update `semantic_offset`.
-
-`postprocess_state` commits:
-
-```
-semantic_offset += pending_semantic_advance
-physical_accounted += pending_physical_advance
-```
-
-and then clears the pending values. A failed or retried forward does
-not double-advance.
-
-On resume, the offset is the sum of spans over the full logical history
-before the tokens that this forward will consume. That replay uses the
-rebuilt codebook and does not depend on the discarded GPU state.
+The legacy shadow counters listed above are not read by `prepare_inputs`
+to determine model positions and are not committed by `postprocess_state`.
+`postprocess_state` is intentionally a no-op for position progression.
+After preemption, vLLM 0.30 can reset `num_computed_tokens` to zero,
+discard the KV blocks, and re-admit the request with its full logical
+history. With prefix caching disabled, the worker rebuilds H state and
+re-prefills that history at positions `0, 1, 2, ...`; no pre-preemption
+shadow offset is preserved or required.
 
 ### RoPE and context length
 

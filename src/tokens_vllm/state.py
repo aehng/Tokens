@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import time
-from typing import Any
+from typing import Any, Sequence
 
 import numpy as np
 import torch
@@ -23,39 +23,58 @@ from tokens_vllm.warmup import (
     admission_kind,
     clear_predictive_slot,
     prepare_warmup_slot,
+    predictive_slot_clear_report,
 )
 
 
 class RequestScopedPositionTrace:
-    """Keep position diagnostics limited to one explicitly selected request."""
+    """Keep diagnostics limited to explicitly selected request IDs."""
 
     def __init__(self) -> None:
         self.target_request_id: str | None = None
+        self.target_request_ids: tuple[str, ...] = ()
         self.records: list[dict[str, Any]] = []
         self.active_record: dict[str, Any] | None = None
-        self._sequence = 0
+        self.active_records: list[dict[str, Any]] = []
+        self._sequences: dict[str, int] = {}
 
-    def begin(self, request_id: str) -> None:
-        self.target_request_id = str(request_id)
+    def begin(self, request_id: str | Sequence[str]) -> None:
+        request_ids = (request_id,) if isinstance(request_id, str) else tuple(request_id)
+        self.target_request_ids = tuple(dict.fromkeys(str(item) for item in request_ids))
+        self.target_request_id = (
+            self.target_request_ids[0] if len(self.target_request_ids) == 1 else None
+        )
         self.records.clear()
-        self.active_record = None
-        self._sequence = 0
+        self.clear_active()
+        self._sequences = {item: 0 for item in self.target_request_ids}
 
     def clear_active(self) -> None:
         self.active_record = None
+        self.active_records = []
 
     def capture(self, record: dict[str, Any]) -> dict[str, Any] | None:
-        self.active_record = None
-        target = self.target_request_id
+        self.clear_active()
         request_ids = [str(req_id) for req_id in record.get("req_ids", [])]
-        if target is None or target not in request_ids:
+        targets = [
+            request_id
+            for request_id in self.target_request_ids
+            if request_id in request_ids
+        ]
+        if not targets:
             return None
-        self._sequence += 1
-        record["target_request_id"] = target
-        record["trace_id"] = f"{target}:{self._sequence}"
-        self.records.append(record)
-        self.active_record = record
-        return record
+        snapshots = record.get("request_snapshots") or {}
+        captured = []
+        for target in targets:
+            event = {key: value for key, value in record.items() if key != "request_snapshots"}
+            event.update(snapshots.get(target) or {})
+            self._sequences[target] = self._sequences.get(target, 0) + 1
+            event["target_request_id"] = target
+            event["trace_id"] = f"{target}:{self._sequences[target]}"
+            self.records.append(event)
+            captured.append(event)
+        self.active_records = captured
+        self.active_record = captured[0] if len(captured) == 1 else None
+        return captured[0]
 
 
 def position_tensor_snapshot(
@@ -123,6 +142,8 @@ def _build_state() -> None:
                 self.max_num_reqs, CODEBOOK_SIZE, dtype=torch.int64, device=device
             )
             self.h_active = torch.zeros(self.max_num_reqs, dtype=torch.bool, device=device)
+            # Legacy compatibility/audit fields. prepare_inputs derives all
+            # model positions from the scheduler batch, never from these values.
             self.semantic_offset = torch.zeros(
                 self.max_num_reqs, dtype=torch.int64, device=device
             )
@@ -150,6 +171,9 @@ def _build_state() -> None:
             self.codebook_sha: dict[int, str] = {}
             self.setup_ms: dict[int, float] = {}
             self.admission_log: list[dict[str, Any]] = []
+            self.admission_generations: dict[str, int] = {}
+            self.current_admission_generation: dict[str, int] = {}
+            self.proof_audit_requests: set[str] = set()
             self.last_positions: torch.Tensor | None = None
             self.position_trace = RequestScopedPositionTrace()
             self.position_mode = validate_position_mode(
@@ -169,8 +193,24 @@ def _build_state() -> None:
             extra = dict(getattr(sampling, "extra_args", None) or {})
             history = list(new_req_data.prefill_token_ids or [])
             already = int(new_req_data.num_computed_tokens or 0)
-            # Setup check only. The decode loop does not read this flag.
-            was_clear = bool(torch.count_nonzero(self.h_spans[req_index]).item() == 0)
+            generation = self.admission_generations.get(req_id, 0) + 1
+            self.admission_generations[req_id] = generation
+            self.current_admission_generation[req_id] = generation
+            proof_audit = bool(extra.get("tokens_vllm_proof_audit", False))
+            if proof_audit:
+                self.proof_audit_requests.add(req_id)
+            else:
+                self.proof_audit_requests.discard(req_id)
+            # The full slot audit is explicitly enabled only by the proof
+            # harness; ordinary admission retains its existing spans-only check.
+            slot_clear = (
+                predictive_slot_clear_report(self, req_index) if proof_audit else None
+            )
+            was_clear = (
+                bool(slot_clear["valid"])
+                if slot_clear is not None
+                else bool(torch.count_nonzero(self.h_spans[req_index]).item() == 0)
+            )
             if not self.model.h_enabled:
                 prepare_warmup_slot(self, req_index, already)
                 self.admission_log.append(
@@ -181,6 +221,7 @@ def _build_state() -> None:
                         "h_enabled": False,
                         "was_clear": was_clear,
                         "already": already,
+                        "admission_generation": generation,
                     }
                 )
                 return
@@ -198,6 +239,7 @@ def _build_state() -> None:
                         "was_clear": was_clear,
                         "already": already,
                         "spans": [1] * CODEBOOK_SIZE,
+                        "admission_generation": generation,
                     }
                 )
                 return
@@ -225,10 +267,20 @@ def _build_state() -> None:
                 raise RuntimeError(
                     f"reconstructed semantic offset {offset} exceeds Phi RoPE"
                 )
+            # Retained for compatibility/debug reporting only; not a position source.
             self.semantic_offset[req_index] = offset
             self.physical_accounted[req_index] = already
             activate_codebook_slot(self, req_index)
             digest = _tensor_hash(self.h_input[req_index])
+            proof_fields = {}
+            if proof_audit:
+                proof_fields = {
+                    "slot_clear_before_synthesis": slot_clear,
+                    "prefill_token_count": len(history),
+                    "prefill_token_ids_sha256": _token_history_hash(history),
+                    "h_output_hash": _tensor_hash(self.h_output[req_index]),
+                    "h_active_after_synthesis": bool(self.h_active[req_index].item()),
+                }
             self.admission_log.append(
                 {
                     "event": "add",
@@ -238,11 +290,13 @@ def _build_state() -> None:
                     "position_mode": self.position_mode,
                     "was_clear": was_clear,
                     "already": already,
+                    "admission_generation": generation,
                     "semantic_offset": int(offset),
                     "sha256": codebook.sha256,
                     "h_input_hash": digest,
                     "setup_ms": elapsed_ms,
                     "spans": spans,
+                    **proof_fields,
                 }
             )
 
@@ -250,12 +304,26 @@ def _build_state() -> None:
             super().remove_request(req_id)
             req_index = self.req_id_to_index.pop(req_id, None)
             if req_index is None:
+                self.current_admission_generation.pop(req_id, None)
+                self.proof_audit_requests.discard(req_id)
                 return
+            generation = self.current_admission_generation.pop(req_id, None)
+            proof_audit = req_id in self.proof_audit_requests
             clear_predictive_slot(self, req_index)
-            self.codebook_sha.pop(req_index, None)
-            self.admission_log.append(
-                {"event": "remove", "req_id": req_id, "req_index": int(req_index)}
+            slot_clear_after_remove = (
+                predictive_slot_clear_report(self, req_index) if proof_audit else None
             )
+            self.codebook_sha.pop(req_index, None)
+            remove_event = {
+                "event": "remove",
+                "req_id": req_id,
+                "req_index": int(req_index),
+                "admission_generation": generation,
+            }
+            if proof_audit:
+                remove_event["slot_clear_after_remove"] = slot_clear_after_remove
+            self.admission_log.append(remove_event)
+            self.proof_audit_requests.discard(req_id)
 
         def prepare_inputs(self, input_batch, req_states) -> dict[str, Any]:
             self.position_trace.clear_active()
@@ -337,49 +405,56 @@ def _build_state() -> None:
             query = input_batch.query_start_loc_np
             scheduled = input_batch.num_scheduled_tokens
             request_rows = []
-            target_slice = None
+            request_snapshots: dict[str, dict[str, Any]] = {}
             for row, req_id in enumerate(req_ids):
                 slot = int(mapping[row])
                 start = int(query[row])
                 end = int(query[row + 1])
+                req_id = str(req_id)
+                computed_count = int(computed_np[row])
                 request_rows.append(
                     {
-                        "request_id": str(req_id),
+                        "request_id": req_id,
                         "slot": slot,
-                        "num_computed_tokens": int(computed_np[row]),
+                        "num_computed_tokens": computed_count,
+                        "num_computed_tokens_source": "input_batch.num_computed_tokens_np[row]",
                         "num_scheduled_tokens": int(scheduled[row]),
                         "query_token_slice": [start, end],
+                        "admission_generation": self.current_admission_generation.get(req_id),
                     }
                 )
-                if req_id == self.position_trace.target_request_id:
+                if req_id in self.position_trace.target_request_ids:
                     target_slice = (start, end)
+                    request_snapshots[req_id] = {
+                        "request_id": req_id,
+                        "slot": slot,
+                        "admission_generation": self.current_admission_generation.get(req_id),
+                        "num_computed_tokens_on_batch": computed_count,
+                        "num_computed_tokens_source": "input_batch.num_computed_tokens_np[row]",
+                        "target_query_slice": [start, end],
+                        "target_token_ids": [
+                            int(token)
+                            for token in logical[start:end].detach().cpu().tolist()
+                        ],
+                        "stock_input_batch_positions": position_tensor_snapshot(
+                            input_batch.positions[:n], target_slice=target_slice
+                        ),
+                        "calculated_semantic_positions": position_tensor_snapshot(
+                            positions, target_slice=target_slice
+                        ),
+                        "returned_positions": position_tensor_snapshot(
+                            returned_positions, target_slice=target_slice
+                        ),
+                    }
 
-            if target_slice is not None:
+            if request_snapshots:
                 trace_entry = {
                     "req_ids": [str(req_id) for req_id in req_ids],
                     "slots": [int(mapping[row]) for row in range(num_reqs)],
                     "requests": request_rows,
-                    "target_query_slice": [int(target_slice[0]), int(target_slice[1])],
                     "input_batch_num_tokens": n,
                     "input_batch_num_tokens_after_padding": n_pad,
-                    "target_token_ids": [
-                        int(token)
-                        for token in (
-                            logical[target_slice[0] : target_slice[1]]
-                            .detach()
-                            .cpu()
-                            .tolist()
-                        )
-                    ],
-                    "stock_input_batch_positions": position_tensor_snapshot(
-                        input_batch.positions[:n], target_slice=target_slice
-                    ),
-                    "calculated_semantic_positions": position_tensor_snapshot(
-                        positions, target_slice=target_slice
-                    ),
-                    "returned_positions": position_tensor_snapshot(
-                        returned_positions, target_slice=target_slice
-                    ),
+                    "request_snapshots": request_snapshots,
                     "position_mode": self.position_mode,
                 }
                 self.position_trace.capture(trace_entry)
@@ -447,7 +522,12 @@ def _semantic_offset_from_history(
 
 def _tensor_hash(tensor: torch.Tensor) -> str:
     raw = tensor.detach().float().cpu().numpy().tobytes()
-    return hashlib.sha256(raw).hexdigest()[:16]
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _token_history_hash(token_ids: list[int]) -> str:
+    payload = np.asarray(token_ids, dtype=np.int64).tobytes()
+    return hashlib.sha256(payload).hexdigest()
 
 
 try:

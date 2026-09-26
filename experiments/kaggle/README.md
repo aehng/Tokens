@@ -21,6 +21,14 @@ predictive wrapper, nested Llama model, and layer-0 RoPE. The run passes only
 when the target request reports progress `0, 16, 32`, every captured stage
 matches the reference positions, and generated token IDs match.
 
+Set `VLLM_PROOF_PHASE9_ONLY=1` to run the real Phase 9 scheduler-preemption
+proof after Phases 1–2 and HF reference preparation. It skips the Phase 3–8
+and Phase 10 vLLM engines, uses prefix caching disabled, and requires
+diagnostic parity mode off. Its report binds A–F position traces to request,
+slot, admission generation, and the exact scheduler `num_computed_tokens`
+row. A zero-count readmission is reported as `recompute_from_zero`; a future
+positive cached-prefix origin is represented as `cached_prefix`.
+
 Semantic RoPE positions are written to the model-state position buffer. The
 separate `input_batch.positions` tensor remains the physical position source
 for vLLM's cache bookkeeping. In `base_token_end` mode those two position
@@ -36,7 +44,7 @@ only that script. The proof archive is the private dataset
 `.tar.gz`, so the dataset also stores those bytes as `proof_source.bin`.
 The archive is not stored in git.
 
-## Latest targeted result
+## Recent proof runs
 
 Kernel v13 passed the targeted Phase 8 proof on source commit
 `255e692d3612dcfc23f9c4122d66e8ad70f86d6d`, archive SHA-256
@@ -58,16 +66,34 @@ eight usable blocks. The test therefore did not force eviction. The recorded
 solo and concurrent token trajectories matched, but no request was preempted
 or rebuilt; Phase 10 did not run. See the [v14 run note](results/vllm_predictive_proof_v14/README.md).
 
-The next full run will use eight output tokens in Phase 9, ignore EOS for both
-the solo and concurrent requests, and record each request's scheduler
-preemption counter while stepping. Phase 9 will pass only when the same request
-has a positive scheduler preemption count, an admission add/remove/re-add
-cycle, rebuilt predictive state, and an exact concurrent/uninterrupted token
-trajectory match. The Phase 9 report will include cached-token and KV-block
-counts explicitly. Phase 6 still requires distinct and correctly owned
-codebook rows; Phase 10 still checks physical-KV and semantic-RoPE bounds
-separately. For six H3 tokens, physical KV positions must stay at `0..5` within
-`max_model_len=8`, while semantic RoPE positions must match `[2, 5, 8, 11,
-14, 17]` and remain below Phi's exclusive limit of `131072`. The engine's
-`max_model_len` constrains the physical KV sequence, not the semantic RoPE
-coordinates.
+Phase 9 requires a positive scheduler preemption count, an admission
+add/remove/add cycle, a clean predictive slot before rebuild, matching
+codebook/H-state identity, scheduler-derived A–F resumed positions, and an
+exact concurrent/uninterrupted token trajectory. Its current no-prefix-cache
+configuration expects readmission at count zero and verifies the complete
+prompt is replayed from positions zero onward. Phase 6 still requires distinct
+and correctly owned codebook rows; Phase 10 still checks physical-KV and
+semantic-RoPE bounds separately. For six H3 tokens, physical KV positions
+must stay at `0..5` within `max_model_len=8`, while semantic RoPE positions
+must match `[2, 5, 8, 11, 14, 17]` and remain below Phi's exclusive limit of
+`131072`. The engine's `max_model_len` constrains the physical KV sequence,
+not the semantic RoPE coordinates.
+
+Kernel v15 ran the full proof on source commit
+`3f2c95c9bb707a026075c3c429916f113b857719` (source archive SHA-256
+`634518d9554382be6feabde5093dcbcc193d694c2ce25e3a236e7e9906d30bf5`,
+kernel version 15). It reached Phase 9 and recorded a real preemption of
+`pre-B`, an add/remove/add worker lifecycle, matching predictive-state
+identity fields available in that run, and exact concurrent/uninterrupted
+trajectories for both requests. Phase 9 nevertheless reported FAIL because
+its acceptance helper required a positive preserved `already` count and a
+non-null semantic offset. Under the vLLM 0.30 recompute path, readmission
+correctly used `num_computed_tokens=0` and `semantic_offset=0`; Phase 10 did
+not execute. The v15 run did not audit H input/output contents or directly
+trace resumed A–F positions, so those remain gates for the corrected proof.
+See the [v15 result note](results/vllm_predictive_proof_v15/README.md).
+
+The next GPU step is the targeted Phase 9 proof on the corrected proof
+acceptance logic. Only if that report passes should the full Phases 1–10
+proof run. No position-generation or H-synthesis inference semantics are
+changed by the Phase 9 proof correction.
