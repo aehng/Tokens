@@ -1,0 +1,15 @@
+{
+  "python": "3.12.13",
+  "torch": "2.13.0+cu130",
+  "cuda": "13.0",
+  "gpu": "Tesla T4",
+  "vllm": "0.30.0",
+  "vllm_tag": "v0.30.0",
+  "vllm_sha": "ced6857afa0ea7b2e3f0846a62e1394e90f15607",
+  "source_sha": "379db49118d70095694efe31bbc4e5d0a8bbb31f",
+  "source_dataset_slug": "elikearl/tokens-vllm-predictive-source",
+  "source_dataset_path": "/kaggle/input/tokens-vllm-predictive-source",
+  "source_archive_sha256": "bc0cbba3de3a9f971f564f5df2a9dccd29c821c425a5c776571d2052b28bbf70",
+  "v2_env": "1",
+  "diagnostic_parity": false
+}
