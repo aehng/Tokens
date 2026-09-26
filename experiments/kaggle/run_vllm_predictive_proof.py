@@ -1863,6 +1863,7 @@ def _run_phase9(root: Path, manifest: dict[str, Any], prepared: dict[str, Any]) 
     primary = prepared["references"][0]
     secondary = prepared["references"][1]
     from tokens_vllm.proof_harness import (
+        MAX_ENGINE_STEPS,
         max_scheduler_preemptions,
         preemption_block_budget,
         preemption_rebuild_report,
