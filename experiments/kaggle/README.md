@@ -10,7 +10,9 @@ inputs are still:
 `run_vllm_predictive_proof.py` is the one-session T4 proof for vLLM
 `v0.30.0` (`ced6857afa0ea7b2e3f0846a62e1394e90f15607`). It writes
 `phase_*.json` under `/kaggle/working/vllm_predictive_proof/` and stops on
-the first failed phase. It does not relaunch itself.
+the first failed phase. It does not relaunch itself. Its environment report
+records Transformers and Kaggle dataset/kernel versions when the launch
+wrapper provides them.
 
 Set `VLLM_PROOF_PHASE8_ONLY=1` to run the targeted chunked-prefill proof
 without executing Phases 1–7 or 9–10. It prepares one HF reference, runs the

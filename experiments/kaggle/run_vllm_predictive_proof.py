@@ -7,6 +7,7 @@ the process on the first failure.
 from __future__ import annotations
 
 import gc
+from importlib.metadata import PackageNotFoundError, version as package_version
 import json
 import os
 import platform
@@ -83,6 +84,10 @@ def _source_provenance() -> dict[str, Any]:
 def environment() -> dict[str, Any]:
     import vllm
 
+    try:
+        transformers_version = package_version("transformers")
+    except PackageNotFoundError:
+        transformers_version = None
     cuda = torch.cuda.is_available()
     provenance = _source_provenance()
     return {
@@ -91,12 +96,18 @@ def environment() -> dict[str, Any]:
         "cuda": torch.version.cuda,
         "gpu": torch.cuda.get_device_name(0) if cuda else None,
         "vllm": vllm.__version__,
+        "transformers": transformers_version,
         "vllm_tag": "v0.30.0",
         "vllm_sha": VLLM_SHA,
         "source_sha": _source_sha(),
         "source_dataset_slug": provenance.get("source_dataset_slug"),
         "source_dataset_path": provenance.get("source_dataset_path"),
         "source_archive_sha256": provenance.get("source_archive_sha256"),
+        "kaggle_kernel_id": os.environ.get("TOKENS_KAGGLE_KERNEL_ID"),
+        "kaggle_kernel_version": os.environ.get("TOKENS_KAGGLE_KERNEL_VERSION"),
+        "kaggle_source_dataset_version": os.environ.get(
+            "TOKENS_KAGGLE_SOURCE_DATASET_VERSION"
+        ),
         "v2_env": os.environ.get("VLLM_USE_V2_MODEL_RUNNER"),
     }
 
