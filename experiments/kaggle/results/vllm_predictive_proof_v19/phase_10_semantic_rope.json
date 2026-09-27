@@ -1,0 +1,279 @@
+{
+  "status": "PASS",
+  "physical_kv": {
+    "positions": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "token_count": 6,
+    "max_model_len": 8,
+    "prompt_plus_generation_tokens": 7
+  },
+  "semantic_rope": {
+    "positions": [
+      2,
+      5,
+      8,
+      11,
+      14,
+      17
+    ],
+    "expected_positions": [
+      2,
+      5,
+      8,
+      11,
+      14,
+      17
+    ],
+    "max_position": 17,
+    "max_model_len": 8,
+    "max_rope_position_exclusive": 131072
+  },
+  "checks": {
+    "physical_positions_match_zero_based_kv_slots": true,
+    "physical_positions_within_max_model_len": true,
+    "physical_prompt_plus_generation_fits_max_model_len": true,
+    "semantic_positions_match_expected_bte_positions": true,
+    "semantic_positions_exceed_max_model_len": true,
+    "semantic_positions_within_rope_limit": true,
+    "direct_rope_capture_matches_prefill_trace": true
+  },
+  "request_id": "phase10-rope",
+  "position_mode": "base_token_end",
+  "max_new_tokens": 1,
+  "rope_prefill_trace": [
+    {
+      "req_ids": [
+        "phase10-rope"
+      ],
+      "slots": [
+        0
+      ],
+      "requests": [
+        {
+          "request_id": "phase10-rope",
+          "slot": 0,
+          "num_computed_tokens": 0,
+          "num_computed_tokens_source": "input_batch.num_computed_tokens_np[row]",
+          "num_scheduled_tokens": 6,
+          "query_token_slice": [
+            0,
+            6
+          ],
+          "admission_generation": 1
+        }
+      ],
+      "input_batch_num_tokens": 6,
+      "input_batch_num_tokens_after_padding": 6,
+      "position_mode": "base_token_end",
+      "request_id": "phase10-rope",
+      "slot": 0,
+      "admission_generation": 1,
+      "num_computed_tokens_on_batch": 0,
+      "num_computed_tokens_source": "input_batch.num_computed_tokens_np[row]",
+      "target_query_slice": [
+        0,
+        6
+      ],
+      "target_token_ids": [
+        32011,
+        32011,
+        32011,
+        32011,
+        32011,
+        32011
+      ],
+      "stock_input_batch_positions": {
+        "values": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "target_values": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "target_slice": [
+          0,
+          6
+        ],
+        "shape": [
+          6
+        ],
+        "dtype": "torch.int64",
+        "device": "cuda:0",
+        "data_ptr": 138583623076352
+      },
+      "calculated_semantic_positions": {
+        "values": [
+          2,
+          5,
+          8,
+          11,
+          14,
+          17
+        ],
+        "target_values": [
+          2,
+          5,
+          8,
+          11,
+          14,
+          17
+        ],
+        "target_slice": [
+          0,
+          6
+        ],
+        "shape": [
+          6
+        ],
+        "dtype": "torch.int64",
+        "device": "cuda:0",
+        "data_ptr": 138583623296512
+      },
+      "returned_positions": {
+        "values": [
+          2,
+          5,
+          8,
+          11,
+          14,
+          17
+        ],
+        "target_values": [
+          2,
+          5,
+          8,
+          11,
+          14,
+          17
+        ],
+        "target_slice": [
+          0,
+          6
+        ],
+        "shape": [
+          6
+        ],
+        "dtype": "torch.int64",
+        "device": "cuda:0",
+        "data_ptr": 138583623142912
+      },
+      "target_request_id": "phase10-rope",
+      "trace_id": "phase10-rope:1",
+      "handoff": {
+        "D": [
+          {
+            "values": [
+              2,
+              5,
+              8,
+              11,
+              14,
+              17
+            ],
+            "target_values": [
+              2,
+              5,
+              8,
+              11,
+              14,
+              17
+            ],
+            "target_slice": [
+              0,
+              6
+            ],
+            "shape": [
+              6
+            ],
+            "dtype": "torch.int64",
+            "device": "cuda:0",
+            "data_ptr": 138583623142912
+          }
+        ],
+        "E": [
+          {
+            "values": [
+              2,
+              5,
+              8,
+              11,
+              14,
+              17
+            ],
+            "target_values": [
+              2,
+              5,
+              8,
+              11,
+              14,
+              17
+            ],
+            "target_slice": [
+              0,
+              6
+            ],
+            "shape": [
+              6
+            ],
+            "dtype": "torch.int64",
+            "device": "cuda:0",
+            "data_ptr": 138583623142912
+          }
+        ],
+        "F": [
+          {
+            "values": [
+              2,
+              5,
+              8,
+              11,
+              14,
+              17
+            ],
+            "target_values": [
+              2,
+              5,
+              8,
+              11,
+              14,
+              17
+            ],
+            "target_slice": [
+              0,
+              6
+            ],
+            "shape": [
+              6
+            ],
+            "dtype": "torch.int64",
+            "device": "cuda:0",
+            "data_ptr": 138583623142912
+          }
+        ]
+      }
+    }
+  ],
+  "direct_rope_capture": [
+    2,
+    5,
+    8,
+    11,
+    14,
+    17
+  ]
+}

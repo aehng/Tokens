@@ -1,0 +1,121 @@
+{
+  "status": "PASS",
+  "prompt_id": "gsm_2956",
+  "encoder": {
+    "max_subtokens": 4,
+    "position_mode": "compressed",
+    "input_parameter_count": 226529280,
+    "output_parameter_count": 226529280,
+    "input_parameter_bytes": 906117120,
+    "output_parameter_bytes": 906117120,
+    "total_parameter_bytes": 1812234240,
+    "dtypes": [
+      "torch.float32"
+    ],
+    "safety_margin_bytes": 536870912,
+    "cuda_memory_before": {
+      "free": 3752656896,
+      "total": 15636037632,
+      "allocated": 11703333376,
+      "reserved": 11718885376
+    },
+    "cuda_memory_after_input_encoder": {
+      "free": 2846687232,
+      "total": 15636037632,
+      "allocated": 12609450496,
+      "reserved": 12624855040
+    },
+    "cuda_memory_after_output_encoder": {
+      "free": 1940717568,
+      "total": 15636037632,
+      "allocated": 13515567616,
+      "reserved": 13530824704
+    }
+  },
+  "setup_ms": {
+    "0": 48.73460399994656
+  },
+  "captured_while_active": true,
+  "req_index": 0,
+  "codebook_sha256": "15a2a8cfd07b0470510a4fe1b688b0e47c47bdf14da6125389dcf4e2c85ac9d5",
+  "vector_delta": {
+    "h_input": {
+      "max_abs": 0.0,
+      "mean_abs": 0.0
+    },
+    "h_output": {
+      "max_abs": 0.0,
+      "mean_abs": 0.0
+    }
+  },
+  "spans": [
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    3,
+    3,
+    2,
+    2,
+    3,
+    2,
+    3,
+    2,
+    2,
+    2,
+    3,
+    3,
+    2,
+    2,
+    2,
+    3,
+    2,
+    2,
+    3,
+    2,
+    2,
+    2,
+    2,
+    3
+  ],
+  "expected_spans": [
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    3,
+    3,
+    2,
+    2,
+    3,
+    2,
+    3,
+    2,
+    2,
+    2,
+    3,
+    3,
+    2,
+    2,
+    2,
+    3,
+    2,
+    2,
+    3,
+    2,
+    2,
+    2,
+    2,
+    3
+  ],
+  "spans_match": true,
+  "hyperencoders_in_decode": false
+}

@@ -1,0 +1,114 @@
+{
+  "status": "PASS",
+  "mode": "phase9_only",
+  "phases": {
+    "phase_01": {
+      "status": "PASS",
+      "stock_vocab": 32064,
+      "logical_vocab": 32096,
+      "stock_ids": [
+        3681,
+        29889,
+        13,
+        13,
+        2177,
+        275,
+        338,
+        278,
+        7483,
+        4272,
+        310,
+        3444,
+        29889,
+        739,
+        338,
+        5982
+      ],
+      "ours_logical_ids": [
+        3681,
+        29889,
+        13,
+        13,
+        2177,
+        275,
+        338,
+        278,
+        7483,
+        4272,
+        310,
+        3444,
+        29889,
+        739,
+        338,
+        5982
+      ],
+      "ours_base_ids": [
+        3681,
+        29889,
+        13,
+        13,
+        2177,
+        275,
+        338,
+        278,
+        7483,
+        4272,
+        310,
+        3444,
+        29889,
+        739,
+        338,
+        5982
+      ],
+      "base_conversion_error": null,
+      "greedy_match": true,
+      "embed_rows": 32064,
+      "head_rows": 32064,
+      "logits_width": 32096,
+      "h_masked": true,
+      "state": "_PredictiveModelState",
+      "hyperencoders_invoked": false,
+      "base_gpu_memory_utilization": 0.9,
+      "predictive_gpu_memory_utilization": 0.75,
+      "gpu_memory_utilization": 0.9,
+      "stock_shutdown": "engine_core.shutdown",
+      "ours_shutdown": "engine_core.shutdown",
+      "cuda_after_stock": {
+        "allocated": 8520704,
+        "reserved": 23068672
+      },
+      "cuda_after_ours": {
+        "allocated": 8520704,
+        "reserved": 23068672
+      }
+    },
+    "phase_02": {
+      "status": "PASS",
+      "logical_ids": [
+        32010,
+        32011,
+        32042,
+        32043,
+        32095
+      ],
+      "physical_ids": [
+        32010,
+        0,
+        0,
+        32011,
+        32063
+      ],
+      "expected_physical": [
+        32010,
+        0,
+        0,
+        32011,
+        32063
+      ],
+      "max_physical": 32063
+    },
+    "09": "PASS"
+  },
+  "source_sha": "7fb0a21a78ae69f7b29c1a54f728493fefcb953a",
+  "source_archive_sha256": "98f2aa9da0c8a73aa88b953cf4d9358ebb53c2338c43d2683d6532e749f072c8"
+}

@@ -1,0 +1,18 @@
+{
+  "status": "PASS",
+  "mode": "full",
+  "phases": {
+    "01": "PASS",
+    "02": "PASS",
+    "03": "PASS",
+    "04": "PASS",
+    "05": "PASS",
+    "06": "PASS",
+    "07": "PASS",
+    "08": "PASS",
+    "09": "PASS",
+    "10": "PASS"
+  },
+  "source_sha": "7fb0a21a78ae69f7b29c1a54f728493fefcb953a",
+  "source_archive_sha256": "98f2aa9da0c8a73aa88b953cf4d9358ebb53c2338c43d2683d6532e749f072c8"
+}

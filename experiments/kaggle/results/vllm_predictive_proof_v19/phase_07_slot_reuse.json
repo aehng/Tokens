@@ -1,0 +1,18 @@
+{
+  "status": "PASS",
+  "c_ids": [
+    3824,
+    29892,
+    1284,
+    714
+  ],
+  "standalone_c": [
+    3824,
+    29892,
+    1284,
+    714
+  ],
+  "c_was_clear": true,
+  "a_removed": true,
+  "same_slot": true
+}
