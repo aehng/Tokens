@@ -48,7 +48,11 @@ def compute_auroc_auprc(y_true: np.ndarray, y_score: np.ndarray) -> Tuple[float,
     # Prepend (recall=0, precision=precision[0])
     recall_full = np.concatenate([[0.0], recall])
     precision_full = np.concatenate([[precision[0]], precision])
-    auprc = float(np.trapz(precision_full, recall_full))
+
+    # Trapezoidal approximation compatible with NumPy 1.x and 2.x
+    dx = recall_full[1:] - recall_full[:-1]
+    dy = (precision_full[1:] + precision_full[:-1]) * 0.5
+    auprc = float(np.sum(dx * dy))
 
     return round(auroc, 4), round(auprc, 4)
 
