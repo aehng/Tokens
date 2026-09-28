@@ -1,0 +1,92 @@
+{
+  "canonical_vanilla": {
+    "record_count": 60,
+    "domains": {
+      "instruction": 20,
+      "reasoning": 20,
+      "code": 20
+    },
+    "mean_continuation_tokens": 278.52,
+    "min_continuation_tokens": 55,
+    "max_continuation_tokens": 301,
+    "model_id": "microsoft/Phi-3.5-mini-instruct",
+    "revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+    "decoding_temperature": 0.0,
+    "do_sample": false
+  },
+  "historical_datasets": {
+    "train": {
+      "path": "data/train.jsonl",
+      "sample_count": 9412,
+      "domains": {
+        "reasoning": 7033,
+        "instruction": 1600,
+        "code": 779
+      },
+      "mean_prompt_words": 44.4,
+      "mean_response_words": 49.9,
+      "response_type": "human_or_benchmark_reference",
+      "is_canonical_model_continuation": false
+    },
+    "val": {
+      "path": "data/val.jsonl",
+      "sample_count": 1176,
+      "domains": {
+        "reasoning": 879,
+        "instruction": 200,
+        "code": 97
+      },
+      "mean_prompt_words": 44.9,
+      "mean_response_words": 50.1,
+      "response_type": "human_or_benchmark_reference",
+      "is_canonical_model_continuation": false
+    },
+    "test": {
+      "path": "data/test.jsonl",
+      "sample_count": 1178,
+      "domains": {
+        "reasoning": 880,
+        "code": 98,
+        "instruction": 200
+      },
+      "mean_prompt_words": 44.6,
+      "mean_response_words": 48.4,
+      "response_type": "human_or_benchmark_reference",
+      "is_canonical_model_continuation": false
+    }
+  },
+  "cross_split_leakage": {
+    "train_vs_val": {
+      "id_overlap_count": 0,
+      "text_overlap_count": 1
+    },
+    "test_vs_train": {
+      "id_overlap_count": 0,
+      "text_overlap_count": 0
+    },
+    "test_vs_val": {
+      "id_overlap_count": 0,
+      "text_overlap_count": 0
+    },
+    "vanilla_60_vs_train": {
+      "id_overlap_count": 0,
+      "text_overlap_count": 0,
+      "overlapping_ids": []
+    }
+  },
+  "association_index": {
+    "num_tokens_in_association_index": 0,
+    "num_background_phrases": 0,
+    "index_source_model": "unknown"
+  },
+  "dataset_scaling_assessment": {
+    "current_canonical_vanilla_count": 60,
+    "target_scale_desired": 600,
+    "historical_train_prompts_available": 9409,
+    "historical_val_prompts_available": 1176,
+    "historical_test_prompts_available": 1178,
+    "has_canonical_phi_continuations_for_600": false,
+    "scaling_gate_verdict": "GPU_GENERATION_REQUIRED_FOR_600_CANONICAL_CONTINUATIONS",
+    "rationale": "While data/train.jsonl contains 9,412 prompts and data/val.jsonl contains 1,176 prompts, their 'response' fields contain human/benchmark reference solutions, NOT frozen Phi-3.5-mini-instruct continuations. Using human solutions violates the Vanilla Continuation Data Contract and introduces severe label shift. To scale to >= 600 canonical continuations, 540 new prompts from val.jsonl must be decoded through frozen Microsoft Phi-3.5-mini-instruct via GPU batch generation (e.g. Kaggle kernel)."
+  }
+}

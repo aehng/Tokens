@@ -1,8 +1,17 @@
 # Predictor V2 Architecture Bake-Off Results
 
+> [!WARNING]
+> **METHODOLOGY CORRECTION NOTICE (2026-09-28)**  
+> **Single-Seed vs Multi-Seed:** The table below reflects the initial single-seed run (seed 42). To control for neural weight initialization variance, multi-seed results across 3 random seeds (42, 43, 44) are provided in `docs/predictor_v2_multiseed_bakeoff_results.md`.  
+> **Holdout Discipline:** Architecture selection decisions are based **exclusively on the DEV split**. The test split shown below was examined in the pilot and is treated as diagnostic data.
+
+---
+
 ## Executive Summary
 
 Empirical head-to-head evaluation of five lightweight candidate architectures trained strictly on canonical Vanilla Phi continuation labels on the deterministic TRAIN split (36 prompts) and evaluated on DEV (12 prompts) and FROZEN TEST (12 prompts).
+
+---
 
 ## 1. DEV Split Head-to-Head Comparison (Architecture Selection)
 
@@ -14,7 +23,9 @@ Empirical head-to-head evaluation of five lightweight candidate architectures tr
 | **GRURanker** | 3,275,143 | 12799.42 KB | **340** | **48.9%** | 19.5% | 40.4% | 59.6% | 0.4390 | 0.51 |
 | **TransformerRanker** | 4,465,671 | 17453.01 KB | **266** | **38.2%** | 15.3% | 33.9% | 66.1% | 0.3798 | 0.56 |
 
-## 2. FROZEN TEST Split Comparison (Strictly Held Out)
+---
+
+## 2. FROZEN TEST Split Comparison (Diagnostic Holdout)
 
 | Architecture | Parameters | Test DP Steps (K=32) | % Candidate Pool | % Global Ceiling | Precision@32 | Dead Slot % | Occurrence AUPRC | Count MAE |
 |---|---|---|---|---|---|---|---|
@@ -23,6 +34,8 @@ Empirical head-to-head evaluation of five lightweight candidate architectures tr
 | **CNNRanker** | 3,225,367 | **338** | **44.2%** | 19.4% | 44.8% | 55.2% | 0.4070 | 0.55 |
 | **GRURanker** | 3,275,143 | **374** | **48.9%** | 21.4% | 44.0% | 56.0% | 0.4074 | 0.58 |
 | **TransformerRanker** | 4,465,671 | **247** | **32.3%** | 14.2% | 32.3% | 67.7% | 0.3280 | 0.61 |
+
+---
 
 ## 3. Scaling with Budget K (DEV Split)
 

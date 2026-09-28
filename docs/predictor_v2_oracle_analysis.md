@@ -1,26 +1,30 @@
 # Predictor V2 Oracle Hierarchy & Candidate Loss Analysis
 
-## Executive Summary
+> [!WARNING]
+> **METHODOLOGY CORRECTION NOTICE (2026-09-28)**  
+> **Epistemic Classification Standard Applied:** Metrics are strictly partitioned into `EXACT` (mathematically certified 0-1 ILP solver), `MEASURED` (verified executed code), `ESTIMATED` (multi-seed sample distribution), and `PROJECTED` (unmeasured conjectures).  
+> **Oracle Exactness:** The lazy-greedy solver has been replaced with a mathematically certified 0-1 ILP CP-SAT solver (`ExactHypertokenOracle`). Solver status (`OPTIMAL` vs `FEASIBLE`) and optimality gaps are explicitly reported.  
+> **Result:** In the shared Candidate Pool Oracle (Oracle B), 98.3% of prompts at K=32 are certified mathematically exact (`OPTIMAL`, gap=0.0). In the unconstrained Global Occurrence Oracle (Oracle A) across ~700-900 n-grams, 8.3% reach provable optimality within 10s, while the remainder achieve certified feasible bounds with recorded duality gap.
 
 - Evaluated **Oracle A (Global Occurrence Ceiling)** and **Oracle B (Fixed Candidate-Pool Ceiling)** across all 60 benchmark prompts on Microsoft Phi-3.5-mini-instruct canonical continuations.
-- At **K=32**, Global Occurrence Oracle saves **8806 decode steps** (146.8 steps/prompt).
-- The shared prompt-only candidate pool captures **42.4%** (3737 steps), leaving **57.6% opportunity lost** to candidate generation recall.
+- At **K=32**, Global Occurrence Oracle saves **7911 decode steps** (131.8 steps/prompt).
+- The shared prompt-only candidate pool captures **47.9%** (3786 steps), leaving **52.1% opportunity lost** to candidate generation recall.
 
 ## 1. Oracle Hierarchy by Codebook Budget K
 
 | K | Oracle A (Global Ceiling) | Oracle B (Candidate Pool) | Candidate Capture % | Opportunity Lost (Steps) | Global Exact % | Pool Exact % |
 |---|---|---|---|---|---|---|
-| **K=8** | 4073 steps | 2660 steps | **65.3%** | 1413 steps (34.7%) | 100.0% | 3.3% |
-| **K=16** | 6060 steps | 3420 steps | **56.4%** | 2640 steps (43.6%) | 100.0% | 31.7% |
-| **K=32** | 8806 steps | 3737 steps | **42.4%** | 5069 steps (57.6%) | 100.0% | 98.3% |
+| **K=8** | 3734 steps | 2656 steps | **71.1%** | 1078 steps (28.9%) | 6.7% | 88.3% |
+| **K=16** | 5655 steps | 3431 steps | **60.7%** | 2224 steps (39.3%) | 6.7% | 95.0% |
+| **K=32** | 7911 steps | 3786 steps | **47.9%** | 4125 steps (52.1%) | 8.3% | 98.3% |
 
 ## 2. Domain Breakdown (K=32)
 
 | Domain | Global Oracle Steps | Candidate Pool Steps | Candidate Capture % | Opportunity Lost |
 |---|---|---|---|---|
-| **Code** | 3006 | 1023 | **34.0%** | 1983 steps |
-| **Reasoning** | 3038 | 1688 | **55.6%** | 1350 steps |
-| **Instruction** | 2762 | 1026 | **37.1%** | 1736 steps |
+| **Code** | 2611 | 1024 | **39.2%** | 1587 steps |
+| **Reasoning** | 2681 | 1723 | **64.3%** | 958 steps |
+| **Instruction** | 2619 | 1039 | **39.7%** | 1580 steps |
 
 ## 3. Heuristic Safety Prior Audit vs Empirical Continuation Probes
 

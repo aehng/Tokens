@@ -5,6 +5,12 @@
 **Starting Commit:** `97cecfba5147346e79a46361ce7a58c899e9e4ac`  
 **Status:** In Progress / Experimental Specification and Benchmark
 
+> [!WARNING]
+> **METHODOLOGY CORRECTION NOTICE (2026-09-28)**  
+> **Epistemic Classification Standard Applied:** Metrics are strictly partitioned into `EXACT` (mathematically certified 0-1 ILP solver), `MEASURED` (verified executed code), `ESTIMATED` (multi-seed sample distribution), and `PROJECTED` (unmeasured conjectures).  
+> **Oracle Exactness:** The lazy-greedy solver has been replaced with a mathematically certified 0-1 ILP CP-SAT solver (`ExactHypertokenOracle`) with zero optimality gap verified against brute-force search.  
+> **Opportunity Loss Funnel:** Former stages 4-6 were static multiplier approximations ($\times 0.45, \times 0.70, \times 0.85$) and are removed from the empirical measured funnel. See Section 14.
+
 ---
 
 ## 1. Executive Summary & Problem Formulation
@@ -332,18 +338,26 @@ Comparing CPU Latency (L=512) vs % Candidate-Pool Oracle Captured at $K=32$:
 
 ---
 
-## 14. End-to-End Opportunity Loss Funnel
+## 14. Opportunity Loss Funnel: Measured vs Projected
 
-Quantifying where opportunity is lost across the full pipeline (60 Prompts, K=32):
+### 14.1 Empirical Measured Funnel (Strictly Verified, 60 Prompts, K=32)
 
-| Pipeline Stage | Decode Steps Available / Realized | % of Global Ceiling | Incremental Loss | Primary Failure Mechanism |
-|---|---|---|---|---|
-| **1. Global Occurrence Ceiling** | 8,806 steps | 100.0% | 0 | Theoretical physical ceiling |
-| **2. Fixed Candidate Pool** | 3,737 steps | 42.4% | **-5,069 steps (-57.6%)** | **Candidate generation recall deficit** |
-| **3. Best Offline Ranker (PooledMLP)** | 1,858 steps | 21.1% | -1,879 steps (-21.3%) | Ranker prioritization / dead-slot errors |
-| **4. Continuation Safety Adjusted** | 836 steps | 9.5% | -1,022 steps (-11.6%) | Unstable / divergent continuation phrases |
-| **5. Live Hypertoken Emission** | 585 steps | 6.6% | -251 steps (-2.9%) | Base model output-head emission threshold |
-| **6. Quality-Preserved Savings** | 497 steps | 5.6% | -88 steps (-1.0%) | Truncation / Repetition / Divergence |
+| Stage | Name | Epistemic Status | Decode Steps Saved | % of Global Ceiling | Incremental Loss | Primary Failure Mechanism |
+|---|---|---|---|---|---|---|
+| **1** | **Global Occurrence Oracle** | **EXACT** | 8,806 steps | 100.0% | 0 | Theoretical physical ceiling of base model continuation |
+| **2** | **Fixed Candidate Pool Oracle** | **EXACT** | 3,737 steps | 42.44% | **-5,069 steps (-57.56%)** | **Prompt candidate generator recall deficit** |
+| **3** | **Best Offline Ranker (PooledMLP)** | **MEASURED** | 1,858 steps | 21.10% | -1,879 steps (-21.34%) | Scorer ranking & top-K slot allocation errors |
+
+### 14.2 Hypothetical Downstream Funnel (Unmeasured Projections)
+
+> [!WARNING]
+> **The following downstream stages are NOT YET MEASURED.** Former stages 4-6 were calculated using static heuristic multipliers ($\times 0.45, \times 0.70, \times 0.85$) rather than executed codebook decoding. They are conjectures pending live execution.
+
+| Projected Stage | Status | Heuristic Multiplier | Projected Steps | Projected % Ceiling | Verification Requirement |
+|---|---|---|---|---|---|
+| **Continuation Safety Filter** | **PROJECTED (NOT YET MEASURED)** | $\sim 0.45\times$ | ~836 steps | ~9.5% | Contextual continuation KL divergence measurement |
+| **Live Hypertoken Emission** | **PROJECTED (NOT YET MEASURED)** | $\sim 0.70\times$ | ~585 steps | ~6.6% | Realized token emission on live vLLM serving engine |
+| **Quality-Preserved Net Savings** | **PROJECTED (NOT YET MEASURED)** | $\sim 0.85\times$ | ~497 steps | ~5.6% | End-to-end task accuracy benchmark (MBPP / GSM8K) |
 
 ---
 
