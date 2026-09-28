@@ -58,7 +58,10 @@ Iterate on the dominant quality bottlenecks, with predictor/codebook quality as 
 Potential work includes:
 - better candidate generation
 - better ranking / occurrence prediction
-- improved supervision for the predictor
+- quality attribution and oracle hierarchy (Global Occurrence Oracle vs Fixed Candidate-Pool Oracle vs Empirical Safety Oracle)
+- predictor V2 architecture bake-off (Ridge, Pooled MLP, CNN+Suffix, GRU, 1-layer Transformer)
+- top-two architecture live attribution test prior to final Predictor V2 selection
+- improved supervision for the predictor (base model continuation labels instead of reference answers)
 - better phrase filtering or codebook construction
 - K recalibration only when supported by evidence
 - output-head / HyperLinear training if useful H tokens are not emitted
