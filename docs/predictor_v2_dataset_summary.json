@@ -1,0 +1,35 @@
+{
+  "num_prompts": 60,
+  "dataset_hash": "2a49044a0d8e51a7a5538beccbe0fc2a0f6ea6b3dc716ad21303b7667ecf1463",
+  "split_manifest_hash": "eab6a36c8ef13065e26d9f4c6463f55212289cf24e6ff32d4ec9f71e6e311658",
+  "train_prompts": 36,
+  "dev_prompts": 12,
+  "frozen_test_prompts": 12,
+  "total_candidates": 15401,
+  "mean_candidates_per_prompt": 256.68,
+  "min_candidates": 132,
+  "max_candidates": 616,
+  "total_occurring_candidates": 3084,
+  "overall_candidate_recall_rate": 0.2002,
+  "domain_counts": {
+    "code": {
+      "train": 12,
+      "dev": 4,
+      "test": 4,
+      "total": 20
+    },
+    "instruction": {
+      "train": 12,
+      "dev": 4,
+      "test": 4,
+      "total": 20
+    },
+    "reasoning": {
+      "train": 12,
+      "dev": 4,
+      "test": 4,
+      "total": 20
+    }
+  },
+  "elapsed_seconds": 1.41
+}

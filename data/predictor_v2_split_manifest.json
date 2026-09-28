@@ -1,0 +1,92 @@
+{
+  "schema": "predictor_v2_split_manifest_v1",
+  "git_base": "97cecfba5147346e79a46361ce7a58c899e9e4ac",
+  "seed": 42,
+  "train_ids": [
+    "alpaca_1089",
+    "alpaca_1092",
+    "alpaca_1227",
+    "alpaca_123",
+    "alpaca_1430",
+    "alpaca_1659",
+    "alpaca_1806",
+    "alpaca_183",
+    "alpaca_186",
+    "alpaca_315",
+    "alpaca_49",
+    "alpaca_592",
+    "gsm_1240",
+    "gsm_1960",
+    "gsm_2956",
+    "gsm_3022",
+    "gsm_3715",
+    "gsm_4652",
+    "gsm_4889",
+    "gsm_5414",
+    "gsm_5474",
+    "gsm_5573",
+    "gsm_6442",
+    "gsm_8674",
+    "mbpp_395",
+    "mbpp_439",
+    "mbpp_480",
+    "mbpp_697",
+    "mbpp_700",
+    "mbpp_740",
+    "mbpp_769",
+    "mbpp_857",
+    "mbpp_902",
+    "mbpp_931",
+    "mbpp_969",
+    "mbpp_973"
+  ],
+  "dev_ids": [
+    "alpaca_1337",
+    "alpaca_1608",
+    "alpaca_1765",
+    "alpaca_414",
+    "gsm_1655",
+    "gsm_4218",
+    "gsm_6613",
+    "gsm_7928",
+    "mbpp_142",
+    "mbpp_258",
+    "mbpp_74",
+    "mbpp_911"
+  ],
+  "frozen_test_ids": [
+    "alpaca_1513",
+    "alpaca_1992",
+    "alpaca_55",
+    "alpaca_974",
+    "gsm_2367",
+    "gsm_4516",
+    "gsm_5043",
+    "gsm_8141",
+    "mbpp_118",
+    "mbpp_272",
+    "mbpp_542",
+    "mbpp_567"
+  ],
+  "domain_counts": {
+    "code": {
+      "train": 12,
+      "dev": 4,
+      "test": 4,
+      "total": 20
+    },
+    "instruction": {
+      "train": 12,
+      "dev": 4,
+      "test": 4,
+      "total": 20
+    },
+    "reasoning": {
+      "train": 12,
+      "dev": 4,
+      "test": 4,
+      "total": 20
+    }
+  },
+  "manifest_hash": "eab6a36c8ef13065e26d9f4c6463f55212289cf24e6ff32d4ec9f71e6e311658"
+}
