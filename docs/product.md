@@ -2,10 +2,18 @@
 
 This project is building a **commercial inference product**, not only a research result.
 
-**First-class v1 serving target: vLLM.** The product should integrate as a runtime/plugin and small sidecar, not replace a customer's serving engine. The Qwen3-8B + vLLM work is a planned validation target; compatibility and performance are not yet established. See the [production validation plan](QWEN3_VLLM_PRODUCTION_VALIDATION.md).
+**First-class v1 serving target: vLLM.** The product should integrate as a runtime/plugin and small sidecar, not replace a customer's serving engine.
 
-The current research execution order before that later Qwen/vLLM milestone is
-maintained in the single [canonical research roadmap](../experiments/RESEARCH_ROADMAP.md).
+The Phi-3.5 proof has now established that the predictive architecture can coexist with stock vLLM scheduling, continuous batching, paged KV cache, attention, sampling, chunked prefill, slot reuse, and recompute-style preemption on the tested vLLM 0.30.0 stack. This is a compatibility proof, not a production deployment proof. Qwen3-8B remains the next model-family validation target, and realistic service-level performance still needs to be established.
+
+The canonical execution order is maintained in the single [research roadmap](../experiments/RESEARCH_ROADMAP.md). The current order is:
+
+1. Improve end-to-end quality on Phi, with predictor/codebook quality as the likely main lever.
+2. Port and prove the architecture on Qwen3-8B.
+3. Re-establish broad quality parity on Qwen.
+4. Measure real vLLM performance, including continuous batching and realistic concurrency.
+5. Turn the proof path into a generic plug-and-play serving integration.
+6. Add production vLLM features such as CUDA graphs, codebook-safe prefix caching, high-concurrency batching/stress, tensor parallelism, quantization, and later speculative decoding.
 
 Research experiments (Phi-3.5, Zip2Zip, calibration ladders, local CPU/XPU) exist to find the smallest adapter that works. The **end product** is something a datacenter operator can load onto serving stacks they already run, with the simplest possible changeover.
 
@@ -33,7 +41,7 @@ LoRA (or a similarly small adapter) is an acceptable changeover cost. Full retra
 
 The base model stays unchanged. A small per-model adapter (hypermodules and/or LoRA) is acceptable; full retraining of an 8B customer model is not the desired product path. Preserve quantization, KV caching, batching, and EAGLE/speculative decoding wherever compatibility testing shows they can coexist. Do not claim compatibility in advance of testing the exact model and serving versions.
 
-Production value is judged on measured **GPU-seconds per request, TTFT, TPOT, end-to-end latency, throughput, and task quality**. Position count or token reduction by itself is not a production result.
+Production value is judged on measured **GPU-seconds per request, TTFT, TPOT, end-to-end latency, throughput, tail latency, batching efficiency, and task quality**. Position count or token reduction by itself is not a production result.
 
 Ideal install shape:
 
@@ -65,22 +73,37 @@ If zero-shot transfer is too weak, the fallback is **short per-model calibration
 
 ## How research serves the product
 
-Keep experiments cheap and local. Every adaptation level is judged by **deployability**, not only compression:
+Keep experiments cheap and local where possible. Every adaptation level is judged by **deployability**, not only compression:
 
 | Prefer | Avoid (unless all lighter options fail) |
 |---|---|
 | Frozen customer base | Training their full model |
 | Small LoRA / encoders we ship | Requiring they adopt EPFL’s specific checkpoint |
-| Predictor + runtime that wrap `generate()` | Custom kernels they must rebuild the cluster around |
+| Predictor + runtime around stock vLLM | Custom kernels they must rebuild the cluster around |
 | One calibration job per new model family | Per-request or per-tenant retraining |
 | Hash-stable rollback | Irreversible weight edits |
 
-The research decision order is correctness first: prove that a predicted
-hypertoken can skip real decode steps and preserve continuation inside a complete
-answer, then demonstrate that behavior across domains, and only then optimize
-MICRO decode reduction and adapter size. The later commercial target remains at
-least 5% MICRO decode reduction with quality held; compression from truncated or
-degraded output does not count.
+The research decision order is quality-preserved acceleration first: preserve answer quality and continuation, then reduce transformer work, then prove that the reduction survives real serving conditions such as continuous batching and concurrency. The later commercial target remains at least 5% MICRO decode reduction with quality held; compression from truncated or degraded output does not count.
+
+## Batching and production throughput
+
+Continuous/dynamic batching is a first-class production concern.
+
+A single-request speedup is useful evidence, but vLLM is commonly deployed to maximize aggregate GPU utilization across many concurrent requests. Predictive inference therefore has to show that shorter physical sequences produce useful service-level gains under batching rather than merely moving a bottleneck elsewhere.
+
+Production validation should include:
+
+- concurrency sweeps
+- requests/sec
+- p50/p95/p99 latency
+- TTFT and TPOT
+- throughput-vs-latency curves
+- scheduler fairness
+- preemption behavior
+- slot churn and codebook isolation
+- GPU utilization and GPU-seconds/request
+
+If a predictive speedup disappears or materially regresses tail latency under realistic batching, that is a product-level failure even if single-stream decode is faster.
 
 ## Non-goals for the v1 product
 
@@ -88,4 +111,4 @@ degraded output does not count.
 - Requiring they serve only Zip2Zip-pretrained checkpoints.
 - Research-only metrics that do not survive serving (quality regressions, non-unloadable adapters).
 
-Research may still use EPFL Zip2Zip Phi-3.5 to answer scientific questions. Product work should keep asking: **can this land on a datacenter model we have never trained?**
+Research may still use EPFL Zip2Zip Phi-3.5 to answer scientific questions. Product work should keep asking: **can this land on a datacenter model we have never trained and deliver a quality-preserved service-level win?**
