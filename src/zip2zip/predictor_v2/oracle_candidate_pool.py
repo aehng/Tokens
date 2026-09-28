@@ -36,6 +36,8 @@ class CandidatePoolOracleResult:
     optimization_method: str
     solver_status: str = "OPTIMAL"
     optimality_gap: float = 0.0
+    steps_saved_lower_bound: int = 0
+    steps_saved_upper_bound: int = 0
 
 
 class CandidatePoolOracle:
@@ -77,6 +79,8 @@ class CandidatePoolOracle:
                 optimization_method="trivial_empty",
                 solver_status="TRIVIAL_EMPTY",
                 optimality_gap=0.0,
+                steps_saved_lower_bound=0,
+                steps_saved_upper_bound=0,
             )
 
         cand_set = {c.tokens for c in candidate_records}
@@ -121,4 +125,6 @@ class CandidatePoolOracle:
             optimization_method="exact_cpsat_01_ilp",
             solver_status=exact_res.solver_status,
             optimality_gap=exact_res.optimality_gap,
+            steps_saved_lower_bound=exact_res.steps_saved,
+            steps_saved_upper_bound=exact_res.objective_upper_bound or exact_res.steps_saved,
         )

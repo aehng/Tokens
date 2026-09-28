@@ -71,6 +71,10 @@ def instantiate_model(name: str):
 
 
 def main():
+    raise SystemExit(
+        "This legacy runner evaluates frozen_test_records during architecture selection. "
+        "Use experiments/train_predictor_v2_canonical_bakeoff.py for the canonical TRAIN/DEV-only workflow."
+    )
     parser = argparse.ArgumentParser(description="Multi-Seed Predictor V2 Architecture Bake-Off")
     parser.add_argument("--dataset-pkl", default=DATASET_PKL, help="Dataset pickle path")
     parser.add_argument("--epochs", type=int, default=12, help="Max epochs for neural models")

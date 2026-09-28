@@ -33,6 +33,8 @@ class OracleResult:
     optimality_gap_upper_bound: float
     optimization_method: str
     solver_status: str = "OPTIMAL"
+    steps_saved_lower_bound: int = 0
+    steps_saved_upper_bound: int = 0
 
 
 class GlobalOccurrenceOracle:
@@ -94,4 +96,6 @@ class GlobalOccurrenceOracle:
             optimality_gap_upper_bound=exact_res.optimality_gap,
             optimization_method="exact_cpsat_01_ilp",
             solver_status=exact_res.solver_status,
+            steps_saved_lower_bound=exact_res.steps_saved,
+            steps_saved_upper_bound=exact_res.objective_upper_bound or exact_res.steps_saved,
         )

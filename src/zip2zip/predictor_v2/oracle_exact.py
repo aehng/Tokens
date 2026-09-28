@@ -7,6 +7,7 @@ Eliminates heuristic approximations (lazy-greedy, beam search) for oracle bounds
 from __future__ import annotations
 
 import time
+import math
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
@@ -34,6 +35,7 @@ class ExactOracleResult:
     num_constraints: int
     candidate_count_considered: int
     optimization_method: str
+    objective_upper_bound: int | None = None
 
 
 class ExactHypertokenOracle:
@@ -118,6 +120,7 @@ class ExactHypertokenOracle:
                 num_constraints=0,
                 candidate_count_considered=0,
                 optimization_method="exact_empty",
+                objective_upper_bound=0,
             )
 
         occurrences_map = self.extract_occurrences(tokens, allowed_phrases=allowed_phrases)
@@ -142,6 +145,7 @@ class ExactHypertokenOracle:
                 num_constraints=0,
                 candidate_count_considered=0,
                 optimization_method="exact_no_occurrences",
+                objective_upper_bound=0,
             )
 
         # Build CP-SAT Model
@@ -190,6 +194,36 @@ class ExactHypertokenOracle:
         status_name = solver.StatusName(status)
 
         is_exact = (status_name == "OPTIMAL")
+        if status_name not in {"OPTIMAL", "FEASIBLE"}:
+            try:
+                best_bound = solver.BestObjectiveBound()
+                if not math.isfinite(best_bound):
+                    raise RuntimeError("CP-SAT did not return a finite objective bound")
+                upper_bound = max(0, math.ceil(best_bound))
+            except Exception as exc:
+                raise RuntimeError(
+                    f"CP-SAT returned {status_name} without a usable objective bound; refusing to report an oracle ceiling"
+                ) from exc
+            comp_len, _, st = segment_tokens_dp(list(tokens), set())
+            return ExactOracleResult(
+                k=k,
+                selected_phrases=[],
+                selected_texts=[],
+                steps_saved=st["tokens_saved"],
+                compressed_length=comp_len,
+                emissions=st["hypertoken_emissions"],
+                unique_phrases_used=st["unique_hypertokens_used"],
+                codebook_utilization=st["codebook_utilization"],
+                runtime_ms=(time.perf_counter() - t0) * 1000.0,
+                is_exact=False,
+                solver_status=status_name,
+                optimality_gap=float(max(0, upper_bound - st["tokens_saved"]) / max(1, st["tokens_saved"])),
+                num_variables=len(y) + num_occ,
+                num_constraints=len(pos_to_occurrences) + num_occ + 1,
+                candidate_count_considered=candidate_count,
+                optimization_method="cpsat_no_incumbent_with_bound",
+                objective_upper_bound=max(upper_bound, st["tokens_saved"]),
+            )
         opt_gap = 0.0
         if status_name == "FEASIBLE":
             best_bound = solver.BestObjectiveBound()
@@ -204,6 +238,11 @@ class ExactHypertokenOracle:
         # Re-verify through DP segmenter to guarantee exact contract alignment
         comp_len, _, st = segment_tokens_dp(list(tokens), set(selected_phrases))
         t1 = time.perf_counter()
+        objective_upper_bound = (
+            st["tokens_saved"]
+            if is_exact
+            else max(st["tokens_saved"], math.ceil(solver.BestObjectiveBound()))
+        )
 
         texts = [tokenizer.decode(list(p)) if tokenizer else str(p) for p in selected_phrases]
 
@@ -224,4 +263,5 @@ class ExactHypertokenOracle:
             num_constraints=len(pos_to_occurrences) + num_occ + 1,
             candidate_count_considered=candidate_count,
             optimization_method="cpsat_exact_01_ilp",
+            objective_upper_bound=objective_upper_bound,
         )

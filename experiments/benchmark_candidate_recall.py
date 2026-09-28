@@ -326,6 +326,10 @@ def generate_markdown_report(bundle: Dict[str, Any], out_path: str = OUT_RESULTS
 
 
 def main():
+    raise SystemExit(
+        "This legacy benchmark uses unversioned split/data inputs and omits interval-aware oracle reporting. "
+        "Use experiments/benchmark_canonical_candidate_recall.py with the canonical manifest."
+    )
     parser = argparse.ArgumentParser(description="Candidate Recall & Latency Benchmark on DEV")
     parser.add_argument("--manifest", default=DEFAULT_MANIFEST)
     parser.add_argument("--continuations", default=DEFAULT_CONTINUATIONS)

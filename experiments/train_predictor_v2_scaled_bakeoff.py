@@ -1,4 +1,4 @@
-"""Multi-Seed Predictor V2 Architecture Bake-Off on Scaled Dataset.
+"""Historical prototype; its FINAL access precedes the user-required freeze gates.
 
 Methodology Guarantees:
 1. Trained strictly on 630 TRAIN canonical continuations.
@@ -88,6 +88,11 @@ def instantiate_model(name: str):
 
 
 def main():
+    raise SystemExit(
+        "This legacy runner evaluates FINAL during the bakeoff. Use "
+        "experiments/train_predictor_v2_canonical_bakeoff.py for TRAIN/DEV-only selection, "
+        "then the one-time FINAL evaluator only after the live integration gate and all freezes pass."
+    )
     parser = argparse.ArgumentParser(description="Scaled Predictor V2 Architecture Bake-Off")
     parser.add_argument("--manifest", default=DEFAULT_MANIFEST)
     parser.add_argument("--continuations", default=DEFAULT_CONTINUATIONS)
