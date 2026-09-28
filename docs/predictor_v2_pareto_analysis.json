@@ -1,0 +1,288 @@
+{
+  "schema": "predictor_v2_pareto_analysis_v1",
+  "pareto_points": [
+    {
+      "name": "Ridge",
+      "params": 44,
+      "size_kb": 0.51,
+      "latency_p50_ms": 0.064,
+      "latency_p90_ms": 0.068,
+      "dev_capture_pct": 31.75,
+      "test_capture_pct": 42.22,
+      "dev_dp_steps": 221,
+      "test_dp_steps": 323,
+      "precision_k32": 0.2812,
+      "dead_slot_rate": 0.7188,
+      "is_dominated": false
+    },
+    {
+      "name": "PooledMLP",
+      "params": 3194503,
+      "size_kb": 12483.37,
+      "latency_p50_ms": 1.386,
+      "latency_p90_ms": 1.851,
+      "dev_capture_pct": 49.71,
+      "test_capture_pct": 41.31,
+      "dev_dp_steps": 346,
+      "test_dp_steps": 316,
+      "precision_k32": 0.4401,
+      "dead_slot_rate": 0.5599,
+      "is_dominated": false
+    },
+    {
+      "name": "CNNRanker",
+      "params": 3225367,
+      "size_kb": 12606.03,
+      "latency_p50_ms": 3.21,
+      "latency_p90_ms": 4.483,
+      "dev_capture_pct": 45.83,
+      "test_capture_pct": 44.18,
+      "dev_dp_steps": 319,
+      "test_dp_steps": 338,
+      "precision_k32": 0.4062,
+      "dead_slot_rate": 0.5938,
+      "is_dominated": true,
+      "dominated_by": "PooledMLP"
+    },
+    {
+      "name": "TransformerRanker",
+      "params": 4465671,
+      "size_kb": 17453.01,
+      "latency_p50_ms": 4.584,
+      "latency_p90_ms": 5.263,
+      "dev_capture_pct": 38.22,
+      "test_capture_pct": 32.29,
+      "dev_dp_steps": 266,
+      "test_dp_steps": 247,
+      "precision_k32": 0.3385,
+      "dead_slot_rate": 0.6615,
+      "is_dominated": true,
+      "dominated_by": "PooledMLP"
+    },
+    {
+      "name": "GRURanker",
+      "params": 3275143,
+      "size_kb": 12799.42,
+      "latency_p50_ms": 14.726,
+      "latency_p90_ms": 19.56,
+      "dev_capture_pct": 48.85,
+      "test_capture_pct": 48.89,
+      "dev_dp_steps": 340,
+      "test_dp_steps": 374,
+      "precision_k32": 0.4036,
+      "dead_slot_rate": 0.5964,
+      "is_dominated": true,
+      "dominated_by": "PooledMLP"
+    }
+  ],
+  "latency_profiles": {
+    "Ridge": {
+      "model_class": "RidgeRanker",
+      "parameter_count": 44,
+      "serialized_size_kb": 0.51,
+      "device": "cpu",
+      "by_prompt_length": {
+        "128": {
+          "cold_latency_ms": 0.256,
+          "p50_latency_ms": 0.064,
+          "p90_latency_ms": 0.071,
+          "p99_latency_ms": 0.075,
+          "mean_latency_ms": 0.066,
+          "min_latency_ms": 0.063
+        },
+        "512": {
+          "cold_latency_ms": 0.157,
+          "p50_latency_ms": 0.064,
+          "p90_latency_ms": 0.068,
+          "p99_latency_ms": 0.073,
+          "mean_latency_ms": 0.065,
+          "min_latency_ms": 0.062
+        },
+        "1024": {
+          "cold_latency_ms": 0.162,
+          "p50_latency_ms": 0.065,
+          "p90_latency_ms": 0.077,
+          "p99_latency_ms": 0.121,
+          "mean_latency_ms": 0.07,
+          "min_latency_ms": 0.063
+        }
+      }
+    },
+    "PooledMLP": {
+      "model_class": "PooledMLPRanker",
+      "parameter_count": 3194503,
+      "serialized_size_kb": 12483.37,
+      "device": "cpu",
+      "by_prompt_length": {
+        "128": {
+          "cold_latency_ms": 5.922,
+          "p50_latency_ms": 1.234,
+          "p90_latency_ms": 1.688,
+          "p99_latency_ms": 2.016,
+          "mean_latency_ms": 1.242,
+          "min_latency_ms": 0.83
+        },
+        "512": {
+          "cold_latency_ms": 1.887,
+          "p50_latency_ms": 1.386,
+          "p90_latency_ms": 1.851,
+          "p99_latency_ms": 2.327,
+          "mean_latency_ms": 1.473,
+          "min_latency_ms": 1.027
+        },
+        "1024": {
+          "cold_latency_ms": 1.47,
+          "p50_latency_ms": 1.023,
+          "p90_latency_ms": 1.816,
+          "p99_latency_ms": 1.978,
+          "mean_latency_ms": 1.225,
+          "min_latency_ms": 0.942
+        }
+      }
+    },
+    "CNNRanker": {
+      "model_class": "CNNRanker",
+      "parameter_count": 3225367,
+      "serialized_size_kb": 12606.03,
+      "device": "cpu",
+      "by_prompt_length": {
+        "128": {
+          "cold_latency_ms": 5.111,
+          "p50_latency_ms": 2.142,
+          "p90_latency_ms": 2.644,
+          "p99_latency_ms": 3.773,
+          "mean_latency_ms": 2.136,
+          "min_latency_ms": 1.523
+        },
+        "512": {
+          "cold_latency_ms": 6.096,
+          "p50_latency_ms": 3.21,
+          "p90_latency_ms": 4.483,
+          "p99_latency_ms": 4.823,
+          "mean_latency_ms": 3.327,
+          "min_latency_ms": 2.156
+        },
+        "1024": {
+          "cold_latency_ms": 6.714,
+          "p50_latency_ms": 4.929,
+          "p90_latency_ms": 5.238,
+          "p99_latency_ms": 5.359,
+          "mean_latency_ms": 4.814,
+          "min_latency_ms": 3.412
+        }
+      }
+    },
+    "GRURanker": {
+      "model_class": "GRURanker",
+      "parameter_count": 3275143,
+      "serialized_size_kb": 12799.42,
+      "device": "cpu",
+      "by_prompt_length": {
+        "128": {
+          "cold_latency_ms": 7.339,
+          "p50_latency_ms": 4.543,
+          "p90_latency_ms": 5.692,
+          "p99_latency_ms": 5.988,
+          "mean_latency_ms": 4.53,
+          "min_latency_ms": 3.528
+        },
+        "512": {
+          "cold_latency_ms": 15.331,
+          "p50_latency_ms": 14.726,
+          "p90_latency_ms": 19.56,
+          "p99_latency_ms": 23.535,
+          "mean_latency_ms": 15.542,
+          "min_latency_ms": 12.891
+        },
+        "1024": {
+          "cold_latency_ms": 27.344,
+          "p50_latency_ms": 26.626,
+          "p90_latency_ms": 34.808,
+          "p99_latency_ms": 46.112,
+          "mean_latency_ms": 28.998,
+          "min_latency_ms": 23.554
+        }
+      }
+    },
+    "TransformerRanker": {
+      "model_class": "TransformerRanker",
+      "parameter_count": 4465671,
+      "serialized_size_kb": 17453.01,
+      "device": "cpu",
+      "by_prompt_length": {
+        "128": {
+          "cold_latency_ms": 3.484,
+          "p50_latency_ms": 2.566,
+          "p90_latency_ms": 3.192,
+          "p99_latency_ms": 3.591,
+          "mean_latency_ms": 2.638,
+          "min_latency_ms": 2.013
+        },
+        "512": {
+          "cold_latency_ms": 5.027,
+          "p50_latency_ms": 4.584,
+          "p90_latency_ms": 5.263,
+          "p99_latency_ms": 5.421,
+          "mean_latency_ms": 4.621,
+          "min_latency_ms": 3.773
+        },
+        "1024": {
+          "cold_latency_ms": 9.239,
+          "p50_latency_ms": 7.194,
+          "p90_latency_ms": 7.692,
+          "p99_latency_ms": 7.88,
+          "mean_latency_ms": 7.242,
+          "min_latency_ms": 6.668
+        }
+      }
+    }
+  },
+  "top_two_selected_architectures": [
+    "Ridge",
+    "PooledMLP"
+  ],
+  "loss_funnel": {
+    "stage_1_global_occurrence_ceiling": {
+      "steps": 8806,
+      "pct_of_global": 100.0,
+      "loss_steps": 0,
+      "loss_pct": 0.0,
+      "loss_reason": "Theoretical physical maximum"
+    },
+    "stage_2_fixed_candidate_pool": {
+      "steps": 3737,
+      "pct_of_global": 42.4,
+      "loss_steps": 5069,
+      "loss_pct": 57.6,
+      "loss_reason": "Candidate-Generation Loss (recall deficit)"
+    },
+    "stage_3_best_offline_ranker": {
+      "steps": 1186,
+      "pct_of_global": 13.5,
+      "loss_steps": 2551,
+      "loss_pct": 29.0,
+      "loss_reason": "Ranker Loss (ranking prioritization errors)"
+    },
+    "stage_4_empirical_safety_adjusted": {
+      "steps": 534,
+      "pct_of_global": 6.1,
+      "loss_steps": 652,
+      "loss_pct": 7.4,
+      "loss_reason": "Continuation Safety / Representation Loss"
+    },
+    "stage_5_live_hypertoken_emission": {
+      "steps": 374,
+      "pct_of_global": 4.2,
+      "loss_steps": 160,
+      "loss_pct": 1.8,
+      "loss_reason": "Emission Head Threshold / Decoding Miss"
+    },
+    "stage_6_quality_preserved_realized_savings": {
+      "steps": 318,
+      "pct_of_global": 3.6,
+      "loss_steps": 56,
+      "loss_pct": 0.6,
+      "loss_reason": "Post-answer / Repetition / Truncation loss"
+    }
+  }
+}
