@@ -1,114 +1,263 @@
 # Predictive Hypertoken Research Roadmap
 
-**Status:** Canonical current research plan, updated 2026-09-23. This roadmap supersedes earlier active phase ordering in the study, research log, and the Qwen/vLLM planning snapshot. It records plans, not authorization to launch work. Do not start experiments, Kaggle jobs, K sweeps, or retraining without an explicit task.
+**Status:** Canonical current research plan, updated 2026-09-28. This roadmap supersedes earlier active phase ordering in the study, research log, Qwen/vLLM planning snapshots, and the 2026-09-23 roadmap. It records the order of work; it does not authorize expensive experiments automatically.
 
 ## Current state
 
-- The corrected 12-prompt Tier-1 result and Phase-5 contextual-emission-gate benchmark are complete. The authoritative Tier-1 report is [`checkpoints/quality_benchmark/tier1_authoritative.md`](checkpoints/quality_benchmark/tier1_authoritative.md); Phase-5 artifacts are under `checkpoints/quality_benchmark/tier1_runs/3de046a1b858dc7a/`.
-- The canonical predictive prompt is `compressed_prompt` / `predictive_codebook_dp_segmented`; the verified Step-100 checkpoint and Oracle-Guided Predictor are the current predictive reference.
-- For primary greedy decoding, **no gate is canonical**. Phase 5 found byte-identical output and identical decode trajectories across no-gate, top-16, and top-32 conditions, while the gates added substantial measured CPU decode cost. Gate tuning is closed for greedy decoding; reopen it only for a specific sampling-mode, constrained-serving, or safety hypothesis.
-- The immediate next work, when authorized, is a small single-T4 Kaggle infrastructure smoke, followed by a paired GPU Vanilla-vs-Predictive runtime/stopping comparison. These are not yet reported as completed by this roadmap.
+- The Phi-3.5 predictive path has a verified vLLM 0.30.0 compatibility proof. Targeted Phase 9 passed on Kaggle kernel v18 and the full Phases 1–10 proof passed on kernel v19 on a Tesla T4. The machine-readable reports were merged to `main` at `23b2506ab2837c76c1b181b1856360a5560a763f` and tagged `good`.
+- That proof establishes that request-specific hypertoken embeddings/logits and semantic RoPE positions can coexist with stock vLLM scheduling, continuous batching, paged KV cache, attention, sampling, slot reuse, chunked prefill, and recompute-style preemption for the tested Phi stack.
+- The proof does **not** establish broad task-quality parity, Qwen3-8B compatibility or performance, realistic production throughput, or compatibility with every vLLM production feature.
+- The authoritative 12-prompt Phi T4 validation measured 10.85% net compression and +9.96% decode speedup versus Vanilla-equivalent timing (+9.54% including setup), but the quality sample remained mixed. Broad quality parity is therefore still the primary research risk.
+- Predictor/codebook quality is expected to be the main improvement lever, but quality must be treated as an end-to-end property of the whole pipeline: candidate generation, ranking, codebook construction, H input/output representations, continuation state, termination/EOS behavior, decoding/serving, and fallback behavior.
 
-Historical measurements remain historical; do not backfill missing diagnostics or silently replace earlier plans/results. The [research log](../RESEARCH_LOG.md) records dated evidence, the [predictive study](../PREDICTIVE_HYPERTOKEN_STUDY.md) keeps research history, and the [benchmark methodology](QUALITY_BENCHMARK_METHODOLOGY.md) defines the live-run data contract.
+Historical measurements remain historical. The [research log](../RESEARCH_LOG.md) records dated evidence, the [predictive study](../PREDICTIVE_HYPERTOKEN_STUDY.md) keeps research history, and the [benchmark methodology](QUALITY_BENCHMARK_METHODOLOGY.md) defines the live-run data contract.
 
-## Phase-5 findings that changed the order
+## Decision principles
 
-### Gate experiment
+1. **Quality first, throughout the pipeline.** Do not optimize speed or raw compression by accepting unexplained quality loss.
+2. **Improve hypertoken prediction first where the evidence points there, not by assumption.** Candidate generation, ranking, occurrence prediction, K, H representations, training objectives, and stopping/continuation are all valid suspects.
+3. **Keep Vanilla as the control.** Every quality or performance claim must be paired against the same base model and serving contract.
+4. **Preserve the verified vLLM proof point.** Do not casually change the known-good Phi/vLLM path while investigating unrelated quality issues.
+5. **Separate correctness, quality, and performance.** Passing one does not imply the others.
+6. **Measure production value, not token-count aesthetics.** Use TTFT, TPOT, time-to-EOS, words/sec, requests/sec, GPU-seconds/request, latency distributions, throughput, and task quality.
+7. **Batching/concurrency is a first-class production concern.** vLLM's value comes largely from continuous batching and scheduler utilization; a speedup that disappears under realistic batched serving is not a production win.
 
-Across no gate, top-16, and top-32, greedy output was byte-identical for all 12 prompts. Every condition produced 2,794 transformer decode iterations, 3,128 expanded tokens, 334 steps saved (10.68% micro decode reduction), and 239 emitted hypertokens. Filtering roughly 79% of slots with top-16 or 70% with top-32 therefore did not change task quality, emitted phrases, or trajectory in this experiment.
+## Canonical execution sequence
 
-The no-gate baseline cost 663.2 ms per decode step. Top-16 added 144.2 ms/step (+21.7% decode-time overhead); top-32 added 254.1 ms/step (+38.3%). The evidence supports treating most filtered candidates as **wasted capacity** under this greedy setup, not as demonstrated active quality damage. A **dead slot** is a predicted phrase that does not occur in the relevant target/generation; a **dangerous slot** is a phrase whose emission materially harms quality or continuation. These terms are not interchangeable. The gate remains available behind configuration for a separately justified future use, but is not part of the primary greedy path.
+### Phase 1 — Broader Phi quality baseline and failure attribution
 
-### Termination and post-answer tail
+Establish a stronger Vanilla-vs-Predictive quality baseline before major architecture work.
 
-In the Phase-5 predictive run, 0/12 prompts emitted EOS and 7/12 reached `max_new_tokens=300`. All four GSM8K prompts had produced their deterministically extracted numerical answer by approximately decode step 41–183, yet continued generating. Across these prompts, 578/1,200 decode iterations (48.2%) occurred after the answer. For example, `gsm_6613` continued for 259 steps after its answer (86.3% of its trajectory), and `gsm_2956` continued for 204 steps (68.0%).
+Cover at least:
+- reasoning/math
+- code
+- instruction following
+- general knowledge / short factual generation
+- longer-form generation / continuation
 
-This is a measured stopping/continuation problem, not proof that hypertokens caused it. Earlier Vanilla Phi also had poor EOS behavior. The next meaningful comparison must be matched Vanilla Phi versus Predictive Step-100 under the same prompts and generation contract before assigning blame to predictive decoding, the serving contract, or EOS training.
+For each prompt, capture both final task quality and the trajectory needed to locate where divergence begins.
 
-### Predictor capture funnel
+Attribute failures across the full pipeline:
+- useful phrase absent from candidate generator
+- useful phrase present but ranked out
+- selected codebook phrase never occurs / dead slot
+- useful hypertoken occurs but is not emitted
+- emitted hypertoken changes continuation state
+- H input/output representation error
+- EOS / stopping / repetition / post-answer-tail issue
+- serving or decoding contract mismatch
 
-Current approximate measurements are 35.05% quality-aware oracle opportunity, 12.98% offline Oracle-Guided Predictor DP compression, and 10.68% realized live predictive micro decode reduction. Predictor codebook precision is about 27.14%, with about 72.86% dead slots. Quantify the loss at each funnel stage before tuning K. A dead slot is not evidence of a dangerous emission.
+Do not classify every failure as a predictor problem merely because predictor quality is the leading hypothesis.
 
-## Priority order
+**Gate:** We have a repeatable quality suite and a ranked list of dominant failure modes.
 
-1. Task quality / parity with Vanilla.
-2. Termination and continuation health.
-3. Quality-preserved decode reduction.
-4. Per-transformer-step runtime cost.
-5. End-to-end latency and throughput.
-6. Raw compression.
-7. K tuning, only after the upstream bottlenecks are understood or improved.
+### Phase 2 — Improve hypertoken prediction and end-to-end quality
 
-Always distinguish raw compression, quality-preserved compression, decode-step reduction, and wall-clock speedup. Fewer transformer calls alone do not establish faster inference. Attribute latency among request setup, prefill/TTFT, decode-step count and cost, and generation trajectory.
+Iterate on the dominant quality bottlenecks, with predictor/codebook quality as the likely primary workstream.
 
-## Canonical execution sequence and gates
+Potential work includes:
+- better candidate generation
+- better ranking / occurrence prediction
+- improved supervision for the predictor
+- better phrase filtering or codebook construction
+- K recalibration only when supported by evidence
+- output-head / HyperLinear training if useful H tokens are not emitted
+- continuation-consistency or representation training if H emissions destabilize later decoding
+- EOS / continuation training if Predictive is worse than matched Vanilla
+- prompt/serving contract fixes if Vanilla and Predictive share the same stopping pathology
 
-No phase starts automatically. Keep long jobs asynchronous and commit-pinned: run from an immutable checkout; record the exact tested commit SHA, run manifest, configuration, environment, logs, outputs, and completion status; continue independent work elsewhere; serialize timing tests that share a physical GPU; and wait only at result-dependent decision gates. Every future live benchmark collects the v3 runtime/trajectory diagnostics in the same generations used for quality scoring. Do not add a duplicate large timing suite by default.
+Every iteration must report:
+1. quality vs Vanilla
+2. quality-preserved decode-step reduction
+3. H utilization / hit rate
+4. termination and repetition health
+5. per-step runtime
+6. end-to-end latency
 
-### Phase 6A — Single-T4 Kaggle smoke (infrastructure gate)
+**Gate:** Phi quality is strong enough that moving to a larger, more product-relevant model is justified.
 
-Use one Kaggle T4 and only three prompts (code, reasoning, instruction). Verify model fit, Step-100 loading and all expected trained tensors, unchanged frozen-backbone hashes, predictor hash, canonical `compressed_prompt`, no-gate path, actual CUDA use, peak VRAM, trustworthy GPU timing, and outputs broadly consistent with CPU greedy behavior. This is not the full benchmark. Stop on checkpoint/hash mismatch, CPU fallback, CUDA/runtime failure, OOM, or invalid timing.
+### Phase 3 — Qwen3-8B transfer and correctness
 
-### Phase 6B — Matched GPU Vanilla vs Predictive stopping/runtime test
+Port the verified architecture to Qwen3 8B while keeping the base model frozen.
 
-Run the fixed Tier-1 12 prompts under matched generation settings:
+Start with correctness, not speed:
+- Vanilla Qwen HF reference
+- Predictive Qwen HF
+- Predictive Qwen vLLM
+- logical/physical vocabulary mapping
+- request-specific H embeddings and logits
+- correct RoPE semantics
+- HF-vLLM agreement
+- multiple codebooks / request isolation
+- slot reuse
+- chunked prefill
+- scheduler preemption/re-admission
 
-- A: Vanilla Phi.
-- B: verified Step-100 Predictive, canonical compressed prompt, Oracle-Guided Predictor, and no gate.
+Reuse the Phi proof design where it maps cleanly, but do not assume Phi-specific hooks generalize unchanged.
 
-Collect domain quality (MBPP Pass@1 and syntax, GSM8K exact, Alpaca mechanical pass, and semantic instruction signal if available); trajectory (expanded output, decode iterations, EOS, token cap, repetition, deterministic answer position, post-answer tail); and runtime (TTFT, decode wall, iterations/sec, milliseconds/iteration, expanded tokens/sec, words/sec, total wall). Pair by prompt. Determine whether the difference is per-step cost, trajectory length, EOS/stopping, or setup/prefill. Specifically test whether Vanilla has the same post-answer tail behavior. This result selects the next engineering branch.
+A small per-model calibration job / LoRA / encoder fit is acceptable. Full customer-base-model retraining is not the desired product path.
 
-### Phase 7 — Predictor/oracle capture funnel
+**Gate:** Qwen3-8B predictive inference is correct in HF and vLLM on the supported configuration.
 
-Quantify each stage: quality-aware oracle opportunity → good phrase present in candidate generator → good phrase ranked into top-K → top-K phrase occurs → phrase emitted → continuation-safe emission → quality-preserved realized savings. For every stage report phrase count, potential decode steps saved, retention versus prior stage, cumulative retention of oracle opportunity, domain, and phrase-length breakdown. Separate candidate-generation, ranking, K truncation, occurrence/dead-slot, model-emission, and continuation-safety loss. Never infer harm from non-occurrence.
+### Phase 4 — Qwen quality parity
 
-### Phase 8 — Empirical continuation-safety probes
+Repeat the quality program on Qwen rather than assuming the Phi result transfers.
 
-On a manageable, stratified subset compare the base constituent path `t1…tn` with the hypertoken path `H`: next-token KL, hidden-state cosine, top-1 agreement, top-k overlap, EOS-probability delta, and 3–5-token continuation agreement. Stratify by code/reasoning/instruction, phrase length, prompt-grounded/novel, numeric/ungrounded numeric, function/identifier, syntax/structural, grammatical glue, and whitespace/boundary type. Keep the probe cheap; do not enumerate every candidate. Test whether textually correct phrases can yield internally unsafe continuation state.
+Compare Vanilla Qwen vs Predictive Qwen on the same domains and diagnostics used in Phase 1.
 
-### Phase 9 — Evidence-based bottleneck decision
+Track:
+- task accuracy / pass rate
+- semantic instruction quality
+- continuation divergence
+- EOS / truncation / repetition
+- codebook precision and H emission quality
+- quality-preserved compression / decode-step reduction
 
-Do not automatically implement a predictor or training fix. Classify the dominant bottleneck using Phases 6B–8:
+**Gate:** The Qwen speed experiment is worth running at production-relevant scale.
 
-| Evidence | Next branch to consider |
-|---|---|
-| Candidate generator misses useful oracle phrases | Improve candidate generation |
-| Ranker fails to prioritize available useful candidates | Predictor V2 / better supervision |
-| Top-K mostly dead but harmless | Improve occurrence prediction or ranking efficiency |
-| Useful hypertokens occur but are not emitted | Output-head / HyperLinear training |
-| Correct hypertokens emit but continuation diverges | Continuation-consistency / representation training |
-| Predictive EOS is worse than matched Vanilla | EOS-correct retraining / continuation training |
-| Vanilla has the same long tails | Fix generation/stopping contract before attributing to hypertokens |
-| Predictive GPU per-step cost is much higher | Profile/optimize HyperLinear or dynamic runtime |
+### Phase 5 — Qwen vLLM performance, including batching and concurrency
 
-### Phase 10 — K recalibration (downstream)
+Measure the system in the serving environment that matters.
 
-Only after the bottleneck is understood or improved, compare K = 4, 8, 16, 24, 32 using compressed prompts and no gate, with an improved predictor/configuration if Phase 9 justifies one. Measure quality, quality-preserved and raw compression, dead slots, emitted hypertokens, per-step and total runtime, EOS, and post-answer tails. K is downstream tuning, not the assumed architecture fix; do not pick the largest raw compression.
+Single-request metrics:
+- TTFT
+- TPOT / decode latency
+- time-to-EOS
+- end-to-end latency
+- transformer decode calls
+- expanded/base-token-equivalent throughput
+- words/sec
+- GPU utilization
+- VRAM
+- GPU-seconds/request
+- setup/codebook synthesis overhead
 
-### Phase 11 — Short EOS-correct retraining (conditional)
+Batched / concurrent metrics:
+- continuous/dynamic batching behavior
+- requests/sec
+- tokens/sec and words/sec at the service level
+- p50 / p95 / p99 latency
+- concurrency 1, 2, 4, 8, and higher where hardware permits
+- scheduler fairness / starvation
+- request-specific codebook isolation under batching
+- throughput-vs-latency curves
+- whether predictive shortening improves batch turnover or is hidden by other bottlenecks
 
-Only after inference/predictor configuration is stable, warm-start Step-100 with compressed prompts, recommended predictor/K, no gate, and EOS-correct targets. Run +10 steps then Tier-1; continue to +25 total additional steps only if clearly improving; +50 additional is the maximum and requires continued improvement. Judge quality, EOS, truncation, repetition, post-answer tails, continuation, quality-preserved compression, and runtime—not loss alone.
+Batching is **production-critical**, not an optional polish item. A single-stream speedup is useful evidence, but vLLM production value depends heavily on batched throughput and scheduler efficiency.
 
-### Phase 12 — Continuation consistency (only if needed)
+**Gate:** Predictive Qwen provides a meaningful quality-preserved service-level advantage, not merely fewer logical decode steps.
 
-If empirical evidence still indicates representation drift, compare the existing objective with the same objective plus next-token KL. Consider hidden-state matching only if cheap and justified. Success means near-Vanilla quality, better termination, quality-preserved compression, and reasonable runtime—not merely lower KL.
+### Phase 6 — Make the vLLM path genuinely plug-and-play
 
-### Phase 13 — Tiered validation
+Turn the proof implementation into a supported serving surface.
 
-- Tier 1: fixed 12 prompts, with the v3 diagnostics.
-- Tier 2: 30 prompts (10 code, 10 reasoning, 10 instruction), only if Tier 1 clearly improves.
-- Tier 3: 60 prompts, only if Tier 2 succeeds.
+Target shape:
 
-Do not promote tiers on training loss alone. Retain fresh holdout isolation and reuse cached baselines only when their full manifests match.
+```
+Tokens frontend / sidecar
+        ↓
+predictor + codebook builder
+        ↓
+generic Tokens-vLLM adapter
+        ↓
+stock vLLM
+```
 
-### After Phi is stable — Qwen 3 8B + vLLM
+Goals:
+- normal OpenAI-compatible HTTP serving
+- model-family adapter interface rather than a Phi-only wrapper
+- clean install/load/unload path
+- rollback to untouched Vanilla behavior
+- request accounting and stop semantics
+- observability and diagnostics
+- safe fallback to Vanilla for unsupported request features
 
-Only after Phi mechanics, continuation safety, predictor quality, and serving contract are resolved should work proceed to Qwen 3 8B with vLLM. Validate vanilla and EAGLE3 baselines, then staged Tokens prefill and predictive integration under the separate [production-validation plan](../docs/QWEN3_VLLM_PRODUCTION_VALIDATION.md). Do not migrate unresolved Phi bugs into Qwen/vLLM.
+Desired operator experience should trend toward:
+
+```bash
+tokens serve Qwen/Qwen3-8B
+```
+
+rather than a custom research harness.
+
+### Phase 7 — Production vLLM feature compatibility and stress
+
+Add and validate production features in priority order based on customer value and performance impact.
+
+Priority set:
+1. CUDA graphs / compiled execution
+2. codebook-safe automatic prefix caching
+3. **continuous batching / dynamic batching stress and high-concurrency validation**
+4. tensor parallelism
+5. quantization
+6. pipeline parallelism where relevant
+7. production HTTP/API robustness, observability, fallback, and rollout controls
+8. speculative decoding / EAGLE compatibility later, after the core product path is stable
+
+For prefix caching, requests with the same logical H IDs but different codebook meanings must never incorrectly share KV state.
+
+For batching, validate not only correctness but sustained throughput, tail latency, slot churn, preemption, fairness, and codebook isolation under load.
+
+### Phase 8 — Product viability decision
+
+At this point answer the product question directly:
+
+- How much quality-preserved latency reduction do we get?
+- How much throughput improvement do we get under realistic batching?
+- What is the GPU-seconds/request improvement?
+- What additional VRAM/setup cost do we pay?
+- How much per-model calibration is required?
+- How broad is model-family support?
+- Which vLLM features remain unsupported?
+- Is rollout/rollback simple enough for a datacenter operator?
+
+Do not promote the project based on raw compression alone.
+
+## Quality work continues through every phase
+
+Quality is not a one-time gate that ends after Phase 2.
+
+Each later phase must keep a Vanilla control and re-check the relevant quality suite whenever any of the following changes:
+- model family
+- predictor
+- codebook algorithm
+- K / phrase length
+- H training or representation
+- serving runtime
+- batching/concurrency behavior
+- quantization
+- cache behavior
+- compiled/CUDA-graph path
+- speculative decoding
+
+If a performance optimization changes output quality or continuation behavior, treat that as a correctness/quality regression, not an acceptable benchmark artifact.
 
 ## Stop and escalation conditions
 
-Stop and investigate/escalate if evaluator provenance is invalid; checkpoint or predictor verification fails; GPU smoke fails; predictive quality materially regresses; per-step overhead erases decode savings; EOS/termination deteriorates badly; a change improves raw compression but reduces quality-preserved compression; or the experiment does not justify its compute. Do not begin a larger tier, retraining, or another costly run to explain away a failed gate.
+Stop and investigate if:
+- evaluator provenance is invalid
+- checkpoint or predictor verification fails
+- predictive quality materially regresses
+- per-step overhead erases decode savings
+- EOS/termination deteriorates badly
+- batching causes request-state/codebook contamination
+- throughput gains vanish at realistic concurrency
+- a feature such as prefix caching or quantization violates the semantic-token contract
+- a change improves raw compression but reduces quality-preserved compression
+- an experiment does not justify its compute
 
-## Required questions in every future report
+## Required questions in future reports
 
-Answer in order: (1) quality vs Vanilla; (2) transformer decode calls saved; (3) quality-preserved savings; (4) whether answers arrive earlier/later; (5) termination; (6) wasted post-answer steps; (7) per-step cost; (8) total latency; (9) where oracle opportunity is lost; (10) dominant bottleneck. State uncertainty and denominators; association between H emissions and later behavior is not causation.
+Answer in order:
+1. quality vs Vanilla
+2. where any quality loss originates in the pipeline
+3. transformer decode calls saved
+4. quality-preserved savings
+5. H utilization / predictor capture
+6. whether answers arrive earlier/later
+7. termination and wasted post-answer work
+8. per-step cost
+9. end-to-end latency
+10. batched throughput and tail latency when applicable
+11. GPU-seconds/request
+12. dominant remaining bottleneck
