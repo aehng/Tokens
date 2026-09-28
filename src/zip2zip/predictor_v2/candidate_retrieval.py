@@ -77,6 +77,7 @@ class TrainOnlyAssociationIndex:
     train_prompt_ids: List[str] = field(default_factory=list)
     total_train_continuations: int = 0
     max_subtokens: int = 4
+    provenance: Dict[str, Any] = field(default_factory=dict)
 
     def save(self, path: str) -> None:
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
