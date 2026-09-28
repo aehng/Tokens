@@ -54,14 +54,14 @@ def extract_function_signature(reference: str, *, sample_id: str = "<unknown>") 
 
 def build_mbpp_prompt(sample: Mapping[str, Any]) -> str:
     """Add the required signature to a code-domain sample's task prompt."""
-    sample_id = str(sample.get("id", "<unknown>"))
+    sample_id = str(sample.get("prompt_id", sample.get("id", "<unknown>")))
     if sample.get("domain") != "code":
         raise MBPPPromptError(
             f"Cannot build MBPP prompt for {sample_id}: sample domain must be 'code'."
         )
 
-    prompt = sample.get("prompt")
-    reference = sample.get("ground_truth_response")
+    prompt = sample.get("prompt_text", sample.get("prompt"))
+    reference = sample.get("reference_response", sample.get("ground_truth_response"))
     if not isinstance(prompt, str) or not prompt.strip():
         raise MBPPPromptError(
             f"Cannot build MBPP prompt for {sample_id}: prompt must be a non-empty string."
@@ -69,7 +69,7 @@ def build_mbpp_prompt(sample: Mapping[str, Any]) -> str:
     if not isinstance(reference, str) or not reference.strip():
         raise MBPPPromptError(
             f"Cannot build MBPP prompt for {sample_id}: "
-            "ground_truth_response must be a non-empty string."
+            "reference_response must be a non-empty string."
         )
 
     signature = extract_function_signature(reference, sample_id=sample_id)
