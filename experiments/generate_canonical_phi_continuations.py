@@ -151,12 +151,13 @@ def main():
         "torch_version": torch.__version__,
         "transformers_version": sys.modules.get("transformers", {}).__version__ if "transformers" in sys.modules else "unknown",
         "git_sha": get_git_sha(),
+        "chat_template": True,
         "generation_config": {
             "do_sample": False,
             "temperature": 0.0,
             "max_new_tokens": args.max_new_tokens,
-            "pad_token_id": tokenizer.eos_token_id or 32000,
-            "eos_token_id": tokenizer.eos_token_id or 32000,
+            "pad_token_id": 32000,
+            "eos_token_id": [32007, 32001, 32000],
         },
     }
 
@@ -174,11 +175,14 @@ def main():
 
         # Canonical prompt formatting
         if dom == "code":
-            prompt_text = build_mbpp_prompt(item)
+            task_text = build_mbpp_prompt(item)
         else:
-            prompt_text = item["prompt_text"]
+            task_text = item["prompt_text"]
 
-        p_tokens = tokenizer.encode(prompt_text, add_special_tokens=False)
+        messages = [{"role": "user", "content": task_text}]
+        rendered_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+
+        p_tokens = tokenizer.encode(rendered_prompt, add_special_tokens=False)
         p_len = len(p_tokens)
         input_ids = torch.tensor([p_tokens], dtype=torch.long, device=device)
 
@@ -190,33 +194,43 @@ def main():
                 attention_mask=attention_mask,
                 max_new_tokens=args.max_new_tokens,
                 do_sample=False,
-                pad_token_id=tokenizer.eos_token_id,
-                eos_token_id=tokenizer.eos_token_id,
+                pad_token_id=32000,
+                eos_token_id=[32007, 32001, 32000],
             )
         gen_time_ms = (time.perf_counter() - t0) * 1000.0
 
         gen_tokens = output_seq[0, p_len:].tolist()
         num_gen = len(gen_tokens)
         total_tokens_generated += num_gen
-        continuation_text = tokenizer.decode(gen_tokens, skip_special_tokens=True)
 
-        hit_max = num_gen >= args.max_new_tokens
-        eos_reached = (tokenizer.eos_token_id in gen_tokens)
+        last_tok = gen_tokens[-1] if gen_tokens else None
+        eos_reached = last_tok in (32007, 32001, 32000)
+        termination_reason = "eos" if eos_reached else "max_new_tokens"
+
+        continuation_text = tokenizer.decode(gen_tokens, skip_special_tokens=True)
+        raw_continuation_text = tokenizer.decode(gen_tokens, skip_special_tokens=False)
 
         rec = {
             "prompt_id": pid,
             "domain": dom,
             "split": split,
-            "prompt_text": prompt_text,
+            "task_prompt_text": task_text,
+            "rendered_prompt_text": rendered_prompt,
+            "prompt_text": rendered_prompt,
             "prompt_token_ids": p_tokens,
             "continuation_text": continuation_text,
+            "raw_continuation_text": raw_continuation_text,
             "continuation_token_ids": gen_tokens,
+            "generated_token_count": num_gen,
             "num_continuation_tokens": num_gen,
-            "hit_max_new_tokens": hit_max,
+            "termination_reason": termination_reason,
+            "termination_token_id": last_tok,
+            "hit_max_new_tokens": (termination_reason == "max_new_tokens"),
             "eos_reached": eos_reached,
             "generation_time_ms": round(gen_time_ms, 2),
             "provenance": provenance,
         }
+
 
         out_fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
         out_fh.flush()

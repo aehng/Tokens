@@ -44,7 +44,13 @@ class VanillaContinuationRecord:
     base_revision: str = CANONICAL_BASE_REVISION
     tokenizer_name: str = CANONICAL_MODEL_ID
     generation_config: Dict[str, Any] = None
-    dataset_source: str = "raw_results.jsonl:original_phi"
+    dataset_source: str = "canonical_phi_continuations.jsonl"
+    task_prompt_text: Optional[str] = None
+    rendered_prompt_text: Optional[str] = None
+    raw_continuation_text: Optional[str] = None
+    generated_token_count: Optional[int] = None
+    termination_reason: Optional[str] = None
+    termination_token_id: Optional[int] = None
 
     def __post_init__(self):
         if self.generation_config is None:
@@ -53,12 +59,40 @@ class VanillaContinuationRecord:
                 "temperature": 0.0,
                 "max_new_tokens": 300,
                 "pad_token_id": 32000,
-                "eos_token_id": 32000,
+                "eos_token_id": [32007, 32001, 32000],
             }
+        if self.generated_token_count is None:
+            self.generated_token_count = len(self.continuation_token_ids)
+
 
     def compute_hash(self) -> str:
         s = f"{self.prompt_id}|{self.domain}|{self.prompt_text}|{self.continuation_text}"
         return hashlib.sha256(s.encode("utf-8")).hexdigest()
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> VanillaContinuationRecord:
+        """Parses a dictionary into a VanillaContinuationRecord, handling schema evolution."""
+        prompt_text = d.get("prompt_text") or d.get("rendered_prompt_text") or d.get("task_prompt_text") or ""
+        return cls(
+            prompt_id=d["prompt_id"],
+            domain=d["domain"],
+            prompt_text=prompt_text,
+            prompt_token_ids=d.get("prompt_token_ids", []),
+            continuation_text=d.get("continuation_text", ""),
+            continuation_token_ids=d.get("continuation_token_ids", []),
+            base_model=d.get("base_model", CANONICAL_MODEL_ID),
+            base_revision=d.get("base_revision", CANONICAL_BASE_REVISION),
+            tokenizer_name=d.get("tokenizer_name", CANONICAL_MODEL_ID),
+            generation_config=d.get("generation_config"),
+            dataset_source=d.get("dataset_source", "canonical_phi_continuations.jsonl"),
+            task_prompt_text=d.get("task_prompt_text"),
+            rendered_prompt_text=d.get("rendered_prompt_text"),
+            raw_continuation_text=d.get("raw_continuation_text"),
+            generated_token_count=d.get("generated_token_count"),
+            termination_reason=d.get("termination_reason"),
+            termination_token_id=d.get("termination_token_id"),
+        )
+
 
 
 def load_canonical_vanilla_records(
