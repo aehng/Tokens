@@ -1,0 +1,113 @@
+{
+  "capped_records": [
+    {
+      "domain": "instruction",
+      "prompt_id": "alpaca_104",
+      "split": "TRAIN",
+      "termination_reason": "max_new_tokens"
+    },
+    {
+      "domain": "instruction",
+      "prompt_id": "alpaca_1727",
+      "split": "TRAIN",
+      "termination_reason": "max_new_tokens"
+    },
+    {
+      "domain": "instruction",
+      "prompt_id": "alpaca_446",
+      "split": "TRAIN",
+      "termination_reason": "max_new_tokens"
+    },
+    {
+      "domain": "instruction",
+      "prompt_id": "alpaca_706",
+      "split": "TRAIN",
+      "termination_reason": "max_new_tokens"
+    },
+    {
+      "domain": "code",
+      "prompt_id": "mbpp_108",
+      "split": "TRAIN",
+      "termination_reason": "max_new_tokens"
+    }
+  ],
+  "counts": {
+    "domain": {
+      "code": 300,
+      "instruction": 300,
+      "reasoning": 300
+    },
+    "duplicate_ids": 0,
+    "generation_errors": 0,
+    "missing_ids": 0,
+    "split": {
+      "DEV": 135,
+      "FINAL": 135,
+      "TRAIN": 630
+    },
+    "split_domain": {
+      "DEV": {
+        "code": 45,
+        "instruction": 45,
+        "reasoning": 45
+      },
+      "FINAL": {
+        "code": 45,
+        "instruction": 45,
+        "reasoning": 45
+      },
+      "TRAIN": {
+        "code": 210,
+        "instruction": 210,
+        "reasoning": 210
+      }
+    },
+    "total": 900,
+    "unexpected_ids": 0,
+    "unique_ids": 900
+  },
+  "dataset_path": "data/canonical_phi_continuations.jsonl",
+  "dataset_sha256": "3a8f59791f6fd06479b2b2869d09d71b57bd1e05b897740b70f18b1941f22ee6",
+  "final_use": "Record schema and integrity validated; no FINAL quality/opportunity metrics were computed.",
+  "generation_audit_sha256": "c5fcee53b67bb778b568137c003aee21ddda92d009d8f812f193473cb745fd22",
+  "generation_config": {
+    "do_sample": false,
+    "eos_token_id": [
+      32007,
+      32001,
+      32000
+    ],
+    "max_new_tokens": 1024,
+    "pad_token_id": 32000
+  },
+  "generation_selection_sha256": "67fd33f8d1978de06b7213b1120e8e47a682178b6c8962d75e60a58922f4e0e0",
+  "generation_summary_sha256": "1c86a41a72dc8acd68230365bd279cfdbf7b491c7383137df75780137c19d30c",
+  "inventory_file_sha256": "bb29a0716759cee0e7138a0d1ea2ed8eff21ba6c6641f8773807706c3bedff84",
+  "manifest_sha256": "112d872426ac8684a6e13cccf7cc5176b6eb79f26a1bc298940e4bec61e81b19",
+  "model": {
+    "id": "microsoft/Phi-3.5-mini-instruct",
+    "revision": "2fe192450127e6a83f7441aef6e3ca586c338b77"
+  },
+  "provenance_sha256": "ec9cf9081268be2365a3a73f51e834cd0160b20495a3a108ef51b588fabdef19",
+  "schema": "predictor_v2_corrected_canonical_audit_v1",
+  "source_audit_status": {
+    "expected_id_set_match": true,
+    "final_sha256_match": true,
+    "provenance_match": true,
+    "stage0": "PASS",
+    "summary": "COMPLETE"
+  },
+  "split_resolution": "The generation selection and audit pin the tracked independent inventory by file SHA and manifest hash. Its exact assignment is 630/135/135; the 540/180/180 expectation was not applied.",
+  "stage0_audit_sha256": "a52530342a7ec9b2384e6027fd0a2b5bfd82da90d6e656b2a19f2ed096dbb5d8",
+  "status": "VALID",
+  "termination_reason_counts": {
+    "eos": 895,
+    "max_new_tokens": 5
+  },
+  "tokenizer": {
+    "chat_template_sha256": "78d976a442bcde2f0be15aafbb8e3050e1104f86732266f68403251b89982a90",
+    "id": "microsoft/Phi-3.5-mini-instruct",
+    "revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+    "vocab_size": 32011
+  }
+}

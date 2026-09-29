@@ -28,12 +28,6 @@ RECORD_REQUIRED_FIELDS = frozenset(
         "generated_token_count",
         "termination_reason",
         "termination_token_id",
-        "model_id",
-        "model_revision",
-        "tokenizer_id",
-        "tokenizer_revision",
-        "generation_config",
-        "generation_metadata",
     }
 )
 SPLITS = ("TRAIN", "DEV", "FINAL")
@@ -351,7 +345,14 @@ def _parse_record(raw: Any, line_number: int, manifest: Mapping[str, Any]) -> Ca
     count = raw["generated_token_count"]
     if not isinstance(count, int) or isinstance(count, bool) or count != len(token_ids):
         raise CanonicalDatasetError(f"line {line_number}: generated_token_count must equal token ID count")
-    config = raw["generation_config"]
+    row_provenance = raw.get("provenance", {})
+    if not isinstance(row_provenance, Mapping):
+        raise CanonicalDatasetError(f"line {line_number}: provenance must be an object")
+
+    def provenance_value(field: str) -> Any:
+        return raw[field] if field in raw else row_provenance.get(field)
+
+    config = provenance_value("generation_config")
     if not isinstance(config, Mapping) or sha256_json(config) != manifest["generation_config_sha256"]:
         raise CanonicalDatasetError(f"line {line_number}: generation_config differs from manifest")
     cap = config["max_new_tokens"]
@@ -375,11 +376,38 @@ def _parse_record(raw: Any, line_number: int, manifest: Mapping[str, Any]) -> Ca
     if any(marker in reason_key for marker in ("length", "max_new_tokens", "token_cap", "cap")) and count != cap:
         raise CanonicalDatasetError(f"line {line_number}: cap termination count must equal max_new_tokens")
     for field in ("model_id", "model_revision", "tokenizer_id", "tokenizer_revision"):
-        if not isinstance(raw[field], str) or not raw[field].strip() or raw[field] != manifest[field]:
+        value = provenance_value(field)
+        if not isinstance(value, str) or not value.strip() or value != manifest[field]:
             raise CanonicalDatasetError(f"line {line_number}: {field} differs from manifest")
-    metadata = raw["generation_metadata"]
+
+    expected_record_provenance = manifest["provenance"].get("canonical_provenance", {})
+    if isinstance(expected_record_provenance, Mapping):
+        for field, expected_value in expected_record_provenance.items():
+            if field in row_provenance and row_provenance[field] != expected_value:
+                raise CanonicalDatasetError(
+                    f"line {line_number}: provenance.{field} differs from canonical provenance"
+                )
+
+    metadata = raw.get("generation_metadata")
+    if metadata is None:
+        # The audited 900-row artifact stores shared generation provenance under
+        # `provenance` and row-level audit/health fields beside the continuation.
+        # Preserve both in the normalized view while leaving source JSONL bytes
+        # untouched.
+        excluded = {
+            "prompt_id", "domain", "split", "task_prompt_text", "rendered_prompt_text",
+            "continuation_text", "raw_continuation_text", "continuation_token_ids",
+            "prompt_text", "prompt_token_ids", "provenance",
+        }
+        metadata = {key: value for key, value in raw.items() if key not in excluded}
+        metadata["record_provenance"] = dict(row_provenance)
     if not isinstance(metadata, Mapping):
         raise CanonicalDatasetError(f"line {line_number}: generation_metadata must be an object")
+
+    model_id = provenance_value("model_id")
+    model_revision = provenance_value("model_revision")
+    tokenizer_id = provenance_value("tokenizer_id")
+    tokenizer_revision = provenance_value("tokenizer_revision")
     return CanonicalContinuation(
         prompt_id=pid,
         domain=domain,
@@ -391,10 +419,10 @@ def _parse_record(raw: Any, line_number: int, manifest: Mapping[str, Any]) -> Ca
         generated_token_count=count,
         termination_reason=reason,
         termination_token_id=term_id,
-        model_id=raw["model_id"],
-        model_revision=raw["model_revision"],
-        tokenizer_id=raw["tokenizer_id"],
-        tokenizer_revision=raw["tokenizer_revision"],
+        model_id=model_id,
+        model_revision=model_revision,
+        tokenizer_id=tokenizer_id,
+        tokenizer_revision=tokenizer_revision,
         generation_config_json=canonical_json_bytes(config).decode("utf-8"),
         generation_metadata_json=canonical_json_bytes(metadata).decode("utf-8"),
     )

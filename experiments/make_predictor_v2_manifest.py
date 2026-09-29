@@ -24,6 +24,16 @@ def _first_record(dataset_path: str) -> dict[str, Any]:
     raise ValueError("canonical dataset contains no JSON object records")
 
 
+def _record_value(record: dict[str, Any], field: str) -> Any:
+    value = record.get(field)
+    if value is not None:
+        return value
+    provenance = record.get("provenance", {})
+    if isinstance(provenance, dict):
+        return provenance.get(field)
+    return None
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Create a hash-bound manifest using expected IDs/splits supplied independently"
@@ -39,18 +49,24 @@ def main() -> None:
     if not isinstance(inventory, dict) or not isinstance(provenance, dict):
         raise ValueError("split inventory and provenance must each be JSON objects")
     sample = _first_record(args.dataset)
-    generation_config = sample.get("generation_config")
+    generation_config = _record_value(sample, "generation_config")
     if not isinstance(generation_config, dict):
-        raise ValueError("first record must contain generation_config")
+        raise ValueError("first record must contain generation_config directly or under provenance")
+    model_fields = {
+        field: _record_value(sample, field)
+        for field in ("model_id", "model_revision", "tokenizer_id", "tokenizer_revision")
+    }
+    if any(not isinstance(value, str) or not value.strip() for value in model_fields.values()):
+        raise ValueError("first record must identify model and tokenizer revisions directly or under provenance")
     manifest = create_canonical_manifest(
         args.dataset,
         expected_prompt_ids=inventory["expected_prompt_ids"],
         split_ids=inventory["split_ids"],
         allowed_domains=inventory["allowed_domains"],
-        model_id=sample["model_id"],
-        model_revision=sample["model_revision"],
-        tokenizer_id=sample["tokenizer_id"],
-        tokenizer_revision=sample["tokenizer_revision"],
+        model_id=model_fields["model_id"],
+        model_revision=model_fields["model_revision"],
+        tokenizer_id=model_fields["tokenizer_id"],
+        tokenizer_revision=model_fields["tokenizer_revision"],
         tokenizer_vocab_size=args.tokenizer_vocab_size,
         generation_config=generation_config,
         provenance=provenance,

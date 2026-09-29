@@ -1,0 +1,58 @@
+{
+  "audit_final": {
+    "expected_id_set_match": true,
+    "provenance_match": true,
+    "record_count": 900,
+    "recovered_record_token_mismatches": 0,
+    "sha256_match": true,
+    "unique_prompt_ids": 900
+  },
+  "canonical_provenance": {
+    "cuda_version": "12.8",
+    "dataset_manifest_hash": "bcd4ea237d65d4d449af923ec998e42d377cd3e9456010ed8f9615f2bbee3f98",
+    "dtype": "float16",
+    "generation_config": {
+      "do_sample": false,
+      "eos_token_id": [
+        32007,
+        32001,
+        32000
+      ],
+      "max_new_tokens": 1024,
+      "pad_token_id": 32000
+    },
+    "manifest_file_sha256": "bb29a0716759cee0e7138a0d1ea2ed8eff21ba6c6641f8773807706c3bedff84",
+    "model_id": "microsoft/Phi-3.5-mini-instruct",
+    "model_revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+    "python_version": "3.12.13",
+    "tokenizer_chat_template_sha256": "78d976a442bcde2f0be15aafbb8e3050e1104f86732266f68403251b89982a90",
+    "tokenizer_class": "TokenizersBackend",
+    "tokenizer_id": "microsoft/Phi-3.5-mini-instruct",
+    "tokenizer_revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+    "torch_version": "2.10.0+cu128",
+    "transformers_version": "5.0.0"
+  },
+  "canonical_records_path": "scratch/kaggle_v30_resume900/version3_output/v30_resume900/records.jsonl",
+  "canonical_records_sha256": "3a8f59791f6fd06479b2b2869d09d71b57bd1e05b897740b70f18b1941f22ee6",
+  "generation_audit_path": "scratch/kaggle_v30_resume900/version3_output/v30_resume900/audit_results.json",
+  "generation_audit_sha256": "c5fcee53b67bb778b568137c003aee21ddda92d009d8f812f193473cb745fd22",
+  "generation_selection_path": "scratch/kaggle_v30_resume900/selection.json",
+  "generation_selection_sha256": "67fd33f8d1978de06b7213b1120e8e47a682178b6c8962d75e60a58922f4e0e0",
+  "generation_summary_path": "scratch/kaggle_v30_resume900/version3_output/v30_resume900/summary.json",
+  "generation_summary_sha256": "1c86a41a72dc8acd68230365bd279cfdbf7b491c7383137df75780137c19d30c",
+  "prompt_error_count": 0,
+  "record_count": 900,
+  "recovered_record_count": 741,
+  "resumed_record_count": 159,
+  "run_mode": "resume900",
+  "schema": "predictor_v2_canonical_generation_provenance_v1",
+  "source_dataset_manifest_hash": "bcd4ea237d65d4d449af923ec998e42d377cd3e9456010ed8f9615f2bbee3f98",
+  "source_inventory": "docs/predictor_v2_scaled_dataset_manifest.json",
+  "source_inventory_file_sha256": "bb29a0716759cee0e7138a0d1ea2ed8eff21ba6c6641f8773807706c3bedff84",
+  "split_assignment_conflict_note": "The generation-run-pinned independent inventory and raw rows agree on TRAIN=630, DEV=135, FINAL=135; the later requested 540/180/180 expectation is not supported by the pinned inventory and has not been applied.",
+  "stage0_audit_path": "scratch/kaggle_v30_resume900/version3_output/v30_resume900/stage0_report.json",
+  "stage0_audit_sha256": "a52530342a7ec9b2384e6027fd0a2b5bfd82da90d6e656b2a19f2ed096dbb5d8",
+  "stage0_passed": true,
+  "status": "COMPLETE",
+  "unique_prompt_ids": 900
+}
