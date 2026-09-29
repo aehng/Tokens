@@ -57,12 +57,41 @@ def test_async_function_signature_is_supported():
 
 
 @pytest.mark.parametrize(
+    ("reference", "target"),
+    [
+        (
+            "def helper(value):\n    return value + 1\n"
+            "def requested(value):\n    return helper(value)\n\n"
+            "# Tests\nassert requested(1) == 2",
+            "def requested(value):",
+        ),
+        (
+            "def first(value):\n    return value\n"
+            "def requested(value):\n    return value * 2",
+            "def requested(value):",
+        ),
+    ],
+)
+def test_multiple_functions_select_unique_test_target(reference, target):
+    if "# Tests" in reference:
+        result = extract_function_signature(reference, sample_id="multi")
+    else:
+        result = extract_function_signature(
+            reference,
+            sample_id="multi",
+            test_assert_statements=["assert requested(3) == 6"],
+        )
+
+    assert result == target
+
+
+@pytest.mark.parametrize(
     ("reference", "message"),
     [
         ("# no function here", "found 0"),
         (
             "def first():\n    pass\ndef second():\n    pass",
-            "found 2",
+            "tests must identify exactly one target",
         ),
         ("def unfinished(:\n    pass", "not valid Python"),
     ],

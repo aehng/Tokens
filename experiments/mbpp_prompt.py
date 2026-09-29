@@ -12,11 +12,18 @@ class MBPPPromptError(ValueError):
     """Raised when a sample does not contain a usable Python function."""
 
 
-def extract_function_signature(reference: str, *, sample_id: str = "<unknown>") -> str:
-    """Return the sole top-level Python function signature in ``reference``.
+def extract_function_signature(
+    reference: str,
+    *,
+    sample_id: str = "<unknown>",
+    test_assert_statements: list[str] | tuple[str, ...] | None = None,
+) -> str:
+    """Return the signature for the function identified by the MBPP tests.
 
-    The reference is parsed as syntax only. It is never imported or executed, and
-    the returned string contains no function body or trailing test code.
+    Single-function references are unambiguous. If a reference includes helpers,
+    top-level assertion calls identify the requested function. Ambiguous and
+    zero-function references fail closed; the first function is never assumed
+    to be the task target. Reference and test source are parsed but never run.
     """
     try:
         module = ast.parse(reference)
@@ -31,13 +38,53 @@ def extract_function_signature(reference: str, *, sample_id: str = "<unknown>") 
         for node in module.body
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     ]
-    if len(functions) != 1:
+    if not functions:
         raise MBPPPromptError(
             f"Cannot determine Python function signature for {sample_id}: "
-            f"expected one top-level function, found {len(functions)}."
+            "found 0 top-level functions."
         )
 
-    signature_node = copy.copy(functions[0])
+    target = functions[0]
+    if len(functions) > 1:
+        test_modules = []
+        if test_assert_statements:
+            for test in test_assert_statements:
+                if isinstance(test, str):
+                    try:
+                        test_modules.append(ast.parse(test))
+                    except SyntaxError as exc:
+                        raise MBPPPromptError(
+                            f"Cannot determine Python function signature for {sample_id}: "
+                            f"test metadata is not valid Python ({exc.msg})."
+                        ) from exc
+        if not test_modules:
+            # MBPP references in this frozen pool carry their tests after the
+            # reference implementations as module-level assert statements.
+            test_modules = [ast.Module(
+                body=[node for node in module.body if isinstance(node, ast.Assert)],
+                type_ignores=[],
+            )]
+
+        tested_names: set[str] = set()
+        for test_module in test_modules:
+            for statement in test_module.body:
+                test_expression = statement.test if isinstance(statement, ast.Assert) else statement
+                for node in ast.walk(test_expression):
+                    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                        tested_names.add(node.func.id)
+
+        selected = [function for function in functions if function.name in tested_names]
+        if len(selected) != 1:
+            names = ", ".join(function.name for function in functions)
+            matched = ", ".join(function.name for function in selected) or "none"
+            raise MBPPPromptError(
+                f"Cannot determine Python function signature for {sample_id}: "
+                f"top-level tests must identify exactly one target among [{names}], "
+                f"but identified [{matched}]."
+            )
+        target = selected[0]
+
+    signature_node = copy.copy(target)
     signature_node.decorator_list = []
     signature_node.body = [ast.Pass()]
     signature_node.type_comment = None
@@ -72,9 +119,27 @@ def build_mbpp_prompt(sample: Mapping[str, Any]) -> str:
             "reference_response must be a non-empty string."
         )
 
-    signature = extract_function_signature(reference, sample_id=sample_id)
+    tests = sample.get("test_assert_statements")
+    signature = extract_function_signature(
+        reference,
+        sample_id=sample_id,
+        test_assert_statements=tests if isinstance(tests, (list, tuple)) else None,
+    )
     return (
         f"{prompt.rstrip()}\n\n"
         "Implement this Python function using the required signature:\n"
         f"```python\n{signature}\n```"
     )
+
+
+def canonical_task_text(sample: Mapping[str, Any]) -> str:
+    """Build the exact user-task text used by the canonical Phi runner."""
+    if sample.get("domain") != "code":
+        prompt = sample.get("prompt_text", sample.get("prompt"))
+        if not isinstance(prompt, str) or not prompt.strip():
+            sample_id = str(sample.get("prompt_id", sample.get("id", "<unknown>")))
+            raise MBPPPromptError(
+                f"Cannot build prompt for {sample_id}: prompt must be a non-empty string."
+            )
+        return prompt
+    return build_mbpp_prompt(sample)
