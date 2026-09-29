@@ -581,6 +581,7 @@ def test_workflow_report_exposes_revised_gate_state(tmp_path):
         "final_evaluated": False,
     }
     assert "FINAL is excluded from candidate and architecture selection" in markdown
+    assert "Predictor/codebook bottleneck: **not yet assessed**" in markdown
 
 
 def test_workflow_report_requires_full_dev_sourcebook_systems(tmp_path):

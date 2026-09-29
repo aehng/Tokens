@@ -24,60 +24,38 @@ Historical measurements remain historical. The [research log](../RESEARCH_LOG.md
 
 ## Canonical execution sequence
 
-### Phase 1 — Broader Phi quality baseline and failure attribution
+The active Predictor V2 direction separates **general phrase knowledge** from **Phi-specific calibration**. The corrected 900-prompt Phi dataset is calibration and evaluation data (630 TRAIN / 135 DEV / 135 FINAL), not the general-language corpus. The core accelerator remains in **fidelity mode**: external responses may suggest phrases but must not intentionally steer Phi toward a different answer distribution.
 
-Establish a stronger Vanilla-vs-Predictive quality baseline before major architecture work.
+### Phase 0 — canonical data, sourcebook, and offline DEV retrieval
 
-Cover at least:
-- reasoning/math
-- code
-- instruction following
-- general knowledge / short factual generation
-- longer-form generation / continuation
+1. Validate the corrected canonical 900-prompt Vanilla dataset, independent ID/split inventory, pinned model/tokenizer revisions, generation contract, and hashes. Never regenerate or rewrite the canonical artifact.
+2. Build the existing Phi-only retrieval index from the 630 TRAIN responses only. Independently select and stream a public prompt/assistant-response source; check every user prompt turn against all 900 canonical task prompts before accepting any example. Use normalized exact hashes, lexical Jaccard matching, and MinHash candidate retrieval with fuzzy character-trigram verification. Do not consult canonical DEV or FINAL responses during filtering; report external-response overlap with held-out completions as unmeasured.
+3. Mine 2–4-token phrases with the pinned Phi tokenizer. Store the external corpus/sourcebook outside Git and bind corpus revision, sample hash, decontamination report, tokenizer revision, builder configuration, and database hash in provenance.
+4. Compare the current Phi-only retrieval baseline (`expanded_associations`, including its provisional 1024-pool result), external-only sourcebook retrieval, and a Phi-plus-external hybrid on all 135 DEV prompts at pools 256, 512, and 1024. Preserve global-oracle/candidate-pool intervals, Code/Reasoning/Instruction outcomes, p50/p90/p99 latency, index size, and missed-opportunity categories. Do not optimize toward the historical baseline values.
+5. Keep the sourcebook as a candidate-retrieval proposal only. The DEV experiment does not prove that H tokens will be emitted, continuation state will stay healthy, task quality will remain intact, or offline capture will reduce real decode steps.
 
-For each prompt, capture both final task quality and the trajectory needed to locate where divergence begins.
+**Gate:** Decide whether external-only or hybrid retrieval materially improves bounded DEV candidate opportunity, especially Instruction, at an acceptable latency and index cost. The completed full DEV comparison did not pass this gate: external/hybrid had higher Instruction lower bounds but overlapping ranges, weaker Code/Reasoning bounds, and much higher retrieval latency; the aggregate did not establish an acceptable improvement. Keep the Phi-only 1024-pool configuration as a provisional comparator; do not treat it as frozen. Stop this phase before any neural Predictor V2 bake-off. A negative or mixed result redirects diagnosis to corpus choice, decontamination, retrieval, phrase mining, or domain mismatch.
 
-Attribute failures across the full pipeline:
-- useful phrase absent from candidate generator
-- useful phrase present but ranked out
-- selected codebook phrase never occurs / dead slot
-- useful hypertoken occurs but is not emitted
-- emitted hypertoken changes continuation state
-- H input/output representation error
-- EOS / stopping / repetition / post-answer-tail issue
-- serving or decoding contract mismatch
+### Phase 1 — broader live Phi baseline and failure attribution
 
-Do not classify every failure as a predictor problem merely because predictor quality is the leading hypothesis.
+Run matched Vanilla/Predictive Phi DEV conditions and attribute end-to-end quality across candidate generation/ranking, codebook, H emission, representation, continuation state, EOS/stopping, serving, and other observed failures. Cover reasoning/math, code, instruction following, general knowledge, and longer-form continuation. Preserve per-prompt and per-domain quality plus generation trajectory.
 
-**Gate:** We have a repeatable quality suite and a ranked list of dominant failure modes.
+Predictor V2 is a leading hypothesis, not an assumed root cause. Offline candidate opportunity alone cannot pass this gate. If H emission, representation, continuation state, EOS, or another subsystem dominates, redirect before training architectures.
 
-### Phase 2 — Improve hypertoken prediction and end-to-end quality
+**Gate:** Proceed to architecture training only when live DEV evidence confirms candidate/predictor/codebook quality is a major bottleneck.
 
-Iterate on the dominant quality bottlenecks, with predictor/codebook quality as the likely primary workstream.
+### Phase 2 — TRAIN fitting, DEV shortlist, live integration, and freeze
 
-Potential work includes:
-- better candidate generation
-- better ranking / occurrence prediction
-- quality attribution and oracle hierarchy (Global Occurrence Oracle vs Fixed Candidate-Pool Oracle vs Empirical Safety Oracle)
-- predictor V2 architecture bake-off (Ridge, Pooled MLP, CNN+Suffix, GRU, 1-layer Transformer)
-- top-two architecture live attribution test prior to final Predictor V2 selection
-- improved supervision for the predictor (base model continuation labels instead of reference answers)
-- better phrase filtering or codebook construction
-- K recalibration only when supported by evidence
-- output-head / HyperLinear training if useful H tokens are not emitted
-- continuation-consistency or representation training if H emissions destabilize later decoding
-- EOS / continuation training if Predictive is worse than matched Vanilla
-- prompt/serving contract fixes if Vanilla and Predictive share the same stopping pathology
+If Phase 1 passes, train the Phi-specific calibration architectures on TRAIN and compare/shortlist using DEV only. Select at most two candidates for a small live end-to-end integration run on DEV or a separately frozen DEV-only subset. Check actual H emission, continuation health, task quality, termination, and decode-step savings. Combine offline DEV retrieval/oracle evidence with live DEV integration evidence to freeze the candidate generator, architecture, checkpoint, and configuration.
 
-Every iteration must report:
-1. quality vs Vanilla
+Only after those freezes and a passed live integration gate may FINAL be claimed, behind explicit `--allow-final-eval`, exactly once. FINAL must never take part in model, generator, architecture, or configuration selection. Larger live end-to-end validation follows the frozen FINAL evaluation.
+
+Every live iteration reports:
+1. task quality against matched Vanilla
 2. quality-preserved decode-step reduction
-3. H utilization / hit rate
-4. termination and repetition health
-5. per-step runtime
-6. end-to-end latency
-
-**Gate:** Phi quality is strong enough that moving to a larger, more product-relevant model is justified.
+3. H utilization and emission health
+4. continuation-state and termination/repetition health
+5. per-step runtime and end-to-end latency
 
 ### Phase 3 — Qwen3-8B transfer and correctness
 

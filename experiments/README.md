@@ -7,9 +7,11 @@
 > The Qwen/vLLM plan at [`../docs/QWEN3_VLLM_PRODUCTION_VALIDATION.md`](../docs/QWEN3_VLLM_PRODUCTION_VALIDATION.md) is a later-stage planning snapshot, not the immediate roadmap.
 
 The current research direction and phase gates are defined only by
-[`RESEARCH_ROADMAP.md`](RESEARCH_ROADMAP.md). The next steps are a small
-single-T4 infrastructure smoke and a matched GPU Vanilla-vs-Predictive
-runtime/stopping comparison—not a K sweep or large training run.
+[`RESEARCH_ROADMAP.md`](RESEARCH_ROADMAP.md). The immediate Predictor V2 step
+is a CPU/offline DEV comparison of the Phi-only baseline, a prompt-cleaned
+external response sourcebook, and their hybrid at 256/512/1024 candidates.
+The broader live Phi failure-attribution gate follows that evidence and must
+confirm a predictor/codebook bottleneck before any architecture training.
 
 The active quality-evaluation definitions, safety limits, score semantics,
 generation-health fields, and cache/version rules are documented in

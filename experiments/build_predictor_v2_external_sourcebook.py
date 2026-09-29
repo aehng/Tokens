@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import platform
+import sqlite3
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -61,6 +62,13 @@ def build_sourcebook(*, sample_jsonl: str, decontamination_report: str, tokenize
         summary = builder.summary()
     finally:
         builder.close()
+    checkpoint_db = sqlite3.connect(database_path)
+    try:
+        checkpoint = checkpoint_db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+    finally:
+        checkpoint_db.close()
+    if checkpoint is not None and int(checkpoint[0]) != 0:
+        raise RuntimeError(f"sourcebook WAL checkpoint is busy: {checkpoint}")
     manifest = {
         "schema": "predictor_v2_external_sourcebook_manifest_v1",
         "source": source_config,

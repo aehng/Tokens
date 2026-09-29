@@ -1,5 +1,7 @@
 # Corrected Canonical Predictor V2 DEV Results
 
+> **Current-direction note (2026-09-28):** These results are the historical Phi-only association baseline. `expanded_associations @ 1024` remains the provisional comparator, not the general-language source or a frozen candidate generator. The active plan adds a separately prompt-decontaminated external response sourcebook and hybrid DEV comparison before broader live attribution. See the [canonical roadmap](../experiments/RESEARCH_ROADMAP.md) and [source selection report](PREDICTOR_V2_EXTERNAL_SOURCE_SELECTION.json).
+
 ## Scope and data
 
 This is an offline retrieval and oracle analysis of the corrected canonical Vanilla Phi continuations. It covers all **135 DEV prompts** (45 each in Code, Reasoning, and Instruction), bound to dataset SHA-256 `3a8f59791f6fd06479b2b2869d09d71b57bd1e05b897740b70f18b1941f22ee6` and DEV split SHA-256 `ef52826e58e0a3a0924e8856b781d177253f0960e897f73f42770f7f5e939e67`. The independent inventory resolves the dataset as 630 TRAIN / 135 DEV / 135 FINAL; the unsupported 540/180/180 expectation was not applied. FINAL metrics and text were not used.

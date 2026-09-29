@@ -1,10 +1,10 @@
 # Broader Phi Live Quality Attribution Plan
 
-**Status:** Prepared as the next live research phase. This plan was not executed during the offline candidate-retrieval run. It does not assume Predictor V2 is the root cause.
+**Status:** Prepared as the live phase after the full offline DEV comparison of Phi-only, external-only, and hybrid sourcebook retrieval. It does not assume Predictor V2 is the root cause.
 
 ## Purpose and scope
 
-Attribute end-to-end quality loss across the existing Phi predictive pipeline before training a Predictor V2 architecture. Use the corrected canonical dataset and its pinned native chat-template, model/tokenizer revision, greedy decoding, EOS, and 1024-token ceiling contract. Use DEV only; do not open or score FINAL.
+Attribute end-to-end quality loss after the offline sourcebook DEV screen and before training a new Predictor V2 architecture. The completed DEV comparison did not justify external or hybrid retrieval, so the current Arm D uses the Phi-only TRAIN retrieval/codebook path with the existing frozen scorer. Reconsider the external-sourcebook arm only after a later full DEV result shows a material opportunity gain at acceptable latency. This is a retrieval/codebook attribution check, not a new neural calibration bakeoff. Use the corrected canonical dataset and its pinned native chat-template, model/tokenizer revision, greedy decoding, EOS, and 1024-token ceiling contract. Use DEV only; do not open or score FINAL.
 
 The primary comparison uses matched DEV prompts and one fixed predictive checkpoint/adapter. Keep prompts, base revision, tokenizer, rendered prompt, generation settings, evaluator, and runtime identical across arms. Freeze the prompt list and arm configuration before live execution. The preferred scope is all 135 DEV prompts (45 per domain). A nine-prompt wiring check (three per domain) may precede it, but is plumbing-only and cannot decide the bottleneck.
 
@@ -16,7 +16,7 @@ The primary comparison uses matched DEV prompts and one fixed predictive checkpo
 | B | Predictive checkpoint/adapter with H emission disabled | Isolates adapter, checkpoint, and serving-path quality without token substitution. |
 | C1 | Same predictive condition with a K≤32 occurrence-oracle codebook derived from the matched Vanilla model continuation | Tests an occurrence-only hindsight upper bound. It may select phrases that are unsafe for predictive continuation. |
 | C2 | Same predictive condition with a K≤32 continuation-safe oracle codebook derived from that Vanilla model continuation | Tests whether an idealized safer codebook can preserve task quality and continuation. |
-| D | Same predictive condition with the current learned predictor/codebook | Measures the current predictor/codebook against C1 and C2. |
+| D | Predictive Phi with the current Phi-only TRAIN retrieval/codebook path (`expanded_associations` at the provisional 1024-pool setting) | Measures the current candidate/predictor/codebook path against C1/C2 and the H-disabled condition. The completed sourcebook DEV screen did not justify carrying external or hybrid retrieval into live evaluation; revisit that arm only after a later full DEV result shows a material opportunity gain at acceptable latency. |
 
 Oracle codebook construction may inspect the matched Vanilla model continuation only. It must not use human reference answers or FINAL data. Preserve the oracle construction artifacts and hashes. C1/C2 are diagnostic hindsight conditions, not deployable predictors.
 
@@ -52,4 +52,4 @@ Record the observed primary category as one of `candidate_generation`, `candidat
 
 ## Downstream order
 
-Only a passed attribution gate permits Predictor V2 architecture training on TRAIN and comparison/shortlisting on DEV. Then take at most two shortlisted candidates through a small live end-to-end DEV integration check. Combine offline DEV and live DEV evidence to freeze the candidate generator, architecture, checkpoint, and configuration. FINAL remains a one-time evaluation after those gates, with explicit `--allow-final-eval`; it cannot participate in selection. Larger live end-to-end validation follows the freeze.
+Only a passed attribution gate that identifies candidate generation, ranking, predictor, or codebook as a major bottleneck permits Predictor V2 architecture training on TRAIN and comparison/shortlisting on DEV. If the gate redirects to H emission, representation, continuation state, EOS, serving, or another subsystem, fix or isolate that subsystem first. Then take at most two shortlisted candidates through a small live end-to-end DEV integration check. Combine offline DEV and live DEV evidence to freeze the candidate generator, architecture, checkpoint, and configuration. FINAL remains a one-time evaluation after those gates, with explicit `--allow-final-eval`; it cannot participate in selection. Larger live end-to-end validation follows the freeze.

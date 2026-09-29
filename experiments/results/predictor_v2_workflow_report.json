@@ -62,6 +62,813 @@
       "path": "experiments/results/predictor_v2_candidate_recall.json",
       "status": "measured"
     },
+    "dev_sourcebook_comparison": {
+      "path": "experiments/results/predictor_v2_sourcebook_dev.json",
+      "status": "measured",
+      "summary": {
+        "database_bytes": 3589042176,
+        "database_sha256": "c28285d556604ed8e2d4b78aac699117b99db288024c9e5c3969d1f534674064",
+        "manifest_sha256": "62d51e5c810dd113b5c6845cdfe360372a28a59d2d3c8e4207fb3a09309aaa9f",
+        "process_rss_delta_bytes": 856064,
+        "retrieval_index_terms": 174965,
+        "source_examples": 50000,
+        "systems": {
+          "external_only": {
+            "1024": {
+              "candidate_oracle_capture_interval": {
+                "interpretation": "bound_derived",
+                "lower": 0.3005342530601204,
+                "upper": 0.5601006554307116
+              },
+              "candidate_steps_saved_lower_upper": [
+                8888,
+                9571
+              ],
+              "domains": {
+                "code": {
+                  "candidate_steps_saved_lower_upper": [
+                    3509,
+                    3983
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.3095994353273337,
+                    "upper": 0.6844818697370683
+                  },
+                  "global_steps_saved_lower_upper": [
+                    5819,
+                    11334
+                  ],
+                  "prompts": 45
+                },
+                "instruction": {
+                  "candidate_steps_saved_lower_upper": [
+                    2612,
+                    2821
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.321002826594568,
+                    "upper": 0.5899205353408615
+                  },
+                  "global_steps_saved_lower_upper": [
+                    4782,
+                    8137
+                  ],
+                  "prompts": 45
+                },
+                "reasoning": {
+                  "candidate_steps_saved_lower_upper": [
+                    2767,
+                    2767
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.2738790458279719,
+                    "upper": 0.42654539848928624
+                  },
+                  "global_steps_saved_lower_upper": [
+                    6487,
+                    10103
+                  ],
+                  "prompts": 45
+                }
+              },
+              "global_steps_saved_lower_upper": [
+                17088,
+                29574
+              ],
+              "k": 32,
+              "mean_candidate_pool_python_bytes_estimate": 508806,
+              "missed_opportunity_categories": {
+                "generated_but_truncated_by_pool_limit": 219,
+                "global_incumbent_ranked_top32": 92,
+                "not_generated_from_retrieved_prompts": 3566,
+                "present_but_ranked_below_top32": 235
+              },
+              "oracle_exact_solves": 113,
+              "oracle_solve_count": 135,
+              "pool_phrase_length_counts": {
+                "2": 80149,
+                "3": 33312,
+                "4": 24779
+              },
+              "retrieval_latency": {
+                "p50_ms": 6581.882999977097,
+                "p90_ms": 11503.539340081625,
+                "p99_ms": 14795.441740069073
+              }
+            },
+            "256": {
+              "candidate_oracle_capture_interval": {
+                "interpretation": "bound_derived",
+                "lower": 0.23382024751470887,
+                "upper": 0.419124531835206
+              },
+              "candidate_steps_saved_lower_upper": [
+                6915,
+                7162
+              ],
+              "domains": {
+                "code": {
+                  "candidate_steps_saved_lower_upper": [
+                    2746,
+                    2904
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.24227986589024175,
+                    "upper": 0.499054820415879
+                  },
+                  "global_steps_saved_lower_upper": [
+                    5819,
+                    11334
+                  ],
+                  "prompts": 45
+                },
+                "instruction": {
+                  "candidate_steps_saved_lower_upper": [
+                    2103,
+                    2192
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.2584490598500676,
+                    "upper": 0.45838561271434547
+                  },
+                  "global_steps_saved_lower_upper": [
+                    4782,
+                    8137
+                  ],
+                  "prompts": 45
+                },
+                "reasoning": {
+                  "candidate_steps_saved_lower_upper": [
+                    2066,
+                    2066
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.20449371473819658,
+                    "upper": 0.3184831200863265
+                  },
+                  "global_steps_saved_lower_upper": [
+                    6487,
+                    10103
+                  ],
+                  "prompts": 45
+                }
+              },
+              "global_steps_saved_lower_upper": [
+                17088,
+                29574
+              ],
+              "k": 32,
+              "mean_candidate_pool_python_bytes_estimate": 126732,
+              "missed_opportunity_categories": {
+                "generated_but_truncated_by_pool_limit": 318,
+                "global_incumbent_ranked_top32": 92,
+                "not_generated_from_retrieved_prompts": 3566,
+                "present_but_ranked_below_top32": 136
+              },
+              "oracle_exact_solves": 127,
+              "oracle_solve_count": 135,
+              "pool_phrase_length_counts": {
+                "2": 25767,
+                "3": 5906,
+                "4": 2887
+              },
+              "retrieval_latency": {
+                "p50_ms": 6708.029399975203,
+                "p90_ms": 11710.782739962451,
+                "p99_ms": 15458.05354398908
+              }
+            },
+            "512": {
+              "candidate_oracle_capture_interval": {
+                "interpretation": "bound_derived",
+                "lower": 0.2707783864205045,
+                "upper": 0.4936797752808989
+              },
+              "candidate_steps_saved_lower_upper": [
+                8008,
+                8436
+              ],
+              "domains": {
+                "code": {
+                  "candidate_steps_saved_lower_upper": [
+                    3176,
+                    3434
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.2802188106581966,
+                    "upper": 0.5901357621584464
+                  },
+                  "global_steps_saved_lower_upper": [
+                    5819,
+                    11334
+                  ],
+                  "prompts": 45
+                },
+                "instruction": {
+                  "candidate_steps_saved_lower_upper": [
+                    2403,
+                    2573
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.29531768465036257,
+                    "upper": 0.5380593893768297
+                  },
+                  "global_steps_saved_lower_upper": [
+                    4782,
+                    8137
+                  ],
+                  "prompts": 45
+                },
+                "reasoning": {
+                  "candidate_steps_saved_lower_upper": [
+                    2429,
+                    2429
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.2404236365436009,
+                    "upper": 0.3744411900724526
+                  },
+                  "global_steps_saved_lower_upper": [
+                    6487,
+                    10103
+                  ],
+                  "prompts": 45
+                }
+              },
+              "global_steps_saved_lower_upper": [
+                17088,
+                29574
+              ],
+              "k": 32,
+              "mean_candidate_pool_python_bytes_estimate": 253895,
+              "missed_opportunity_categories": {
+                "generated_but_truncated_by_pool_limit": 266,
+                "global_incumbent_ranked_top32": 92,
+                "not_generated_from_retrieved_prompts": 3566,
+                "present_but_ranked_below_top32": 188
+              },
+              "oracle_exact_solves": 120,
+              "oracle_solve_count": 135,
+              "pool_phrase_length_counts": {
+                "2": 45784,
+                "3": 14409,
+                "4": 8927
+              },
+              "retrieval_latency": {
+                "p50_ms": 6517.568800016306,
+                "p90_ms": 11297.512040007861,
+                "p99_ms": 14742.992526050657
+              }
+            }
+          },
+          "hybrid": {
+            "1024": {
+              "candidate_oracle_capture_interval": {
+                "interpretation": "bound_derived",
+                "lower": 0.32112666531412726,
+                "upper": 0.5967345505617978
+              },
+              "candidate_steps_saved_lower_upper": [
+                9497,
+                10197
+              ],
+              "domains": {
+                "code": {
+                  "candidate_steps_saved_lower_upper": [
+                    3618,
+                    4109
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.31921651667548967,
+                    "upper": 0.7061350747551126
+                  },
+                  "global_steps_saved_lower_upper": [
+                    5819,
+                    11334
+                  ],
+                  "prompts": 45
+                },
+                "instruction": {
+                  "candidate_steps_saved_lower_upper": [
+                    2615,
+                    2824
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.321371512842571,
+                    "upper": 0.5905478879130072
+                  },
+                  "global_steps_saved_lower_upper": [
+                    4782,
+                    8137
+                  ],
+                  "prompts": 45
+                },
+                "reasoning": {
+                  "candidate_steps_saved_lower_upper": [
+                    3264,
+                    3264
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.323072354746115,
+                    "upper": 0.5031601664868198
+                  },
+                  "global_steps_saved_lower_upper": [
+                    6487,
+                    10103
+                  ],
+                  "prompts": 45
+                }
+              },
+              "global_steps_saved_lower_upper": [
+                17088,
+                29574
+              ],
+              "k": 32,
+              "mean_candidate_pool_python_bytes_estimate": 508830,
+              "missed_opportunity_categories": {
+                "generated_but_truncated_by_pool_limit": 622,
+                "global_incumbent_ranked_top32": 117,
+                "not_generated_from_retrieved_prompts": 2931,
+                "present_but_ranked_below_top32": 241,
+                "quality_filtered:punctuation_only": 135,
+                "quality_filtered:trailing_space_or_tab": 37,
+                "quality_filtered:whitespace_only": 29
+              },
+              "oracle_exact_solves": 114,
+              "oracle_solve_count": 135,
+              "pool_phrase_length_counts": {
+                "2": 79848,
+                "3": 33521,
+                "4": 24871
+              },
+              "retrieval_latency": {
+                "p50_ms": 6586.851199972443,
+                "p90_ms": 11510.86436000187,
+                "p99_ms": 14804.577190079726
+              }
+            },
+            "256": {
+              "candidate_oracle_capture_interval": {
+                "interpretation": "bound_derived",
+                "lower": 0.25579901264624333,
+                "upper": 0.4561680711610487
+              },
+              "candidate_steps_saved_lower_upper": [
+                7565,
+                7795
+              ],
+              "domains": {
+                "code": {
+                  "candidate_steps_saved_lower_upper": [
+                    2888,
+                    3029
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.254808540674078,
+                    "upper": 0.5205361746004468
+                  },
+                  "global_steps_saved_lower_upper": [
+                    5819,
+                    11334
+                  ],
+                  "prompts": 45
+                },
+                "instruction": {
+                  "candidate_steps_saved_lower_upper": [
+                    2105,
+                    2194
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.25869485068206954,
+                    "upper": 0.4588038477624425
+                  },
+                  "global_steps_saved_lower_upper": [
+                    4782,
+                    8137
+                  ],
+                  "prompts": 45
+                },
+                "reasoning": {
+                  "candidate_steps_saved_lower_upper": [
+                    2572,
+                    2572
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.2545778481639117,
+                    "upper": 0.3964852782488053
+                  },
+                  "global_steps_saved_lower_upper": [
+                    6487,
+                    10103
+                  ],
+                  "prompts": 45
+                }
+              },
+              "global_steps_saved_lower_upper": [
+                17088,
+                29574
+              ],
+              "k": 32,
+              "mean_candidate_pool_python_bytes_estimate": 126766,
+              "missed_opportunity_categories": {
+                "generated_but_truncated_by_pool_limit": 564,
+                "global_incumbent_ranked_top32": 116,
+                "not_generated_from_retrieved_prompts": 3088,
+                "present_but_ranked_below_top32": 143,
+                "quality_filtered:punctuation_only": 135,
+                "quality_filtered:trailing_space_or_tab": 37,
+                "quality_filtered:whitespace_only": 29
+              },
+              "oracle_exact_solves": 128,
+              "oracle_solve_count": 135,
+              "pool_phrase_length_counts": {
+                "2": 25394,
+                "3": 6075,
+                "4": 3091
+              },
+              "retrieval_latency": {
+                "p50_ms": 6712.265499983914,
+                "p90_ms": 11719.047759962268,
+                "p99_ms": 15466.991838014217
+              }
+            },
+            "512": {
+              "candidate_oracle_capture_interval": {
+                "interpretation": "bound_derived",
+                "lower": 0.2916751200378711,
+                "upper": 0.5328885767790262
+              },
+              "candidate_steps_saved_lower_upper": [
+                8626,
+                9106
+              ],
+              "domains": {
+                "code": {
+                  "candidate_steps_saved_lower_upper": [
+                    3305,
+                    3592
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.291600494088583,
+                    "upper": 0.6172881938477401
+                  },
+                  "global_steps_saved_lower_upper": [
+                    5819,
+                    11334
+                  ],
+                  "prompts": 45
+                },
+                "instruction": {
+                  "candidate_steps_saved_lower_upper": [
+                    2398,
+                    2591
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.2947032075703576,
+                    "upper": 0.5418235048097031
+                  },
+                  "global_steps_saved_lower_upper": [
+                    4782,
+                    8137
+                  ],
+                  "prompts": 45
+                },
+                "reasoning": {
+                  "candidate_steps_saved_lower_upper": [
+                    2923,
+                    2923
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.28932000395922003,
+                    "upper": 0.45059349468167104
+                  },
+                  "global_steps_saved_lower_upper": [
+                    6487,
+                    10103
+                  ],
+                  "prompts": 45
+                }
+              },
+              "global_steps_saved_lower_upper": [
+                17088,
+                29574
+              ],
+              "k": 32,
+              "mean_candidate_pool_python_bytes_estimate": 253921,
+              "missed_opportunity_categories": {
+                "generated_but_truncated_by_pool_limit": 631,
+                "global_incumbent_ranked_top32": 116,
+                "not_generated_from_retrieved_prompts": 2969,
+                "present_but_ranked_below_top32": 195,
+                "quality_filtered:punctuation_only": 135,
+                "quality_filtered:trailing_space_or_tab": 37,
+                "quality_filtered:whitespace_only": 29
+              },
+              "oracle_exact_solves": 119,
+              "oracle_solve_count": 135,
+              "pool_phrase_length_counts": {
+                "2": 45484,
+                "3": 14577,
+                "4": 9059
+              },
+              "retrieval_latency": {
+                "p50_ms": 6523.743799887598,
+                "p90_ms": 11304.824840067888,
+                "p99_ms": 14752.50898010796
+              }
+            }
+          },
+          "phi_only": {
+            "1024": {
+              "candidate_oracle_capture_interval": {
+                "interpretation": "bound_derived",
+                "lower": 0.4055251234192196,
+                "upper": 0.7318586142322098
+              },
+              "candidate_steps_saved_lower_upper": [
+                11993,
+                12506
+              ],
+              "domains": {
+                "code": {
+                  "candidate_steps_saved_lower_upper": [
+                    4147,
+                    4253
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.3658902417504853,
+                    "upper": 0.7308815947757347
+                  },
+                  "global_steps_saved_lower_upper": [
+                    5819,
+                    11334
+                  ],
+                  "prompts": 45
+                },
+                "instruction": {
+                  "candidate_steps_saved_lower_upper": [
+                    2151,
+                    2151
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.2643480398181148,
+                    "upper": 0.4498117942283563
+                  },
+                  "global_steps_saved_lower_upper": [
+                    4782,
+                    8137
+                  ],
+                  "prompts": 45
+                },
+                "reasoning": {
+                  "candidate_steps_saved_lower_upper": [
+                    5695,
+                    6102
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.5636939522913986,
+                    "upper": 0.9406505318328966
+                  },
+                  "global_steps_saved_lower_upper": [
+                    6487,
+                    10103
+                  ],
+                  "prompts": 45
+                }
+              },
+              "global_steps_saved_lower_upper": [
+                17088,
+                29574
+              ],
+              "k": 32,
+              "mean_candidate_pool_python_bytes_estimate": 251930,
+              "missed_opportunity_categories": {
+                "global_incumbent_ranked_top32": 133,
+                "not_generated_from_retrieved_prompts": 3081,
+                "present_but_ranked_below_top32": 697,
+                "quality_filtered:punctuation_only": 135,
+                "quality_filtered:trailing_space_or_tab": 37,
+                "quality_filtered:whitespace_only": 29
+              },
+              "oracle_exact_solves": 116,
+              "oracle_solve_count": 135,
+              "pool_phrase_length_counts": {
+                "2": 13465,
+                "3": 23553,
+                "4": 30247
+              },
+              "retrieval_latency": {
+                "p50_ms": 4.213099949993193,
+                "p90_ms": 6.341100065037609,
+                "p99_ms": 9.91653004661202
+              }
+            },
+            "256": {
+              "candidate_oracle_capture_interval": {
+                "interpretation": "bound_derived",
+                "lower": 0.3592006492189085,
+                "upper": 0.6256437265917603
+              },
+              "candidate_steps_saved_lower_upper": [
+                10623,
+                10691
+              ],
+              "domains": {
+                "code": {
+                  "candidate_steps_saved_lower_upper": [
+                    3676,
+                    3676
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.324333862713958,
+                    "upper": 0.6317236638597697
+                  },
+                  "global_steps_saved_lower_upper": [
+                    5819,
+                    11334
+                  ],
+                  "prompts": 45
+                },
+                "instruction": {
+                  "candidate_steps_saved_lower_upper": [
+                    1959,
+                    1959
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.24075211994592602,
+                    "upper": 0.4096612296110414
+                  },
+                  "global_steps_saved_lower_upper": [
+                    4782,
+                    8137
+                  ],
+                  "prompts": 45
+                },
+                "reasoning": {
+                  "candidate_steps_saved_lower_upper": [
+                    4988,
+                    5056
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.4937147381965753,
+                    "upper": 0.7794049637737013
+                  },
+                  "global_steps_saved_lower_upper": [
+                    6487,
+                    10103
+                  ],
+                  "prompts": 45
+                }
+              },
+              "global_steps_saved_lower_upper": [
+                17088,
+                29574
+              ],
+              "k": 32,
+              "mean_candidate_pool_python_bytes_estimate": 128078,
+              "missed_opportunity_categories": {
+                "generated_but_truncated_by_pool_limit": 110,
+                "global_incumbent_ranked_top32": 133,
+                "not_generated_from_retrieved_prompts": 3081,
+                "present_but_ranked_below_top32": 587,
+                "quality_filtered:punctuation_only": 135,
+                "quality_filtered:trailing_space_or_tab": 37,
+                "quality_filtered:whitespace_only": 29
+              },
+              "oracle_exact_solves": 131,
+              "oracle_solve_count": 135,
+              "pool_phrase_length_counts": {
+                "2": 7181,
+                "3": 11810,
+                "4": 15424
+              },
+              "retrieval_latency": {
+                "p50_ms": 4.037900012917817,
+                "p90_ms": 6.650080019608141,
+                "p99_ms": 9.287141950335354
+              }
+            },
+            "512": {
+              "candidate_oracle_capture_interval": {
+                "interpretation": "bound_derived",
+                "lower": 0.4001487793331981,
+                "upper": 0.7168188202247191
+              },
+              "candidate_steps_saved_lower_upper": [
+                11834,
+                12249
+              ],
+              "domains": {
+                "code": {
+                  "candidate_steps_saved_lower_upper": [
+                    4130,
+                    4220
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.3643903299805894,
+                    "upper": 0.7252105172710087
+                  },
+                  "global_steps_saved_lower_upper": [
+                    5819,
+                    11334
+                  ],
+                  "prompts": 45
+                },
+                "instruction": {
+                  "candidate_steps_saved_lower_upper": [
+                    2144,
+                    2144
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.2634877719061079,
+                    "upper": 0.4483479715600167
+                  },
+                  "global_steps_saved_lower_upper": [
+                    4782,
+                    8137
+                  ],
+                  "prompts": 45
+                },
+                "reasoning": {
+                  "candidate_steps_saved_lower_upper": [
+                    5560,
+                    5885
+                  ],
+                  "capture_interval": {
+                    "interpretation": "bound_derived",
+                    "lower": 0.5503315846778185,
+                    "upper": 0.9071990134114383
+                  },
+                  "global_steps_saved_lower_upper": [
+                    6487,
+                    10103
+                  ],
+                  "prompts": 45
+                }
+              },
+              "global_steps_saved_lower_upper": [
+                17088,
+                29574
+              ],
+              "k": 32,
+              "mean_candidate_pool_python_bytes_estimate": 216717,
+              "missed_opportunity_categories": {
+                "generated_but_truncated_by_pool_limit": 6,
+                "global_incumbent_ranked_top32": 133,
+                "not_generated_from_retrieved_prompts": 3081,
+                "present_but_ranked_below_top32": 691,
+                "quality_filtered:punctuation_only": 135,
+                "quality_filtered:trailing_space_or_tab": 37,
+                "quality_filtered:whitespace_only": 29
+              },
+              "oracle_exact_solves": 117,
+              "oracle_solve_count": 135,
+              "pool_phrase_length_counts": {
+                "2": 12173,
+                "3": 19998,
+                "4": 25700
+              },
+              "retrieval_latency": {
+                "p50_ms": 4.282600013539195,
+                "p90_ms": 6.340379989705982,
+                "p99_ms": 9.281064025126394
+              }
+            }
+          }
+        },
+        "unique_phrases_by_phi_token_length": {
+          "2": 1423205,
+          "3": 5240176,
+          "4": 9001244
+        }
+      }
+    },
     "final_evaluation": {
       "path": "experiments/results/predictor_v2_final_result.json",
       "status": "not-yet-run"

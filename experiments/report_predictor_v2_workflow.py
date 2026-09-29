@@ -35,6 +35,16 @@ def _read_optional(path: str | None) -> dict[str, Any] | None:
     return read_json_object(path, path)
 
 
+def _bottleneck_assessment(status: str, attribution: dict[str, Any] | None) -> str:
+    if status == "not-yet-run":
+        return "not yet assessed"
+    if attribution is not None and status == "passed":
+        return f"confirmed: {attribution.get('primary_bottleneck')}"
+    if attribution is not None and status == "redirected":
+        return f"not confirmed; redirected to {attribution.get('redirect_to')}"
+    return f"assessment {status}"
+
+
 def build_report(
     *, dataset_path: str, manifest_path: str,
     candidate_benchmark_path: str, quality_attribution_gate_path: str,
@@ -267,7 +277,7 @@ def build_report(
     lines = [
         "# Predictor V2 Training and Evaluation Status", "",
         f"Canonical dataset: **validated** ({len(views.train)} TRAIN / {len(views.dev)} DEV / {len(views.final_ids)} FINAL)",
-        f"Predictor/codebook bottleneck confirmed: **{attribution_status == 'passed'}**",
+        f"Predictor/codebook bottleneck: **{_bottleneck_assessment(attribution_status, attribution)}**",
         "", "| Stage | Status | Artifact |", "|---|---|---|",
     ]
     for stage, details in report["stages"].items():

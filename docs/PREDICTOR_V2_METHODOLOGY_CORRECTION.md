@@ -5,6 +5,8 @@
 **Parent Implementation SHA:** `8c12d059115fb2ed0dde8bdfa09020d2bd90888e`  
 **Status:** Methodological Correction & Strict Ground-Truth Realignment  
 
+**Current-direction note (2026-09-28):** This document preserves the prior Phi-only association methodology and its historical findings. That small Phi-only association system is now the provisional retrieval baseline, not the general-language source. The current sourcebook plan uses a separately pinned public prompt/response corpus, filters its prompt turns against all 900 canonical task prompts without reading DEV/FINAL responses, and uses the Phi TRAIN/DEV/FINAL split for Phi-specific calibration and evaluation. See the canonical [research roadmap](../experiments/RESEARCH_ROADMAP.md) and [source selection report](PREDICTOR_V2_EXTERNAL_SOURCE_SELECTION.json) for the active order and scope.
+
 ---
 
 ## 1. Executive Summary & Epistemic Taxonomy
