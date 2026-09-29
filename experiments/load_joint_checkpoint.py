@@ -166,6 +166,8 @@ def load_joint_checkpoint(
         "unexpected_keys": {name: values["unexpected_keys"] for name, values in components.items()},
         "components": components,
         "changed_tensor_count": changed_count,
+        "frozen_base_parameter_sha256": after,
+        "frozen_base_unchanged_during_load": True,
         "checkpoint_loader": CHECKPOINT_LOADER_ID,
     }
 
@@ -378,6 +380,10 @@ def _component_report(before: Mapping, after: Mapping, incoming: Mapping[str, to
         "before_l2_norm": before["l2_norm"],
         "after_l2_norm": after["l2_norm"],
         "changed_tensor_count": len(changed),
+        "changed_parameter_names": changed,
+        "changed_parameter_shapes": {
+            name: list(incoming[name].shape) for name in changed if name in incoming
+        },
     }
 
 

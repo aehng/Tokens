@@ -219,6 +219,27 @@ def validate_manifest_shape(manifest: Mapping[str, Any]) -> None:
         raise CanonicalDatasetError("allowed_domains must not be empty")
 
 
+def require_split_isolated_manifest(manifest: Mapping[str, Any], requested_split: str) -> None:
+    """Require a split-only artifact before loading any continuation rows.
+
+    This prevents an attribution run from parsing a mixed artifact that contains
+    FINAL responses, even when the caller intends to select DEV afterward.
+    """
+    split = str(requested_split).upper()
+    if split not in SPLITS:
+        raise CanonicalDatasetError(f"unknown requested split {requested_split!r}")
+    split_ids = manifest.get("split_ids")
+    if not isinstance(split_ids, Mapping) or set(split_ids) != set(SPLITS):
+        raise CanonicalDatasetError(f"split_ids must contain exactly {', '.join(SPLITS)}")
+    other_splits = [name for name in SPLITS if name != split and split_ids.get(name)]
+    if other_splits:
+        raise FinalAccessError(
+            f"refusing mixed-split dataset before reading continuation rows; "
+            f"requested {split}, but manifest also contains {', '.join(other_splits)}"
+        )
+    validate_manifest_shape(manifest)
+
+
 @dataclass(frozen=True)
 class CanonicalContinuation:
     prompt_id: str
