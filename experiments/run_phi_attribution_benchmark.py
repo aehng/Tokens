@@ -37,6 +37,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
+try:
+    import peft.import_utils
+    peft.import_utils.is_torchao_available = lambda: False
+except Exception:
+    pass
+
 from src.zip2zip.model import Zip2ZipModel
 from src.zip2zip.static_codebook import StaticCodebookManager
 from src.zip2zip.predictor_v2.attribution_harness import (
