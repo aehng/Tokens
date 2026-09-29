@@ -271,6 +271,18 @@ def run_attribution_benchmark(args: argparse.Namespace) -> None:
         r.prompt_id: list(r.continuation_token_ids) for r in split_records
     }
 
+    # Load ground-truth references if available
+    gt_map: Dict[str, str] = {}
+    gt_path = getattr(args, "ground_truth", None)
+    if not gt_path and args.canonical_dataset:
+        candidate_gt = Path(args.canonical_dataset).parent / "dev_ground_truth.json"
+        if candidate_gt.is_file():
+            gt_path = str(candidate_gt)
+    if gt_path and Path(gt_path).is_file():
+        with open(gt_path, "r", encoding="utf-8") as f:
+            gt_map = json.load(f)
+        print(f"Loaded ground truth references for {len(gt_map)} prompts.")
+
     # Initialize predictor and candidate generator if Condition D is active
     cand_index = None
     ranker_model = None
@@ -306,12 +318,16 @@ def run_attribution_benchmark(args: argparse.Namespace) -> None:
                 )
                 total_lat = time.perf_counter() - t_start
 
-                output_text = v_tok.decode(gen_ids, skip_special_tokens=True)
-                pass_status, scores = evaluate_output_quality(dom, output_text, asdict(sample))
-
                 eos_hit = bool(gen_ids and gen_ids[-1] in CANONICAL_EOS_TOKEN_IDS)
                 term_reason = "eos" if eos_hit else "length"
                 term_token = gen_ids[-1] if gen_ids else None
+
+                output_text = v_tok.decode(gen_ids, skip_special_tokens=True)
+                sample_dict = asdict(sample)
+                if pid in gt_map:
+                    sample_dict["reference_response"] = gt_map[pid]
+                sample_dict["eos_reached"] = eos_hit
+                pass_status, scores = evaluate_output_quality(dom, output_text, sample_dict)
 
                 rec = AttributionRecord(
                     prompt_id=pid,
@@ -441,11 +457,16 @@ def run_attribution_benchmark(args: argparse.Namespace) -> None:
 
                 raw_output = p_tok.decode(gen_ids, skip_special_tokens=True)
                 expanded_output = p_tok.decode(expanded_tokens, skip_special_tokens=True)
-                pass_status, scores = evaluate_output_quality(dom, expanded_output, asdict(sample))
 
                 eos_hit = bool(gen_ids and gen_ids[-1] in CANONICAL_EOS_TOKEN_IDS)
                 term_reason = "eos" if eos_hit else "length"
                 term_token = gen_ids[-1] if gen_ids else None
+
+                sample_dict = asdict(sample)
+                if pid in gt_map:
+                    sample_dict["reference_response"] = gt_map[pid]
+                sample_dict["eos_reached"] = eos_hit
+                pass_status, scores = evaluate_output_quality(dom, expanded_output, sample_dict)
 
                 # Diagnostics
                 vanilla_ids = vanilla_continuation_map.get(pid, [])
@@ -600,6 +621,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run controlled Phi quality/speed attribution experiment.")
     parser.add_argument("--canonical-dataset", default="data/canonical_phi_continuations.jsonl")
     parser.add_argument("--canonical-manifest", default="data/canonical_phi_continuations.manifest.json")
+    parser.add_argument("--ground-truth", default=None, help="Optional path to DEV ground truth references JSON")
     parser.add_argument("--association-index", default="experiments/checkpoints/train_only_association_index.pkl")
     parser.add_argument("--checkpoint", default="experiments/checkpoints/predictive_joint_pilot/checkpoint_step_100.pt")
     parser.add_argument("--predictor-model", default="experiments/checkpoints/predictor_v2/pooledmlp.pkl")

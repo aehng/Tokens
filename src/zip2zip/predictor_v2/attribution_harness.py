@@ -171,18 +171,25 @@ def extract_function_signature(
 
 def build_canonical_prompt_text(sample: Mapping[str, Any]) -> str:
     """Format canonical prompt text identically across all 4 conditions."""
+    if sample.get("rendered_prompt_text"):
+        return str(sample["rendered_prompt_text"])
+    raw_prompt = sample.get("prompt_text") or sample.get("prompt") or ""
+    if raw_prompt.startswith("<|user|>"):
+        return str(raw_prompt)
     domain = sample.get("domain")
     if domain == "code":
-        raw_prompt = sample.get("prompt_text") or sample.get("prompt") or ""
         ref = sample.get("reference") or sample.get("reference_response") or ""
         tests = sample.get("test_assert_statements") or sample.get("tests")
-        sig = extract_function_signature(
-            ref,
-            sample_id=str(sample.get("prompt_id") or sample.get("id")),
-            test_assert_statements=tests,
-        )
-        return f"{raw_prompt.rstrip()}\n\nImplement this Python function using the required signature:\n```python\n{sig}\n```"
-    return str(sample.get("prompt_text") or sample.get("prompt") or "")
+        try:
+            sig = extract_function_signature(
+                ref,
+                sample_id=str(sample.get("prompt_id") or sample.get("id")),
+                test_assert_statements=tests,
+            )
+            return f"{raw_prompt.rstrip()}\n\nImplement this Python function using the required signature:\n```python\n{sig}\n```"
+        except Exception:
+            return str(raw_prompt)
+    return str(raw_prompt)
 
 
 def derive_oracle_codebook_phrases(
@@ -230,9 +237,12 @@ def evaluate_output_quality(
         (is_passed, scores_dict)
     """
     if domain == "code":
-        from experiments.run_quality_benchmark import evaluate_restricted_mbpp
-        tests = sample.get("test_assert_statements") or sample.get("tests") or []
-        res = evaluate_restricted_mbpp(output_text, tests, timeout_s=timeout_s)
+        from experiments.run_quality_benchmark import evaluate_mbpp_code
+        gt = sample.get("reference") or sample.get("reference_response") or ""
+        tests = sample.get("test_assert_statements") or sample.get("tests") or [
+            line.strip() for line in gt.splitlines() if line.strip().startswith("assert")
+        ]
+        res = evaluate_mbpp_code(output_text, tests, timeout_s=timeout_s)
         return bool(res.get("problem_pass")), res
 
     if domain == "reasoning":
@@ -242,9 +252,11 @@ def evaluate_output_quality(
         return bool(res.get("exact_correct")), res
 
     if domain == "instruction":
-        from experiments.run_quality_benchmark import evaluate_mechanical_instruction
-        res = evaluate_mechanical_instruction(output_text)
-        return bool(res.get("mechanical_instruction_pass")), res
+        from experiments.run_quality_benchmark import evaluate_alpaca_instruction
+        eos_hit = bool(sample.get("eos_reached", False))
+        res = evaluate_alpaca_instruction(output_text, eos_reached=eos_hit)
+        passed = bool(res.get("instruction_pass") or res.get("mechanical_instruction_pass"))
+        return passed, res
 
     raise ValueError(f"Unknown domain: {domain}")
 
