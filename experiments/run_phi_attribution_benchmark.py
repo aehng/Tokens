@@ -16,12 +16,14 @@ Enforces:
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict
 import datetime as dt
 import hashlib
 import json
 import os
 import pickle
 import platform
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -52,6 +54,7 @@ from src.zip2zip.predictor_v2.attribution_harness import (
     INITIAL_VOCAB_SIZE,
     MAX_NEW_TOKENS,
     PAD_TOKEN_ID,
+    AttributionError,
     AttributionRecord,
     build_canonical_prompt_text,
     build_codebook_dict,
