@@ -4,6 +4,7 @@ import pytest
 from src.zip2zip.predictor_v2.oracle_global import GlobalOccurrenceOracle
 from src.zip2zip.predictor_v2.oracle_candidate_pool import CandidatePoolOracle
 from src.zip2zip.predictor_v2.candidate_pool import CandidateRecord
+from src.zip2zip.predictor_v2.oracle_exact import ExactHypertokenOracle
 import numpy as np
 
 
@@ -37,3 +38,16 @@ def test_candidate_pool_oracle_basic():
     res = oracle.solve([cand], tokens, k=4, global_oracle_steps=4)
     assert res.steps_saved == 4
     assert res.candidate_generation_capture == 1.0
+
+
+def test_fixed_pool_occurrence_scan_matches_allowed_spans():
+    oracle = ExactHypertokenOracle(min_len=2, max_len=4)
+    occurrences = oracle.extract_occurrences(
+        [1, 2, 1, 2, 3],
+        allowed_phrases={(1, 2), (2, 1), (1, 2, 3), (9, 9), (1, 2, 3, 4)},
+    )
+    assert occurrences == {
+        (1, 2): [(0, 2), (2, 4)],
+        (2, 1): [(1, 3)],
+        (1, 2, 3): [(2, 5)],
+    }

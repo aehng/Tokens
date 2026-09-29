@@ -65,14 +65,15 @@ class ExactHypertokenOracle:
         n = len(tokens)
 
         if allowed_phrases is not None:
-            # Check only allowed phrases
-            for phrase in allowed_phrases:
-                l = len(phrase)
-                if l < self.min_len or l > self.max_len:
-                    continue
-                for i in range(n - l + 1):
-                    if tuple(tokens[i : i + l]) == phrase:
-                        phrase_occurrences[phrase].append((i, i + l))
+            # Scan the continuation once and test each observed n-gram against
+            # the fixed candidate set. This is equivalent to checking every
+            # candidate at every position, while avoiding O(candidates × n)
+            # tuple construction for large candidate pools.
+            for length in range(self.min_len, min(self.max_len + 1, n + 1)):
+                for start in range(n - length + 1):
+                    phrase = tuple(tokens[start : start + length])
+                    if phrase in allowed_phrases:
+                        phrase_occurrences[phrase].append((start, start + length))
         else:
             # Extract all occurring n-grams
             for l in range(self.min_len, min(self.max_len + 1, n + 1)):
