@@ -97,12 +97,27 @@ class Zip2ZipConfig(PushToHubMixin, Generic[EncoderConfigType]):
     compression: CompressionConfig = field(
         default=None, metadata={"help": "The compression configuration."}
     )
+    codebook_backend: str = field(
+        default="dynamic",
+        metadata={
+            "help": (
+                "Codebook implementation: 'dynamic' constructs the legacy LZW "
+                "CodebookManager (requires zip2zip-compression); 'static' "
+                "constructs StaticCodebookManager."
+            )
+        },
+    )
 
     def __post_init__(self) -> None:
         if self.position_mode not in {"compressed", "base_token_end"}:
             raise ValueError(
                 "position_mode must be 'compressed' or 'base_token_end', got "
                 f"{self.position_mode!r}"
+            )
+        if self.codebook_backend not in {"dynamic", "static"}:
+            raise ValueError(
+                "codebook_backend must be 'dynamic' or 'static', got "
+                f"{self.codebook_backend!r}"
             )
 
     def to_dict(self) -> Dict:

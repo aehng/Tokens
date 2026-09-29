@@ -39,7 +39,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, LogitsProcessor, L
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
-from zip2zip import Zip2ZipModel, Zip2ZipTokenizer, StaticCodebookManager, ContextualEmissionGate
+from zip2zip import StaticCodebookManager, ContextualEmissionGate
+from experiments.generation_timing import TimingLogitsProcessor, synchronize_device
 from zip2zip.predictor_policy import CappedPredictorPolicy
 from experiments.mbpp_prompt import build_mbpp_prompt
 from experiments.load_joint_checkpoint import load_joint_checkpoint
@@ -125,39 +126,6 @@ for _index, _test in enumerate(_payload["assert_statements"]):
 """
 
 
-class TimingLogitsProcessor(LogitsProcessor):
-    """Accurately measures TTFT (prefill time) and decode step counts, and masks unseeded hypertokens."""
-
-    def __init__(self, t_start: float, static_mgr: Optional[StaticCodebookManager] = None):
-        self.t_start = t_start
-        self.static_mgr = static_mgr
-        self.ttft: Optional[float] = None
-        self.step_count = 0
-        self.decode_step_intervals_s: List[float] = []
-        self._last_callback_time: Optional[float] = None
-
-    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
-        callback_time = time.perf_counter()
-        if self.ttft is None:
-            if scores.is_cuda:
-                torch.cuda.synchronize(scores.device)
-                callback_time = time.perf_counter()
-            self.ttft = callback_time - self.t_start
-        elif not scores.is_cuda and self._last_callback_time is not None:
-            self.decode_step_intervals_s.append(callback_time - self._last_callback_time)
-        self._last_callback_time = callback_time
-        self.step_count += 1
-        if self.static_mgr is not None:
-            scores = self.static_mgr.mask_unused_logits(scores)
-        return scores
-
-
-def synchronize_device(device: torch.device) -> None:
-    """Finish queued CUDA work before taking wall-clock timestamps."""
-    if device.type == "cuda":
-        torch.cuda.synchronize(device)
-
-
 def _revision_kwargs(revision: Optional[str]) -> Dict[str, str]:
     return {"revision": revision} if revision else {}
 
@@ -188,7 +156,9 @@ def _load_zip2zip_model(
     model_id: str,
     base_revision: Optional[str],
     model_revision: Optional[str],
-) -> Zip2ZipModel:
+) -> Any:
+    from zip2zip import Zip2ZipModel
+
     # Pin the independently-versioned Phi base and Zip2Zip adapter separately.
     base_model = AutoModelForCausalLM.from_pretrained(
         PHI_MODEL_ID,
@@ -914,6 +884,8 @@ def run_condition_official_zip2zip(
     if not pending_samples:
         print("All Official Zip2Zip records have exact cache hits; model load skipped.", flush=True)
         return []
+
+    from zip2zip import Zip2ZipTokenizer
 
     model_id = ZIP2ZIP_MODEL_ID
     tok = Zip2ZipTokenizer.from_pretrained(model_id, **_revision_kwargs(model_revision))

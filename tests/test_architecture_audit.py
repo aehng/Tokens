@@ -74,30 +74,39 @@ def test_static_codebook_and_predictor_v2_do_not_import_lzw():
         assert "zip2zip_compression" not in _imported_names(_parse(path)), path
 
 
-def test_package_init_eagerly_imports_legacy_codebook_and_tokenizer():
+def test_package_init_does_not_eagerly_import_legacy_lzw():
     tree = _parse(ZIP2ZIP / "__init__.py")
-    # Relative imports: from .codebook import CodebookManager
     relative = []
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.level == 1:
             relative.append((node.module, tuple(a.name for a in node.names)))
-    assert ("codebook", ("CodebookManager",)) in relative
-    assert ("tokenizer", ("Zip2ZipTokenizer",)) in relative
+    assert ("codebook", ("CodebookManager",)) not in relative
+    assert ("tokenizer", ("Zip2ZipTokenizer",)) not in relative
     assert ("model", ("Zip2ZipModel",)) in relative
+    assert ("static_codebook", ("StaticCodebookManager",)) in relative
+    source = _read(ZIP2ZIP / "__init__.py")
+    assert "_LAZY_EXPORTS" in source
+    assert '".codebook"' in source
+    assert '".tokenizer"' in source
 
 
-def test_hyper_modules_type_import_dynamic_codebook_manager():
+def test_hyper_modules_do_not_import_legacy_codebook():
     embedding = _parse(ZIP2ZIP / "nn" / "embedding.py")
     linear = _parse(ZIP2ZIP / "nn" / "linear.py")
-    assert "CodebookManager" in _from_import_targets(embedding, "codebook")
-    assert "CodebookManager" in _from_import_targets(linear, "codebook")
+    assert "zip2zip_compression" not in _imported_names(embedding)
+    assert "zip2zip_compression" not in _imported_names(linear)
+    assert "HyperCodebookManager" in _from_import_targets(embedding, "codebook_api")
+    assert "HyperCodebookManager" in _from_import_targets(linear, "codebook_api")
 
 
-def test_zip2zip_model_constructs_dynamic_codebook_manager_in_init():
+def test_zip2zip_model_can_construct_static_codebook_without_module_level_lzw():
     source = _read(ZIP2ZIP / "model.py")
+    tree = _parse(ZIP2ZIP / "model.py")
+    assert "zip2zip_compression" not in _imported_names(tree)
     assert "from zip2zip.codebook import CodebookManager" in source
-    assert "self.codebook_manager = CodebookManager.from_config(config)" in source
+    assert "codebook_backend == \"static\"" in source or "backend == \"static\"" in source
     assert "base_model = PeftModel.from_pretrained(" in source
+    assert "enable_base_token_positions" in _function_names(tree)
 
 
 def test_continuation_consistency_loss_is_documented_but_not_defined():
@@ -153,17 +162,20 @@ def test_gold_training_data_is_benchmark_references_not_phi_chat():
     assert "<|assistant|>" not in first
 
 
-def test_select_stratified_dev_prompts_is_not_on_the_harness_module():
+def test_select_stratified_dev_prompts_is_exported_from_the_harness_module():
     harness = _read(ZIP2ZIP / "predictor_v2" / "attribution_harness.py")
     runner = _read(ROOT / "experiments" / "run_phi_attribution_benchmark.py")
-    assert "def select_stratified_dev_prompts" not in harness
-    assert "def select_stratified_dev_prompts" in runner
+    assert "def select_stratified_dev_prompts" in harness
+    assert "STRATIFIED_DEV12_PROMPT_IDS" in harness
+    assert "select_stratified_dev_prompts" in runner
 
 
-def test_pyproject_requires_zip2zip_compression_unconditionally():
+def test_pyproject_keeps_lzw_as_an_optional_legacy_extra():
     text = _read(ROOT / "pyproject.toml")
     assert "zip2zip-compression>=" in text
-    assert "legacy-lzw" not in text
+    assert 'legacy-lzw = ["zip2zip-compression>=0.3.3"]' in text
+    dependencies = text.split("[project.optional-dependencies]", 1)[0]
+    assert "zip2zip-compression" not in dependencies
 
 
 def test_canonical_phi_stop_set_is_chat_end_then_role_then_eot():

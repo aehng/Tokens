@@ -18,7 +18,7 @@ from accelerate import init_empty_weights, load_checkpoint_and_dispatch
 
 from zip2zip.config import Zip2ZipConfig
 from zip2zip.nn.linear import HyperLinear
-from zip2zip.codebook import CodebookManager
+from zip2zip.nn.codebook_api import HyperCodebookManager
 from zip2zip.nn.embedding import HyperEmbedding
 from zip2zip.nn.encoders.base import BaseEncoder
 from zip2zip.constants import SAFETENSORS_ENCODERS_NAME
@@ -34,6 +34,7 @@ class Zip2ZipModel(PushToHubMixin, nn.Module):
         config: Zip2ZipConfig[EncoderConfigType],
         base_model: Optional[PreTrainedModel] = None,
         peft_config: Optional[PeftConfig] = None,
+        codebook_manager: Optional[HyperCodebookManager] = None,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -52,9 +53,35 @@ class Zip2ZipModel(PushToHubMixin, nn.Module):
         # in case of embedding model(as opposed to generation model), we need to clear the cache after forward, otherwise the cache will cumulate
         self.clear_zip2zip_cache_after_forward = False
 
-        self.codebook_manager = CodebookManager.from_config(config)
+        self.codebook_manager = (
+            codebook_manager
+            if codebook_manager is not None
+            else self._build_codebook_manager(config)
+        )
         self.input_encoder, self.output_encoder = self.build_encoders()
         self.set_hyper_modules()
+        self._install_base_position_generation_hook()
+
+    @staticmethod
+    def _build_codebook_manager(
+        config: Zip2ZipConfig[EncoderConfigType],
+    ) -> HyperCodebookManager:
+        backend = getattr(config, "codebook_backend", "dynamic")
+        if backend == "static":
+            from zip2zip.static_codebook import StaticCodebookManager
+
+            return StaticCodebookManager.from_config(config)
+        if backend != "dynamic":
+            raise ValueError(
+                f"codebook_backend must be 'dynamic' or 'static', got {backend!r}"
+            )
+        from zip2zip.codebook import CodebookManager
+
+        return CodebookManager.from_config(config)
+
+    def enable_base_token_positions(self) -> None:
+        """Use span-based RoPE positions for hypertoken generation."""
+        self.zip2zip_config.position_mode = "base_token_end"
         self._install_base_position_generation_hook()
 
     @property
@@ -488,7 +515,11 @@ class Zip2ZipModel(PushToHubMixin, nn.Module):
         max_subtokens: Optional[int] = None,
         **kwargs,
     ) -> Zip2ZipModel:
+        codebook_manager = kwargs.pop("codebook_manager", None)
+        codebook_backend = kwargs.pop("codebook_backend", None)
         config = Zip2ZipConfig.from_pretrained(pretrained_model_name_or_path, **kwargs)
+        if codebook_backend is not None:
+            config.codebook_backend = codebook_backend
         self_contained = config.base_model_name_or_path == "."
         if self_contained:
             # A v2 release keeps config.json, tokenizer files, decoder shards,
@@ -539,7 +570,12 @@ class Zip2ZipModel(PushToHubMixin, nn.Module):
                         "[Zip2Zip] No decoder weights found — proceeding with base model."
                     )
 
-        model = cls(config, base_model, **kwargs)
+        model = cls(
+            config,
+            base_model,
+            codebook_manager=codebook_manager,
+            **kwargs,
+        )
 
         try:
             model.load_pretrained_hyper_encoders(

@@ -12,7 +12,6 @@ readme = "README.md"
 requires-python = ">=3.10"
 
 dependencies = [
-    "zip2zip-compression>=0.3.3",
     "torch>=2.5.0",
     "datasets<=3.1.0",
     "transformers>=4.47.0",
@@ -24,6 +23,7 @@ dependencies = [
 
 [project.optional-dependencies]
 eval = ["lm_eval==0.4.9"]
+legacy-lzw = ["zip2zip-compression>=0.3.3"]
 
 [project.urls]
 Homepage = "https://github.com/epfl-dlab/zip2zip"

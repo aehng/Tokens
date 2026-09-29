@@ -5,7 +5,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from zip2zip.config import Zip2ZipConfig
-from zip2zip.codebook import CodebookManager
+from zip2zip.nn.codebook_api import HyperCodebookManager
 from zip2zip.nn.encoders.base import BaseEncoder
 
 
@@ -20,7 +20,7 @@ class HyperLinear(nn.Linear):
         device: torch.device,
         dtype: torch.dtype,
         initial_vocab_size: int,
-        codebook_manager: CodebookManager,
+        codebook_manager: HyperCodebookManager,
     ) -> None:
         super().__init__(in_features, out_features, bias, device, dtype)
         self.config = config
@@ -69,7 +69,7 @@ class HyperLinear(nn.Linear):
         linear: nn.Linear,
         config: Zip2ZipConfig,
         encoder: BaseEncoder,
-        codebook_manager: CodebookManager,
+        codebook_manager: HyperCodebookManager,
     ) -> HyperLinear:
         hyper_linear = cls(
             config,

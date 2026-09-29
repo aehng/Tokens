@@ -5,7 +5,7 @@ from torch import nn
 import torch.nn.functional as F
 
 from zip2zip.config import Zip2ZipConfig
-from zip2zip.codebook import CodebookManager
+from zip2zip.nn.codebook_api import HyperCodebookManager
 from zip2zip.nn.encoders.base import BaseEncoder
 
 
@@ -20,7 +20,7 @@ class HyperEmbedding(nn.Embedding):
         device: torch.device,
         dtype: torch.dtype,
         initial_vocab_size: int,
-        codebook_manager: CodebookManager,
+        codebook_manager: HyperCodebookManager,
     ) -> None:
         super().__init__(
             num_embeddings, embedding_dim, padding_idx, device=device, dtype=dtype
@@ -77,7 +77,7 @@ class HyperEmbedding(nn.Embedding):
         embedding: nn.Embedding,
         config: Zip2ZipConfig,
         encoder: BaseEncoder,
-        codebook_manager: CodebookManager,
+        codebook_manager: HyperCodebookManager,
     ) -> HyperEmbedding:
         hyper_embedding = cls(
             config,
