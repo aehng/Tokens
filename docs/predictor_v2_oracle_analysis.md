@@ -1,5 +1,7 @@
 # Predictor V2 Oracle Hierarchy & Candidate Loss Analysis
 
+> **HISTORICAL / SUPERSEDED FOR CURRENT SELECTION:** The empirical totals below are from the earlier 60-prompt corpus. They are not corrected-canonical 900-record results and must not be used to select a current candidate generator.
+
 > [!WARNING]
 > **METHODOLOGY CORRECTION NOTICE (2026-09-28)**  
 > **Epistemic Classification Standard Applied:** Metrics are strictly partitioned into `EXACT` (mathematically certified 0-1 ILP solver), `MEASURED` (verified executed code), `ESTIMATED` (multi-seed sample distribution), and `PROJECTED` (unmeasured conjectures).  

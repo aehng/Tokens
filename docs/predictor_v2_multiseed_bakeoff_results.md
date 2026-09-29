@@ -1,5 +1,7 @@
 # Predictor V2 Multi-Seed Architecture Bake-Off Results
 
+> **HISTORICAL / SUPERSEDED FOR CURRENT SELECTION:** This bakeoff used 36 TRAIN / 12 DEV prompts and legacy candidate labels. Its architecture ranking is not a current decision for the corrected 900-record study; broad live Phi attribution must pass before a new architecture bakeoff.
+
 **Date:** 2026-09-28  
 **Branch:** `codex/predictor-v2-methodology-correction`  
 **Supervision:** Canonical Microsoft Phi-3.5-mini-instruct greedy continuation labels (36 TRAIN prompts)  

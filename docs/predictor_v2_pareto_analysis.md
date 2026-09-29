@@ -1,5 +1,7 @@
 # Predictor V2 Pareto Analysis & End-to-End Loss Funnel
 
+> **HISTORICAL / SUPERSEDED FOR CURRENT SELECTION:** The architecture and bottleneck conclusions below come from earlier small-corpus/legacy candidate-label experiments. They are retained as history and do not replace broader live Phi failure attribution on the corrected DEV data.
+
 > [!WARNING]
 > **METHODOLOGY CORRECTION NOTICE (2026-09-28)**  
 > **Epistemic Classification Standard Applied:** Metrics are strictly partitioned into `EXACT` (mathematically certified 0-1 ILP solver), `MEASURED` (verified executed code), `ESTIMATED` (multi-seed sample distribution), and `PROJECTED` (unmeasured conjectures).  

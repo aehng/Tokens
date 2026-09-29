@@ -36,6 +36,7 @@ import math
 import os
 import pickle
 import re
+import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
@@ -46,9 +47,9 @@ from transformers import AutoTokenizer
 
 from src.zip2zip.predictor_v2.candidate_pool import (
     CandidateRecord,
+    candidate_filter_reason,
     extract_handcrafted_features,
     get_first_occurrence_bucket,
-    is_bare_punctuation,
 )
 from src.zip2zip.predictor_v2.vanilla_labels import VanillaContinuationRecord
 
@@ -128,8 +129,10 @@ class ConfigurableCandidateGenerator:
         domain: str = "general",
         strategy: RetrievalStrategy = RetrievalStrategy.BASELINE,
         target_pool_size: int = 512,
+        diagnostics: Dict[str, Any] | None = None,
     ) -> Dict[Tuple[int, ...], Dict[str, Any]]:
         """Generates candidate pool of size target_pool_size using the selected strategy."""
+        started_at = time.perf_counter()
         p_ids = [t for t in prompt_ids if t not in self.disabled_ids]
         n = len(p_ids)
         cands: Dict[Tuple[int, ...], Dict[str, Any]] = {}
@@ -238,17 +241,18 @@ class ConfigurableCandidateGenerator:
         for gram, bg_w in self.index.precomputed_global_static[:num_bg]:
             add_candidate(gram, "background_bank", float(bg_w) * 0.25)
 
-        # 4. Filter bare punctuation and trailing whitespace
+        # 4. Filter generic phrase degeneracy before ranking or truncation.
         filtered: Dict[Tuple[int, ...], Dict[str, Any]] = {}
+        quality_rejections: Dict[Tuple[int, ...], str] = {}
         for gram, data in cands.items():
-            if is_bare_punctuation(gram, self.tokenizer):
-                continue
-            text = self.tokenizer.decode(list(gram))
-            if text.endswith(" ") or text.endswith("\t"):
+            reason = candidate_filter_reason(gram, self.tokenizer)
+            if reason is not None:
+                quality_rejections[gram] = reason
                 continue
             filtered[gram] = data
 
         # 5. Truncate to target_pool_size by weight
+        sorted_items = None
         if len(filtered) > target_pool_size:
             # Deterministic sorting: weight descending, length ascending, tokens tuple ascending
             sorted_items = sorted(
@@ -256,24 +260,62 @@ class ConfigurableCandidateGenerator:
                 key=lambda x: (x[1]["weight"], len(x[0]), x[0]),
                 reverse=True,
             )
-            filtered = dict(sorted_items[:target_pool_size])
+            pool = dict(sorted_items[:target_pool_size])
+        else:
+            pool = filtered
 
-        return filtered
+        generation_latency_ms = (time.perf_counter() - started_at) * 1000.0
+        if diagnostics is not None:
+            if sorted_items is None:
+                sorted_items = sorted(
+                    filtered.items(),
+                    key=lambda x: (x[1]["weight"], len(x[0]), x[0]),
+                    reverse=True,
+                )
+            diagnostics.clear()
+            diagnostics.update(
+                {
+                    "generation_latency_ms": generation_latency_ms,
+                    "generated_candidate_count": len(cands),
+                    "quality_rejections": quality_rejections,
+                    "rank_by_phrase": {
+                        phrase: rank for rank, (phrase, _) in enumerate(sorted_items, 1)
+                    },
+                    "sources_by_phrase": {
+                        phrase: set(data["sources"]) for phrase, data in filtered.items()
+                    },
+                    "pool_source_counts": {
+                        source: sum(source in payload["sources"] for payload in pool.values())
+                        for source in sorted(
+                            {source for payload in pool.values() for source in payload["sources"]}
+                        )
+                    },
+                    "pool_phrase_length_counts": {
+                        str(length): sum(len(phrase) == length for phrase in pool)
+                        for length in range(2, self.max_subtokens + 1)
+                    },
+                }
+            )
+
+        return pool
 
     def build_candidate_records(
         self,
         record: VanillaContinuationRecord,
         strategy: RetrievalStrategy = RetrievalStrategy.BASELINE,
         target_pool_size: int = 512,
+        candidate_pool: Mapping[Tuple[int, ...], Dict[str, Any]] | None = None,
     ) -> List[CandidateRecord]:
         """Builds candidate pool and populates CandidateRecord objects."""
-        cand_dict = self.generate_candidate_pool(
-            record.prompt_token_ids,
-            record.prompt_text,
-            domain=record.domain,
-            strategy=strategy,
-            target_pool_size=target_pool_size,
-        )
+        cand_dict = candidate_pool
+        if cand_dict is None:
+            cand_dict = self.generate_candidate_pool(
+                record.prompt_token_ids,
+                record.prompt_text,
+                domain=record.domain,
+                strategy=strategy,
+                target_pool_size=target_pool_size,
+            )
 
         continuation_tokens = record.continuation_token_ids
         n_cont = len(continuation_tokens)

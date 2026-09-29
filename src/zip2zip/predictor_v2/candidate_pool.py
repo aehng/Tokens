@@ -73,6 +73,19 @@ def is_bare_punctuation(tokens: Tuple[int, ...], tokenizer: AutoTokenizer) -> bo
     return len(text) > 0 and all(c in punct for c in text)
 
 
+def candidate_filter_reason(tokens: Tuple[int, ...], tokenizer: AutoTokenizer) -> str | None:
+    """Return the generic text-quality rule that excludes an unusable phrase."""
+    text = tokenizer.decode(list(tokens))
+    if not text.strip():
+        return "whitespace_only"
+    punct = set(".,!?:;\"'()[]{}<>-=_+*&^%$#@~`|\\/")
+    if all(char in punct for char in text.strip()):
+        return "punctuation_only"
+    if text.endswith((" ", "\t")):
+        return "trailing_space_or_tab"
+    return None
+
+
 def extract_handcrafted_features(
     phrase_text: str,
     phrase_tokens: Tuple[int, ...],
@@ -251,13 +264,10 @@ class PromptCandidateGenerator:
             cands[gram]["sources"].add("background_bank")
             cands[gram]["weight"] += float(bg_w) * 0.2
 
-        # Filter bare punctuation and trailing whitespace
+        # Filter generic phrase degeneracy, including whitespace-only phrases.
         filtered: Dict[Tuple[int, ...], Dict[str, Any]] = {}
         for gram, data in cands.items():
-            if is_bare_punctuation(gram, self.tokenizer):
-                continue
-            text = self.tokenizer.decode(list(gram))
-            if text.endswith(" ") or text.endswith("\t"):
+            if candidate_filter_reason(gram, self.tokenizer) is not None:
                 continue
             filtered[gram] = data
 

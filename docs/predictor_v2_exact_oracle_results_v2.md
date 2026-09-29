@@ -1,5 +1,7 @@
 # Predictor V2 Certified Exact Oracle Results (Version 2)
 
+> **HISTORICAL / SUPERSEDED FOR CURRENT SELECTION:** These measurements use the earlier 60-prompt continuation corpus and do not represent the corrected canonical 900-record, 1024-token study. They remain preserved as historical solver evidence only; use the corrected DEV benchmark for current candidate decisions.
+
 **Date:** 2026-09-28  
 **Solver Engine:** Google OR-Tools CP-SAT (0-1 Integer Linear Programming)  
 **Formulation:** Binary hypertoken selection with non-overlapping position interval packing constraints  

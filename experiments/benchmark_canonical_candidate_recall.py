@@ -7,6 +7,7 @@ import json
 import math
 import os
 import pickle
+import re
 import statistics
 import sys
 import tempfile
@@ -102,7 +103,7 @@ def _candidate_configuration(
         "max_subtokens": max_subtokens,
         "prompt_ngrams": {"minimum_length": 2, "base_weight": 8.0},
         "background_bank": {"limit": min(128, pool_size // 2), "weight_scale": 0.25},
-        "filters": ["disabled_token_ids", "bare_punctuation", "trailing_space_or_tab"],
+        "filters": ["disabled_token_ids", "whitespace_only", "punctuation_only", "trailing_space_or_tab"],
         "truncation_order": "weight_desc_then_length_desc_then_token_tuple_desc",
         "implementation": "ConfigurableCandidateGenerator",
         "train_index_provenance_sha256": train_index_provenance_sha256,
@@ -181,13 +182,33 @@ def run_benchmark(
         raise FileExistsError("candidate benchmark outputs already exist; choose new paths to preserve prior evidence")
     if any(pool_size not in POOL_SIZES for pool_size in pool_sizes):
         raise ValueError(f"pool sizes must be selected from {POOL_SIZES}")
+    startup_started = time.perf_counter()
+    phase_started = time.perf_counter()
     views, data_manifest = load_canonical_dataset(dataset_path, manifest_path)
+    dataset_validation_load_ms = (time.perf_counter() - phase_started) * 1000.0
+    phase_started = time.perf_counter()
     index = TrainOnlyAssociationIndex.load(index_path)
+    index_load_ms = (time.perf_counter() - phase_started) * 1000.0
+    phase_started = time.perf_counter()
     validate_train_index(index, views)
+    index_leakage_validation_ms = (time.perf_counter() - phase_started) * 1000.0
     index_provenance_sha256 = sha256_json(index.provenance)
     index_sha256 = sha256_file(index_path)
+    phase_started = time.perf_counter()
     tokenizer = load_manifest_tokenizer(data_manifest)
+    tokenizer_load_ms = (time.perf_counter() - phase_started) * 1000.0
+    phase_started = time.perf_counter()
     generator = ConfigurableCandidateGenerator(index, tokenizer)
+    generator_init_ms = (time.perf_counter() - phase_started) * 1000.0
+    startup_cost = {
+        "dataset_validation_and_load_ms": dataset_validation_load_ms,
+        "index_load_ms": index_load_ms,
+        "index_leakage_validation_ms": index_leakage_validation_ms,
+        "tokenizer_load_ms": tokenizer_load_ms,
+        "candidate_generator_init_ms": generator_init_ms,
+        "total_until_generation_ready_ms": (time.perf_counter() - startup_started) * 1000.0,
+        "measurement": "first invocation startup; excludes model loading because this is an offline candidate-generation benchmark",
+    }
     records = list(views.dev)
     if max_dev_prompts is not None:
         if max_dev_prompts < 1:
@@ -233,10 +254,13 @@ def run_benchmark(
             "schema": "predictor_v2_candidate_recall_resume_v1",
             "run_config": run_config,
             "run_config_sha256": run_config_sha256,
+            "startup_cost": startup_cost,
             "completed_combinations": {},
         }
         _save_resume_state(state_path, state)
         completed = state["completed_combinations"]
+    if resume and isinstance(state.get("startup_cost"), dict):
+        startup_cost = state["startup_cost"]
 
     allowed_keys = {
         strategy.value: {str(size) for size in pool_sizes} for strategy in RetrievalStrategy
@@ -327,26 +351,127 @@ def run_benchmark(
                 "residual_gap_lower_steps": 0,
                 "residual_gap_upper_steps": 0,
             }
+            retrieval_health = {
+                "global_incumbent_phrase_count": 0,
+                "present_in_pool": 0,
+                "present_rank_le_32": 0,
+                "present_rank_33_to_128": 0,
+                "present_rank_129_to_pool": 0,
+                "generated_but_truncated": 0,
+                "quality_filtered": Counter(),
+                "not_generated_with_prompt_word_overlap": 0,
+                "not_generated_without_observed_prompt_signal": 0,
+                "rank_values": [],
+                "pool_phrase_length_counts": Counter(),
+                "pool_source_incidence_counts": Counter(),
+                "quality_rejection_counts": Counter(),
+                "pool_candidates": 0,
+                "pool_slots": 0,
+                "dead_candidates": 0,
+                "background_only_dead_candidates": 0,
+                "rank_examples": defaultdict(list),
+                "domain_gap_examples": defaultdict(list),
+            }
 
             for record in records:
                 prompt_ids = tokenizer.encode(record.rendered_prompt_text, add_special_tokens=False)
-                start = time.perf_counter()
+                pool_diagnostics: dict[str, Any] = {}
                 pool = generator.generate_candidate_pool(
                     prompt_ids,
                     record.rendered_prompt_text,
                     domain=record.domain,
                     strategy=strategy,
                     target_pool_size=pool_size,
+                    diagnostics=pool_diagnostics,
                 )
-                latency_ms = (time.perf_counter() - start) * 1000.0
+                latency_ms = float(pool_diagnostics["generation_latency_ms"])
                 latencies.append(latency_ms)
                 latency_by_bin[_prompt_length_bin(len(prompt_ids))].append(latency_ms)
                 actual_pool_sizes.append(len(pool))
                 pool_memory_estimates.append(_memory_estimate(pool))
                 candidate_records = generator.build_candidate_records(
-                    record.to_legacy_record(tokenizer), strategy=strategy, target_pool_size=pool_size
+                    record.to_legacy_record(tokenizer),
+                    strategy=strategy,
+                    target_pool_size=pool_size,
+                    candidate_pool=pool,
                 )
                 pool_phrases = set(pool)
+                continuation_phrases = {
+                    tuple(record.continuation_token_ids[i : i + length])
+                    for length in range(2, min(generator.max_subtokens + 1, len(record.continuation_token_ids) + 1))
+                    for i in range(len(record.continuation_token_ids) - length + 1)
+                }
+                retrieval_health["pool_candidates"] += len(pool)
+                retrieval_health["pool_slots"] += pool_size
+                retrieval_health["dead_candidates"] += len(pool_phrases - continuation_phrases)
+                retrieval_health["pool_phrase_length_counts"].update(
+                    pool_diagnostics["pool_phrase_length_counts"]
+                )
+                retrieval_health["pool_source_incidence_counts"].update(
+                    pool_diagnostics["pool_source_counts"]
+                )
+                retrieval_health["quality_rejection_counts"].update(
+                    Counter(pool_diagnostics["quality_rejections"].values())
+                )
+                sources_by_phrase = pool_diagnostics["sources_by_phrase"]
+                background_only_dead = [
+                    phrase for phrase in pool_phrases - continuation_phrases
+                    if sources_by_phrase.get(phrase) == {"background_bank"}
+                ]
+                retrieval_health["background_only_dead_candidates"] += len(background_only_dead)
+
+                def add_rank_example(category: str, phrase: tuple[int, ...], rank: int | None, reason: str | None = None) -> None:
+                    examples = retrieval_health["rank_examples"][category]
+                    if len(examples) >= 4:
+                        return
+                    phrase_text = tokenizer.decode(list(phrase))
+                    examples.append(
+                        {
+                            "prompt_id": record.prompt_id,
+                            "domain": record.domain,
+                            "prompt_excerpt": record.task_prompt_text[:180],
+                            "useful_phrase": phrase_text,
+                            "candidate_rank": rank,
+                            "quality_filter_reason": reason,
+                            "candidate_sources": sorted(sources_by_phrase.get(phrase, set())),
+                        }
+                    )
+
+                if any(k == 32 for k in K_VALUES):
+                    global_incumbents = global_results[(record.prompt_id, 32)].selected_phrases
+                    retrieval_health["global_incumbent_phrase_count"] += len(global_incumbents)
+                    prompt_words = set(re.findall(r"\b\w+\b", record.task_prompt_text.lower()))
+                    rank_by_phrase = pool_diagnostics["rank_by_phrase"]
+                    quality_rejections = pool_diagnostics["quality_rejections"]
+                    for phrase in global_incumbents:
+                        rank = rank_by_phrase.get(phrase)
+                        if phrase in pool_phrases:
+                            retrieval_health["present_in_pool"] += 1
+                            retrieval_health["rank_values"].append(rank)
+                            if rank <= 32:
+                                retrieval_health["present_rank_le_32"] += 1
+                            elif rank <= 128:
+                                retrieval_health["present_rank_33_to_128"] += 1
+                                add_rank_example("present_rank_33_to_128", phrase, rank)
+                            else:
+                                retrieval_health["present_rank_129_to_pool"] += 1
+                                add_rank_example("present_rank_129_to_pool", phrase, rank)
+                        elif rank is not None:
+                            retrieval_health["generated_but_truncated"] += 1
+                            add_rank_example("generated_but_truncated", phrase, rank)
+                        elif phrase in quality_rejections:
+                            reason = quality_rejections[phrase]
+                            retrieval_health["quality_filtered"][reason] += 1
+                            add_rank_example("quality_filtered", phrase, None, reason)
+                        else:
+                            phrase_text = tokenizer.decode(list(phrase))
+                            phrase_words = set(re.findall(r"\b\w+\b", phrase_text.lower()))
+                            if phrase_words & prompt_words:
+                                retrieval_health["not_generated_with_prompt_word_overlap"] += 1
+                                add_rank_example("prompt_related_but_not_generated", phrase, None)
+                            else:
+                                retrieval_health["not_generated_without_observed_prompt_signal"] += 1
+                                add_rank_example("no_observed_prompt_signal", phrase, None)
 
                 for k in K_VALUES:
                     global_result = global_results[(record.prompt_id, k)]
@@ -390,6 +515,17 @@ def run_benchmark(
                             acc["unweighted_missed_incumbent_phrase_weight"] += weight
                         missed["residual_gap_lower_steps"] += max(0, gl - cu)
                         missed["residual_gap_upper_steps"] += max(0, gu - cl)
+                        lower_gap = max(0, gl - cl)
+                        if lower_gap:
+                            example_phrase = missing[0] if missing else (global_result.selected_phrases[0] if global_result.selected_phrases else ())
+                            retrieval_health["domain_gap_examples"][record.domain].append(
+                                {
+                                    "prompt_id": record.prompt_id,
+                                    "domain": record.domain,
+                                    "candidate_minus_global_lower_bound_gap_steps": lower_gap,
+                                    "global_oracle_incumbent_phrase_not_retrieved": tokenizer.decode(list(example_phrase)) if example_phrase else None,
+                                }
+                            )
 
             metric_by_k: dict[str, Any] = {}
             for k in K_VALUES:
@@ -420,6 +556,107 @@ def run_benchmark(
                     "interpret_as_historical_guidance": True,
                 },
             }
+            domain_capture_k32 = {
+                domain: _capture_interval(
+                    data["candidate_lower"], data["candidate_upper"],
+                    data["global_lower"], data["global_upper"],
+                )
+                for (k, domain), data in domain_accum.items()
+                if k == 32
+            }
+            ranked_useful = retrieval_health["rank_values"]
+            total_useful = retrieval_health["global_incumbent_phrase_count"]
+            present_useful = retrieval_health["present_in_pool"]
+            rank_percentiles = {
+                f"p{percentile}_rank": float(np.percentile(ranked_useful, percentile))
+                for percentile in (50, 90, 99)
+            } if ranked_useful else {"p50_rank": None, "p90_rank": None, "p99_rank": None}
+            missed_categories = {
+                "A_no_observed_prompt_conditioning": {
+                    "count": retrieval_health["not_generated_without_observed_prompt_signal"],
+                    "interpretation": "heuristic only: no useful phrase word overlaps the task prompt and no implemented generator source produced it; this cannot prove the phrase was impossible to predict",
+                    "examples": retrieval_health["rank_examples"]["no_observed_prompt_signal"],
+                },
+                "B_prompt_related_or_generated_but_absent": {
+                    "count": retrieval_health["not_generated_with_prompt_word_overlap"] + retrieval_health["generated_but_truncated"],
+                    "prompt_related_not_generated": retrieval_health["not_generated_with_prompt_word_overlap"],
+                    "generated_but_truncated_by_pool_size": retrieval_health["generated_but_truncated"],
+                    "examples": (
+                        retrieval_health["rank_examples"]["prompt_related_but_not_generated"]
+                        + retrieval_health["rank_examples"]["generated_but_truncated"]
+                    )[:6],
+                },
+                "C_present_but_beyond_rank_32": {
+                    "count": retrieval_health["present_rank_33_to_128"] + retrieval_health["present_rank_129_to_pool"],
+                    "present_rank_33_to_128": retrieval_health["present_rank_33_to_128"],
+                    "present_rank_129_to_pool": retrieval_health["present_rank_129_to_pool"],
+                    "examples": (
+                        retrieval_health["rank_examples"]["present_rank_33_to_128"]
+                        + retrieval_health["rank_examples"]["present_rank_129_to_pool"]
+                    )[:6],
+                },
+                "D_filtered_by_generic_quality_rules": {
+                    "count": sum(retrieval_health["quality_filtered"].values()),
+                    "filter_reasons": dict(retrieval_health["quality_filtered"]),
+                    "examples": retrieval_health["rank_examples"]["quality_filtered"],
+                },
+                "E_generic_background_bank_clutter": {
+                    "dead_background_only_candidates": retrieval_health["background_only_dead_candidates"],
+                    "interpretation": "pool entries sourced only from the TRAIN global background bank that do not occur in this DEV continuation; descriptive clutter measure, not a proven cause of missed opportunity",
+                },
+                "F_domain_specific_retrieval_failure": {
+                    "domain_capture_intervals": domain_capture_k32,
+                    "lowest_lower_bound_capture_domain": min(
+                        domain_capture_k32,
+                        key=lambda domain: domain_capture_k32[domain]["lower"]
+                        if domain_capture_k32[domain]["lower"] is not None else 1.0,
+                    ) if domain_capture_k32 else None,
+                    "largest_gap_examples": [
+                        example
+                        for domain in sorted(retrieval_health["domain_gap_examples"])
+                        for example in sorted(
+                            retrieval_health["domain_gap_examples"][domain],
+                            key=lambda item: item["candidate_minus_global_lower_bound_gap_steps"],
+                            reverse=True,
+                        )[:2]
+                    ][:6],
+                },
+                "G_other_oracle_bound_uncertainty": {
+                    "non_exact_global_solves": exact_counts["global_solves"] - exact_counts["global"],
+                    "non_exact_candidate_pool_solves": exact_counts["candidate_pool_solves"] - exact_counts["candidate_pool"],
+                    "residual_gap_steps_interval": {
+                        "lower_bound": missed["residual_gap_lower_steps"],
+                        "upper_bound": missed["residual_gap_upper_steps"],
+                    },
+                },
+            }
+            retrieval_health_summary = {
+                "useful_phrase_definition": "selected phrase in the DEV global-oracle incumbent at K=32; non-OPTIMAL incumbents are lower-bound solutions, not asserted global optima",
+                "global_oracle_incumbent_phrase_count": total_useful,
+                "useful_phrase_present_in_pool": present_useful,
+                "useful_phrase_absent_from_pool": total_useful - present_useful,
+                "useful_phrase_rank_disposition": {
+                    "present_rank_1_to_32": retrieval_health["present_rank_le_32"],
+                    "present_rank_33_to_128": retrieval_health["present_rank_33_to_128"],
+                    "present_rank_129_to_pool": retrieval_health["present_rank_129_to_pool"],
+                    "generated_but_truncated_by_pool_size": retrieval_health["generated_but_truncated"],
+                    "filtered_by_quality_rule": sum(retrieval_health["quality_filtered"].values()),
+                    "not_generated_with_prompt_word_overlap": retrieval_health["not_generated_with_prompt_word_overlap"],
+                    "not_generated_without_observed_prompt_signal": retrieval_health["not_generated_without_observed_prompt_signal"],
+                },
+                "rank_percentiles_for_useful_phrases_present_in_pool": rank_percentiles,
+                "quality_filter_rejection_counts": dict(retrieval_health["quality_rejection_counts"]),
+                "candidate_phrase_length_distribution": dict(retrieval_health["pool_phrase_length_counts"]),
+                "candidate_source_incidence_counts": dict(retrieval_health["pool_source_incidence_counts"]),
+                "mean_pool_candidates": retrieval_health["pool_candidates"] / max(1, len(records)),
+                "mean_pool_fill_fraction": retrieval_health["pool_candidates"] / max(1, retrieval_health["pool_slots"]),
+                "dead_candidates": {
+                    "count_across_prompt_pools": retrieval_health["dead_candidates"],
+                    "fraction_of_pool_entries": retrieval_health["dead_candidates"] / max(1, retrieval_health["pool_candidates"]),
+                    "background_only_dead_count": retrieval_health["background_only_dead_candidates"],
+                },
+                "missed_opportunity_categories": missed_categories,
+            }
             result_entry = {
                 "candidate_config": {
                     **_candidate_configuration(
@@ -431,6 +668,7 @@ def run_benchmark(
                 "oracle_metrics_by_k": metric_by_k,
                 "dev_domain_breakdown_by_k": {str(k): {} for k in K_VALUES},
                 "candidate_generation_latency": latency_profiles,
+                "retrieval_health": retrieval_health_summary,
                 "memory": {
                     "index_file_bytes": Path(index_path).stat().st_size,
                     "index_serialized_bytes": len(pickle.dumps(index, protocol=pickle.HIGHEST_PROTOCOL)),
@@ -497,11 +735,20 @@ def run_benchmark(
         "dev_split_sha256": views.dev_split_sha256,
         "train_index_sha256": index_sha256,
         "train_index_provenance_sha256": index_provenance_sha256,
+        "startup_cost": startup_cost,
         "dev_prompts_evaluated": len(records),
         "dev_prompts_available": len(views.dev),
         "run_config_sha256": run_config_sha256,
         "pool_sizes": list(pool_sizes),
         "strategy_results": results,
+        "gate_state": {
+            "candidate_generator_frozen": False,
+            "offline_architecture_shortlist_complete": False,
+            "live_integration_gate_passed": False,
+            "architecture_frozen": False,
+            "final_evaluated": False,
+            "candidate_generator_status": "offline_dev_evidence_only; post-live freeze is still required",
+        },
         "run_manifest": run_manifest,
         "global_oracle_interpretation": "lower/upper bounds are preserved; only report exact ceilings when every solve is OPTIMAL",
     }
@@ -520,10 +767,13 @@ def markdown_text(bundle: dict[str, Any]) -> str:
         f"- Scope: `{bundle['scope']}` ({bundle['dev_prompts_evaluated']} / {bundle['dev_prompts_available']} DEV prompts)",
         f"- Dataset SHA-256: `{bundle['dataset_sha256']}`",
         f"- DEV split SHA-256: `{bundle['dev_split_sha256']}`",
+        f"- Startup to generation-ready (first invocation): {bundle.get('startup_cost', {}).get('total_until_generation_ready_ms', 'n/a'):.3f} ms" if isinstance(bundle.get("startup_cost", {}).get("total_until_generation_ready_ms"), (int, float)) else "- Startup to generation-ready: not recorded",
+        "- Candidate generator freeze: **not frozen**; offline DEV evidence must be combined with a small live integration check before freeze.",
         "- Global oracle values retain solver lower/upper bounds; no unproven exact ceiling is inferred.",
+        "- Phrase-occurrence diagnosis uses each K=32 global-oracle incumbent; it does not prove phrases impossible to predict from prompt context.",
         "",
-        "| Strategy | Pool | K=32 capture interval | CPU p50 ms | CPU p99 ms | Index bytes | Missed global incumbent phrases |",
-        "|---|---:|---:|---:|---:|---:|---:|",
+        "| Strategy | Pool | K=32 capture interval | Global steps LB–UB | Pool steps LB–UB | CPU p50/p90/p99 ms | Useful phrases in pool / total | Rank ≤32 | Absent | Dead pool % | Index bytes |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     strategy_results = bundle["strategy_results"]
     for strategy in (item.value for item in RetrievalStrategy):
@@ -535,11 +785,32 @@ def markdown_text(bundle: dict[str, Any]) -> str:
             capture = "n/a" if interval["lower"] is None else f"{interval['lower']:.3f}–{interval['upper']:.3f}"
             latency = metrics["candidate_generation_latency"]["overall"]
             p50 = "n/a" if latency["p50_ms"] is None else f"{latency['p50_ms']:.3f}"
+            p90 = "n/a" if latency["p90_ms"] is None else f"{latency['p90_ms']:.3f}"
             p99 = "n/a" if latency["p99_ms"] is None else f"{latency['p99_ms']:.3f}"
-            missed = metrics["missed_opportunity_categories_k32"]["unretrieved_global_incumbent_phrases"]
+            health = metrics["retrieval_health"]
+            disposition = health["useful_phrase_rank_disposition"]
+            global_steps = k32["global_oracle_steps"]
+            candidate_steps = k32["candidate_pool_oracle_steps"]
+            global_range = f"{global_steps['lower_bound']}–{global_steps['upper_bound']}"
+            candidate_range = f"{candidate_steps['lower_bound']}–{candidate_steps['upper_bound']}"
+            useful = f"{health['useful_phrase_present_in_pool']}/{health['global_oracle_incumbent_phrase_count']}"
+            dead = health["dead_candidates"]["fraction_of_pool_entries"] * 100.0
             lines.append(
-                f"| {strategy} | {size} | {capture} | {p50} | {p99} | {metrics['memory']['index_file_bytes']} | {missed} |"
+                f"| {strategy} | {size} | {capture} | {global_range} | {candidate_range} | {p50}/{p90}/{p99} | {useful} | {disposition['present_rank_1_to_32']} | {health['useful_phrase_absent_from_pool']} | {dead:.1f}% | {metrics['memory']['index_file_bytes']} |"
             )
+    lines += ["", "## Domain capture at K=32", "", "| Strategy | Pool | Code | Reasoning | Instruction |", "|---|---:|---:|---:|---:|"]
+    for strategy in (item.value for item in RetrievalStrategy):
+        for size in sorted(strategy_results[strategy], key=int):
+            domains = strategy_results[strategy][size]["dev_domain_breakdown_by_k"]["32"]
+            cells = []
+            for domain in ("code", "reasoning", "instruction"):
+                domain_result = domains.get(domain)
+                if domain_result is None:
+                    cells.append("n/a")
+                    continue
+                interval = domain_result["capture_interval"]
+                cells.append("n/a" if interval["lower"] is None else f"{interval['lower']:.3f}–{interval['upper']:.3f}")
+            lines.append(f"| {strategy} | {size} | {cells[0]} | {cells[1]} | {cells[2]} |")
     return "\n".join(lines) + "\n"
 
 

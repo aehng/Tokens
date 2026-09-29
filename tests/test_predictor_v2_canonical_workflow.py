@@ -10,7 +10,9 @@ import pytest
 from src.zip2zip.predictor_v2.candidate_retrieval import (
     ConfigurableCandidateGenerator,
     RetrievalStrategy,
+    TrainOnlyAssociationIndex,
 )
+from src.zip2zip.predictor_v2.candidate_pool import candidate_filter_reason
 from src.zip2zip.predictor_v2.canonical_dataset import (
     CanonicalDatasetError,
     CanonicalDatasetViews,
@@ -64,6 +66,17 @@ class FakeTokenizer:
 
     def decode(self, token_ids: list[int]) -> str:
         return " ".join(str(token_id) for token_id in token_ids)
+
+
+class QualityTokenizer(FakeTokenizer):
+    decoded_phrases = {
+        (1, 2): " \t",
+        (3, 4): "!?",
+        (5, 6): " useful phrase",
+    }
+
+    def decode(self, token_ids: list[int]) -> str:
+        return self.decoded_phrases.get(tuple(token_ids), super().decode(token_ids))
 
 
 class TinyRanker(PredictorScorer):
@@ -179,6 +192,58 @@ def test_canonical_loader_validates_dynamic_cap_and_returns_immutable_views(tmp_
         views.open_final(None)
 
 
+def test_canonical_loader_accepts_audited_nested_provenance_and_preserves_row_flags(tmp_path):
+    row = _record("train-nested", "TRAIN", "instruction")
+    row_provenance = {
+        "model_id": row.pop("model_id"),
+        "model_revision": row.pop("model_revision"),
+        "tokenizer_id": row.pop("tokenizer_id"),
+        "tokenizer_revision": row.pop("tokenizer_revision"),
+        "generation_config": row.pop("generation_config"),
+        "dataset_manifest_hash": "generation-manifest-hash",
+        "tokenizer_chat_template_sha256": "chat-template-sha",
+    }
+    row.pop("generation_metadata")
+    row["provenance"] = row_provenance
+    row["hit_1024_cap"] = False
+    row["reached_1024"] = False
+    row["generation_time_seconds"] = 12.5
+
+    dataset = tmp_path / "nested.jsonl"
+    dataset.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    manifest = create_canonical_manifest(
+        dataset,
+        expected_prompt_ids=[row["prompt_id"]],
+        split_ids={"TRAIN": [row["prompt_id"]], "DEV": [], "FINAL": []},
+        allowed_domains=["code", "reasoning", "instruction"],
+        model_id=row_provenance["model_id"],
+        model_revision=row_provenance["model_revision"],
+        tokenizer_id=row_provenance["tokenizer_id"],
+        tokenizer_revision=row_provenance["tokenizer_revision"],
+        tokenizer_vocab_size=64,
+        generation_config=row_provenance["generation_config"],
+        provenance={
+            "source_run_id": "synthetic-run",
+            "canonical_provenance": {
+                "model_id": row_provenance["model_id"],
+                "model_revision": row_provenance["model_revision"],
+                "tokenizer_id": row_provenance["tokenizer_id"],
+                "tokenizer_revision": row_provenance["tokenizer_revision"],
+                "tokenizer_chat_template_sha256": "chat-template-sha",
+            },
+        },
+    )
+    manifest_path = tmp_path / "nested.manifest.json"
+    write_canonical_manifest(manifest_path, manifest)
+
+    views, _ = load_canonical_dataset(dataset, manifest_path)
+    metadata = views.train[0].generation_metadata
+    assert metadata["hit_1024_cap"] is False
+    assert metadata["reached_1024"] is False
+    assert metadata["generation_time_seconds"] == 12.5
+    assert metadata["record_provenance"]["tokenizer_chat_template_sha256"] == "chat-template-sha"
+
+
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [
@@ -271,6 +336,32 @@ def test_candidate_strategies_are_deterministic_and_support_all_pool_sizes(tmp_p
         for size in (256, 512, 1024, 2048):
             pool = generator.generate_candidate_pool(prompt_ids, "prompt", "code", strategy, size)
             assert len(pool) <= size
+
+
+def test_generic_quality_filters_remove_whitespace_and_punctuation_candidates():
+    tokenizer = QualityTokenizer()
+    assert candidate_filter_reason((1, 2), tokenizer) == "whitespace_only"
+    assert candidate_filter_reason((3, 4), tokenizer) == "punctuation_only"
+    assert candidate_filter_reason((5, 6), tokenizer) is None
+
+    index = TrainOnlyAssociationIndex(
+        token_associations={10: [((1, 2), 30.0), ((3, 4), 20.0), ((5, 6), 10.0)]},
+        disabled_ids=set(),
+        max_subtokens=4,
+    )
+    generator = ConfigurableCandidateGenerator(index, tokenizer)
+    diagnostics = {}
+    pool = generator.generate_candidate_pool(
+        [10], "prompt", "instruction", RetrievalStrategy.BASELINE, 256, diagnostics=diagnostics
+    )
+    assert (1, 2) not in pool
+    assert (3, 4) not in pool
+    assert (5, 6) in pool
+    assert diagnostics["quality_rejections"] == {
+        (1, 2): "whitespace_only",
+        (3, 4): "punctuation_only",
+    }
+    assert diagnostics["rank_by_phrase"][(5, 6)] == 1
 
 
 def test_candidate_benchmark_emits_bounds_domains_tail_latency_and_memory(tmp_path, monkeypatch):

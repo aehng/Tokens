@@ -1,5 +1,7 @@
 # Predictor V2 Architecture Bake-Off Results
 
+> **HISTORICAL / SUPERSEDED FOR CURRENT SELECTION:** This earlier small-corpus bakeoff and its legacy candidate labels are preserved as research history. Its 36 TRAIN / 12 DEV / 12 consumed diagnostic TEST results are not current architecture-selection evidence.
+
 > [!WARNING]
 > **METHODOLOGY CORRECTION NOTICE (2026-09-28)**  
 > **Single-Seed vs Multi-Seed:** The table below reflects the initial single-seed run (seed 42). To control for neural weight initialization variance, multi-seed results across 3 random seeds (42, 43, 44) are provided in `docs/predictor_v2_multiseed_bakeoff_results.md`.  
