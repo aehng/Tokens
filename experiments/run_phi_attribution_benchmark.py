@@ -139,13 +139,13 @@ def load_vanilla_model_and_tokenizer(device: str) -> Tuple[Any, Any]:
     tokenizer = AutoTokenizer.from_pretrained(
         CANONICAL_MODEL_ID,
         revision=CANONICAL_MODEL_REVISION,
-        trust_remote_code=True,
+        trust_remote_code=False,
     )
     model = AutoModelForCausalLM.from_pretrained(
         CANONICAL_MODEL_ID,
         revision=CANONICAL_MODEL_REVISION,
         torch_dtype=dtype,
-        trust_remote_code=True,
+        trust_remote_code=False,
     ).to(device_obj)
     model.eval()
     return model, tokenizer
@@ -161,13 +161,13 @@ def load_predictive_bundle(
     tokenizer = AutoTokenizer.from_pretrained(
         CANONICAL_MODEL_ID,
         revision=CANONICAL_MODEL_REVISION,
-        trust_remote_code=True,
+        trust_remote_code=False,
     )
     base_model = AutoModelForCausalLM.from_pretrained(
         CANONICAL_MODEL_ID,
         revision=CANONICAL_MODEL_REVISION,
         torch_dtype=dtype,
-        trust_remote_code=True,
+        trust_remote_code=False,
     )
     model = Zip2ZipModel.from_pretrained(
         CANONICAL_ZIP2ZIP_ID,
