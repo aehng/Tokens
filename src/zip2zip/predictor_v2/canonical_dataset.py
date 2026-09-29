@@ -453,6 +453,14 @@ class CanonicalDatasetViews:
     _final: tuple[CanonicalContinuation, ...]
 
     @property
+    def train_records(self) -> tuple[CanonicalContinuation, ...]:
+        return self.train
+
+    @property
+    def dev_records(self) -> tuple[CanonicalContinuation, ...]:
+        return self.dev
+
+    @property
     def final_ids(self) -> tuple[str, ...]:
         return tuple(record.prompt_id for record in self._final)
 

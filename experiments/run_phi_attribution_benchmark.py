@@ -33,6 +33,7 @@ from transformers.generation.logits_process import LogitsProcessorList
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from src.zip2zip.model import Zip2ZipModel
 from src.zip2zip.static_codebook import StaticCodebookManager
@@ -230,9 +231,9 @@ def run_attribution_benchmark(args: argparse.Namespace) -> None:
     check_split_safety(args.split)
     views, _ = load_canonical_dataset(args.canonical_dataset, args.canonical_manifest)
     if args.split.upper() == "DEV":
-        split_records = views.dev_records
+        split_records = getattr(views, "dev", getattr(views, "dev_records", None))
     elif args.split.upper() == "TRAIN":
-        split_records = views.train_records
+        split_records = getattr(views, "train", getattr(views, "train_records", None))
     else:
         raise AttributionError(f"Unsupported split: {args.split}")
 
