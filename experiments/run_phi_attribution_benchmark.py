@@ -379,7 +379,7 @@ def run_attribution_benchmark(args: argparse.Namespace) -> None:
 
     if pred_conditions and has_pending_pred:
         p_model, p_tok, load_rep = load_predictive_bundle(checkpoint_path, args.device)
-        dim = p_model.zip2zip_config.embedding_dim or 3072
+        dim = getattr(p_model.config, "hidden_size", 3072)
 
         for cond in pred_conditions:
             pending = [r for r in target_records if (r.prompt_id, cond) not in completed]
