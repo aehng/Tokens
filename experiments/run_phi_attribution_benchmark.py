@@ -74,7 +74,12 @@ from experiments.run_quality_benchmark import TimingLogitsProcessor, synchronize
 def current_git_commit() -> str:
     try:
         import subprocess
-        return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, text=True).strip()
+        commit = os.environ.get("GIT_COMMIT")
+        if commit:
+            return commit
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, text=True, stderr=subprocess.DEVNULL
+        ).strip()
     except Exception:
         return "UNKNOWN"
 
