@@ -1,0 +1,57 @@
+{
+  "schema": "predictor_v2_external_source_selection_v1",
+  "decision": {
+    "selected_dataset": "HuggingFaceH4/ultrachat_200k",
+    "selected_split": "train_sft",
+    "target_clean_sample_size": 50000,
+    "reason": "The source is a bounded, openly accessible chat corpus with prompt and assistant-message fields and broad instruction/dialogue coverage. It is small enough for a streaming first experiment."
+  },
+  "candidates": [
+    {
+      "dataset": "HuggingFaceH4/ultrachat_200k",
+      "source_url": "https://huggingface.co/datasets/HuggingFaceH4/ultrachat_200k",
+      "approximate_size": "train_sft is about 208k examples; the dataset card reports 207,865",
+      "prompt_fields": ["prompt", "messages[].role=user / human"],
+      "response_fields": ["messages[].role=assistant / gpt (last response used)"],
+      "response_provenance": "The dataset card describes ChatGPT-generated multi-turn dialogues; individual response provenance is not represented as a per-example model field.",
+      "domains": "Broad instruction and dialogue topics; no guaranteed mapping to the project's Code/Reasoning/Instruction domains.",
+      "license_usage_metadata": "Hugging Face card metadata says MIT.",
+      "redistribution_commercial_use": "Card metadata appears permissive, but upstream prompt and model-output rights are not independently verified; this report is not legal clearance.",
+      "contamination_risk": "High enough to require exact, lexical, and fuzzy prompt checks against all 900 canonical prompts before sampling.",
+      "first_experiment": true,
+      "first_experiment_scope": "Pinned train_sft revision only; screen all rows, then deterministically sample up to 50,000 clean examples. Do not read train_sft test split."
+    },
+    {
+      "dataset": "allenai/tulu-3-sft-mixture",
+      "source_url": "https://huggingface.co/datasets/allenai/tulu-3-sft-mixture",
+      "approximate_size": "939,344 examples; dataset card reports about 1.4 GB download and 2.9 GB uncompressed",
+      "prompt_fields": ["messages[].role=user"],
+      "response_fields": ["messages[].role=assistant"],
+      "response_provenance": "A multi-source SFT mixture used for Tulu 3; per-source names are provided.",
+      "domains": "Math, GSM, Python, algebra, instruction following, science, multilingual, and general dialogue among other subsets.",
+      "license_usage_metadata": "Top-level ODC-BY-1.0; the card explicitly says subset licenses differ and includes CC-BY-NC-4.0 No Robots plus third-party model-output terms.",
+      "redistribution_commercial_use": "Some components are noncommercial or have separate third-party terms; unsuitable as a single undifferentiated first source without subset-level review.",
+      "contamination_risk": "High; includes benchmark-like math, code, and instruction subsets, so the same all-900 prompt filter would be mandatory.",
+      "first_experiment": false
+    },
+    {
+      "dataset": "teknium/OpenHermes-2.5",
+      "source_url": "https://huggingface.co/datasets/teknium/OpenHermes-2.5",
+      "approximate_size": "About 1.0 million conversations (approximately 1.94 GB on the dataset page)",
+      "prompt_fields": ["conversations (user/human turns)"],
+      "response_fields": ["conversations (assistant/gpt turns)"],
+      "response_provenance": "A compiled synthetic instruction/chat collection with multiple upstream sources and model-generated responses; per-example provenance is mixed.",
+      "domains": "General instruction, reasoning, code, and synthetic dialogue from multiple component datasets.",
+      "license_usage_metadata": "The dataset page does not provide a clear overall license statement; a dataset discussion flags GPT-output and upstream licensing concerns.",
+      "redistribution_commercial_use": "Unclear; excluded from the first sourcebook pending source-level rights review.",
+      "contamination_risk": "High due to mixed upstream benchmark and instruction corpora.",
+      "first_experiment": false
+    }
+  ],
+  "methodology_constraints": {
+    "canonical_rows": 900,
+    "decontamination_input": "Canonical prompt text, IDs, and domains only.",
+    "canonical_dev_or_final_responses_used_for_filtering": false,
+    "heldout_response_overlap": "Not measured by design; held-out responses are forbidden filtering inputs."
+  }
+}

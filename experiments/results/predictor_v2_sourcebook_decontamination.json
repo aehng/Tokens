@@ -1,0 +1,31 @@
+{
+  "canonical_prompt_count": 900,
+  "canonical_prompt_ids_sha256": "053ec949d082f252d0d246d18c710084bd63c6922bd069d72ed6a976df526feb",
+  "contamination_thresholds": {
+    "fuzzy_char_trigram_jaccard": 0.88,
+    "lexical_word_set_jaccard": 0.84,
+    "minhash_bands": 8,
+    "minhash_seeds": 16
+  },
+  "counts": {
+    "clean_examples_after_prompt_filter": 207862,
+    "exact_duplicates_removed": 0,
+    "external_examples_before": 207865,
+    "malformed_or_missing_prompt_response": 3,
+    "near_duplicates_removed": 0
+  },
+  "dataset": "HuggingFaceH4/ultrachat_200k",
+  "dataset_revision": "8049631c405ae6576f93f445c6b8166f76f5505a",
+  "filter_scope": "canonical prompt text only; canonical DEV and FINAL responses are never consulted",
+  "heldout_response_overlap": "not_measured_by_design; DEV/FINAL responses are forbidden filtering inputs",
+  "removed_by_canonical_domain": {},
+  "report_sha256": "093066c6b727cb26f09ed8bceb195f88b797d2b3c2b50de62e16bae1bbcb5254",
+  "representative_removals": [],
+  "requested_sample_size": 50000,
+  "sampling_seed": "predictor-v2-sourcebook-v1",
+  "schema": "predictor_v2_external_sourcebook_decontamination_v1",
+  "selected_sample_size": 50000,
+  "selected_source_jsonl_sha256": "c838fefcf165c62c8d3ab38277e74a637e5c71d046e3b093a6a6986a0965ea3b",
+  "selection_config_sha256": "95aa8ff8a882ec26f4d381d38815dba373c21a0ead9786868e80fa3420144454",
+  "split": "train_sft"
+}

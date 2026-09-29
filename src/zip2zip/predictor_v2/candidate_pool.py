@@ -73,9 +73,8 @@ def is_bare_punctuation(tokens: Tuple[int, ...], tokenizer: AutoTokenizer) -> bo
     return len(text) > 0 and all(c in punct for c in text)
 
 
-def candidate_filter_reason(tokens: Tuple[int, ...], tokenizer: AutoTokenizer) -> str | None:
+def candidate_filter_reason_from_text(text: str) -> str | None:
     """Return the generic text-quality rule that excludes an unusable phrase."""
-    text = tokenizer.decode(list(tokens))
     if not text.strip():
         return "whitespace_only"
     punct = set(".,!?:;\"'()[]{}<>-=_+*&^%$#@~`|\\/")
@@ -84,6 +83,11 @@ def candidate_filter_reason(tokens: Tuple[int, ...], tokenizer: AutoTokenizer) -
     if text.endswith((" ", "\t")):
         return "trailing_space_or_tab"
     return None
+
+
+def candidate_filter_reason(tokens: Tuple[int, ...], tokenizer: AutoTokenizer) -> str | None:
+    """Return the generic text-quality rule that excludes an unusable phrase."""
+    return candidate_filter_reason_from_text(tokenizer.decode(list(tokens)))
 
 
 def extract_handcrafted_features(
