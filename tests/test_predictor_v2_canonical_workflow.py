@@ -583,6 +583,74 @@ def test_workflow_report_exposes_revised_gate_state(tmp_path):
     assert "FINAL is excluded from candidate and architecture selection" in markdown
 
 
+def test_workflow_report_requires_full_dev_sourcebook_systems(tmp_path):
+    import importlib
+    from src.zip2zip.predictor_v2.canonical_dataset import sha256_json
+
+    report_module = importlib.import_module("experiments.report_predictor_v2_workflow")
+    dataset, manifest_path, _ = _write_dataset(tmp_path, _records())
+    views, _ = load_canonical_dataset(dataset, manifest_path)
+    absent = str(tmp_path / "not-created.json")
+    interval = {"lower": 0.1, "upper": 0.2}
+    metrics = {
+        "candidate_oracle_capture_interval": interval,
+        "retrieval_latency": {"p50_ms": 1.0, "p90_ms": 2.0, "p99_ms": 3.0},
+        "domains": {domain: {"capture_interval": interval} for domain in ("code", "reasoning", "instruction")},
+    }
+    benchmark_path = tmp_path / "sourcebook-benchmark.json"
+    benchmark = {
+        "scope": "DEV",
+        "is_full_dev": True,
+        "final_accessed": False,
+        "dataset_sha256": views.dataset_sha256,
+        "dev_split_sha256": views.dev_split_sha256,
+        "systems": {name: {size: metrics for size in ("256", "512", "1024")} for name in ("phi_only", "external_only", "hybrid")},
+        "sourcebook": {},
+    }
+    benchmark["benchmark_sha256"] = sha256_json(benchmark)
+    benchmark_path.write_text(json.dumps(benchmark), encoding="utf-8")
+    report, _ = report_module.build_report(
+        dataset_path=str(dataset),
+        manifest_path=str(manifest_path),
+        candidate_benchmark_path=absent,
+        sourcebook_benchmark_path=str(benchmark_path),
+        quality_attribution_gate_path=absent,
+        candidate_plan_path=absent,
+        architecture_shortlist_path=absent,
+        integration_subset_path=None,
+        live_integration_gate_path=absent,
+        candidate_freeze_path=absent,
+        architecture_bakeoff_path=absent,
+        architecture_freeze_path=absent,
+        final_claim_path=absent,
+        final_result_path=absent,
+    )
+    assert report["stages"]["dev_sourcebook_comparison"]["status"] == "measured"
+    assert report["gate_state"]["final_evaluated"] is False
+
+    incomplete = json.loads(benchmark_path.read_text(encoding="utf-8"))
+    del incomplete["systems"]["hybrid"]["1024"]
+    incomplete["benchmark_sha256"] = sha256_json({key: value for key, value in incomplete.items() if key != "benchmark_sha256"})
+    benchmark_path.write_text(json.dumps(incomplete), encoding="utf-8")
+    report, _ = report_module.build_report(
+        dataset_path=str(dataset),
+        manifest_path=str(manifest_path),
+        candidate_benchmark_path=absent,
+        sourcebook_benchmark_path=str(benchmark_path),
+        quality_attribution_gate_path=absent,
+        candidate_plan_path=absent,
+        architecture_shortlist_path=absent,
+        integration_subset_path=None,
+        live_integration_gate_path=absent,
+        candidate_freeze_path=absent,
+        architecture_bakeoff_path=absent,
+        architecture_freeze_path=absent,
+        final_claim_path=absent,
+        final_result_path=absent,
+    )
+    assert report["stages"]["dev_sourcebook_comparison"]["status"] == "incomplete"
+
+
 def test_freeze_gates_bind_evidence_and_final_access_is_one_time(tmp_path):
     dataset, manifest_path, _ = _write_dataset(tmp_path, _records())
     views, _ = load_canonical_dataset(dataset, manifest_path)

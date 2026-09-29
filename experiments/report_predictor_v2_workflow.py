@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from src.zip2zip.predictor_v2.canonical_dataset import load_canonical_dataset
+from src.zip2zip.predictor_v2.canonical_dataset import load_canonical_dataset, sha256_json
 from src.zip2zip.predictor_v2.experiment_protocol import (
     load_architecture_freeze,
     load_architecture_shortlist,
@@ -38,6 +38,7 @@ def _read_optional(path: str | None) -> dict[str, Any] | None:
 def build_report(
     *, dataset_path: str, manifest_path: str,
     candidate_benchmark_path: str, quality_attribution_gate_path: str,
+    sourcebook_benchmark_path: str | None = None,
     candidate_plan_path: str, architecture_bakeoff_path: str,
     architecture_shortlist_path: str, integration_subset_path: str | None,
     live_integration_gate_path: str, candidate_freeze_path: str,
@@ -46,6 +47,7 @@ def build_report(
 ) -> tuple[dict[str, Any], str]:
     views, manifest = load_canonical_dataset(dataset_path, manifest_path)
     candidate_benchmark = _read_optional(candidate_benchmark_path)
+    sourcebook_benchmark = _read_optional(sourcebook_benchmark_path)
     attribution_raw = _read_optional(quality_attribution_gate_path)
     plan_raw = _read_optional(candidate_plan_path)
     bakeoff = _read_optional(architecture_bakeoff_path)
@@ -70,6 +72,31 @@ def build_report(
         blockers.append("Candidate-recall benchmark is not a valid full DEV artifact for this canonical dataset.")
     else:
         candidate_benchmark_status = "measured"
+
+    if sourcebook_benchmark is None:
+        sourcebook_benchmark_status = absent("The full DEV Phi-only/external/hybrid sourcebook comparison has not been run.")
+    elif sourcebook_benchmark.get("scope") != "DEV" or sourcebook_benchmark.get("is_full_dev") is not True or sourcebook_benchmark.get("final_accessed") is not False or sourcebook_benchmark.get("dataset_sha256") != views.dataset_sha256 or sourcebook_benchmark.get("dev_split_sha256") != views.dev_split_sha256 or not {"phi_only", "external_only", "hybrid"}.issubset(sourcebook_benchmark.get("systems", {})) or sourcebook_benchmark.get("benchmark_sha256") != sha256_json({key: value for key, value in sourcebook_benchmark.items() if key != "benchmark_sha256"}):
+        sourcebook_benchmark_status = "invalid-provenance"
+        blockers.append("Sourcebook comparison is not a valid full DEV-only comparison for the current canonical dataset.")
+    else:
+        required_sizes = {"256", "512", "1024"}
+        if any(not required_sizes.issubset(sourcebook_benchmark["systems"][name]) for name in ("phi_only", "external_only", "hybrid")):
+            sourcebook_benchmark_status = "incomplete"
+            blockers.append("Sourcebook comparison is missing one or more required candidate pool sizes.")
+        else:
+            sourcebook_benchmark_status = "measured"
+    sourcebook_summary: dict[str, Any] | None = None
+    if sourcebook_benchmark_status == "measured" and sourcebook_benchmark is not None:
+        sourcebook_summary = {
+            "manifest_sha256": sourcebook_benchmark.get("sourcebook", {}).get("manifest_sha256"),
+            "database_sha256": sourcebook_benchmark.get("sourcebook", {}).get("database_sha256"),
+            "database_bytes": sourcebook_benchmark.get("sourcebook", {}).get("database_bytes"),
+            "process_rss_delta_bytes": sourcebook_benchmark.get("sourcebook", {}).get("process_rss_delta_bytes"),
+            "retrieval_index_terms": sourcebook_benchmark.get("sourcebook", {}).get("retrieval_index_terms"),
+            "source_examples": sourcebook_benchmark.get("sourcebook", {}).get("source_examples"),
+            "unique_phrases_by_phi_token_length": sourcebook_benchmark.get("sourcebook", {}).get("unique_phrases_by_phi_token_length"),
+            "systems": sourcebook_benchmark.get("systems"),
+        }
 
     attribution = None
     if attribution_raw is None:
@@ -221,6 +248,7 @@ def build_report(
         "dataset": {"status": "validated", "dataset_sha256": views.dataset_sha256, "manifest_sha256": views.manifest_sha256, "provenance_sha256": views.provenance_sha256, "model_revision": manifest["model_revision"], "tokenizer_revision": manifest["tokenizer_revision"], "counts": {"TRAIN": len(views.train), "DEV": len(views.dev), "FINAL": len(views.final_ids)}},
         "gate_state": gate_state,
         "stages": {
+            "dev_sourcebook_comparison": {"status": sourcebook_benchmark_status, "path": sourcebook_benchmark_path, "summary": sourcebook_summary},
             "candidate_recall_oracle": {"status": candidate_benchmark_status, "path": candidate_benchmark_path},
             "broader_live_phi_attribution": {"status": attribution_status, "path": quality_attribution_gate_path, "redirect_to": attribution.get("redirect_to") if attribution else None},
             "candidate_plan": {"status": plan_status, "path": candidate_plan_path},
@@ -244,6 +272,20 @@ def build_report(
     ]
     for stage, details in report["stages"].items():
         lines.append(f"| {stage.replace('_', ' ').title()} | {details['status']} | `{details['path']}` |")
+    lines += ["", "## Offline sourcebook comparison", ""]
+    if sourcebook_summary is None:
+        lines.append("The full DEV Phi-only/external-only/hybrid sourcebook comparison is not recorded yet.")
+    else:
+        lines += ["| Candidate source | Pool | K=32 capture interval | p50/p90/p99 retrieval (ms) | Code | Reasoning | Instruction |", "|---|---:|---:|---:|---:|---:|---:|"]
+        for system, sizes in sourcebook_summary["systems"].items():
+            for size, metrics in sizes.items():
+                interval = metrics["candidate_oracle_capture_interval"]
+                capture = "n/a" if interval.get("lower") is None else f"{interval['lower']:.3f}–{interval['upper']:.3f}"
+                latency = metrics["retrieval_latency"]
+                latency_text = f"{latency['p50_ms']:.3f}/{latency['p90_ms']:.3f}/{latency['p99_ms']:.3f}"
+                domains = [metrics["domains"][domain]["capture_interval"] for domain in ("code", "reasoning", "instruction")]
+                domain_text = ["n/a" if item.get("lower") is None else f"{item['lower']:.3f}–{item['upper']:.3f}" for item in domains]
+                lines.append(f"| {system} | {size} | {capture} | {latency_text} | {domain_text[0]} | {domain_text[1]} | {domain_text[2]} |")
     lines += ["", "## Machine-readable gates", "", "```json", json.dumps(gate_state, indent=2, sort_keys=True), "```", "", "## Pending steps", ""]
     lines.extend(f"- {item}" for item in blockers) if blockers else lines.append("- None.")
     lines += ["", "FINAL is excluded from candidate and architecture selection and remains a one-time evaluation behind `--allow-final-eval`."]
@@ -255,6 +297,7 @@ def main() -> None:
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--candidate-benchmark", default="experiments/results/predictor_v2_candidate_recall.json")
+    parser.add_argument("--sourcebook-benchmark", default="experiments/results/predictor_v2_sourcebook_dev.json")
     parser.add_argument("--quality-attribution-gate", default="experiments/results/predictor_v2_quality_attribution_gate.json")
     parser.add_argument("--candidate-plan", default="experiments/results/predictor_v2_candidate_plan.json")
     parser.add_argument("--architecture-bakeoff", default="experiments/results/predictor_v2_architecture_bakeoff.json")
@@ -272,6 +315,7 @@ def main() -> None:
     report, markdown = build_report(
         dataset_path=args.dataset, manifest_path=args.manifest,
         candidate_benchmark_path=args.candidate_benchmark,
+        sourcebook_benchmark_path=args.sourcebook_benchmark,
         quality_attribution_gate_path=args.quality_attribution_gate,
         candidate_plan_path=args.candidate_plan,
         architecture_bakeoff_path=args.architecture_bakeoff,

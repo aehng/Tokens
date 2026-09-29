@@ -62,6 +62,7 @@ def run_final_once(
     claim_path: str,
     result_path: str,
     allow_final_eval: bool,
+    sourcebook_path: str | None = None,
     time_limit_seconds: float = 10.0,
 ) -> dict[str, Any]:
     views, data_manifest = load_canonical_dataset(dataset_path, manifest_path)
@@ -77,7 +78,7 @@ def run_final_once(
         views=views,
     )
     quality_gate = load_quality_attribution_gate(quality_attribution_gate_path, views)
-    load_candidate_plan(candidate_plan_path, views, quality_attribution_gate_path)
+    candidate_plan = load_candidate_plan(candidate_plan_path, views, quality_attribution_gate_path)
     candidate_freeze = load_candidate_freeze(candidate_freeze_path, views)
     shortlist = load_architecture_shortlist(shortlist_path, views, quality_attribution_gate_path, candidate_plan_path)
     live_gate = load_live_integration_gate(live_integration_gate_path, views, quality_attribution_gate_path, candidate_plan_path, shortlist_path, integration_subset_path)
@@ -98,9 +99,19 @@ def run_final_once(
         expected_index_sha256=candidate_freeze["train_index_sha256"],
         expected_provenance_sha256=candidate_freeze["train_index_provenance_sha256"],
     )
-    generator = ConfigurableCandidateGenerator(index, tokenizer)
     candidate_selection = candidate_freeze["selection"]
-    strategy = RetrievalStrategy(candidate_selection["strategy"])
+    strategy_name = str(candidate_selection["strategy"])
+    if strategy_name in {"external_sourcebook", "hybrid_sourcebook"}:
+        if not sourcebook_path or not Path(sourcebook_path).is_file():
+            raise FileNotFoundError("the frozen external/hybrid candidate generator requires --sourcebook")
+        expected_sourcebook_sha256 = candidate_selection.get("config", {}).get("sourcebook_database_sha256")
+        if expected_sourcebook_sha256 != sha256_file(sourcebook_path):
+            raise ValueError("sourcebook database differs from the frozen candidate generator")
+        generator = ConfigurableCandidateGenerator(index, tokenizer, external_sourcebook_path=sourcebook_path)
+        strategy: RetrievalStrategy | str = strategy_name
+    else:
+        generator = ConfigurableCandidateGenerator(index, tokenizer)
+        strategy = RetrievalStrategy(strategy_name)
     pool_size = int(candidate_selection["pool_size"])
     architecture_selection = architecture_freeze["selection"]
     checkpoint_path = Path(architecture_selection["checkpoint_path"])
@@ -258,6 +269,7 @@ def main() -> None:
     parser.add_argument("--live-integration-gate", required=True)
     parser.add_argument("--architecture-freeze", required=True)
     parser.add_argument("--integration-subset")
+    parser.add_argument("--sourcebook", default=None, help="Required when the frozen candidate generator uses an external sourcebook")
     parser.add_argument("--claim", default="experiments/results/predictor_v2_final_eval.claim.json")
     parser.add_argument("--out", default="experiments/results/predictor_v2_final_result.json")
     parser.add_argument("--allow-final-eval", action="store_true", required=True)
@@ -277,6 +289,7 @@ def main() -> None:
         claim_path=args.claim,
         result_path=args.out,
         allow_final_eval=args.allow_final_eval,
+        sourcebook_path=args.sourcebook,
         time_limit_seconds=args.time_limit_seconds,
     )
     print(json.dumps(artifact, indent=2, sort_keys=True))

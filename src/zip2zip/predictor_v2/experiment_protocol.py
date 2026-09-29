@@ -36,6 +36,8 @@ CANDIDATE_STRATEGIES = (
     "expanded_associations",
     "suffix_conditioned",
     "sparse_lexical",
+    "external_sourcebook",
+    "hybrid_sourcebook",
 )
 SUPPORTED_POOL_SIZES = (256, 512, 1024, 2048)
 

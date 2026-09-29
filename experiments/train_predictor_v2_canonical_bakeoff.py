@@ -265,6 +265,7 @@ def run_bakeoff(
     candidate_plan_path: str,
     output_dir: str,
     out_json: str,
+    sourcebook_path: str | None = None,
     epochs: int = 12,
     learning_rate: float = 1e-3,
     seeds: tuple[int, ...] = NEURAL_SEEDS,
@@ -286,9 +287,17 @@ def run_bakeoff(
         expected_provenance_sha256=plan["train_index_provenance_sha256"],
     )
     tokenizer = load_manifest_tokenizer(data_manifest)
-    strategy = RetrievalStrategy(plan["selection"]["strategy"])
+    strategy = str(plan["selection"]["strategy"])
     pool_size = int(plan["selection"]["pool_size"])
-    generator = ConfigurableCandidateGenerator(index, tokenizer)
+    if strategy in {"external_sourcebook", "hybrid_sourcebook"}:
+        if not sourcebook_path or not Path(sourcebook_path).is_file():
+            raise FileNotFoundError("the selected external/hybrid candidate plan requires --sourcebook")
+        expected_sourcebook_sha256 = plan["selection"].get("config", {}).get("sourcebook_database_sha256")
+        if expected_sourcebook_sha256 != sha256_file(sourcebook_path):
+            raise ValueError("sourcebook database does not match the candidate plan provenance")
+        generator = ConfigurableCandidateGenerator(index, tokenizer, external_sourcebook_path=sourcebook_path)
+    else:
+        generator = ConfigurableCandidateGenerator(index, tokenizer)
 
     train_records = [record.to_legacy_record(tokenizer) for record in views.train]
     dev_records = [record.to_legacy_record(tokenizer) for record in views.dev]
@@ -474,6 +483,7 @@ def main() -> None:
     parser.add_argument("--index", required=True)
     parser.add_argument("--quality-attribution-gate", required=True)
     parser.add_argument("--candidate-plan", required=True)
+    parser.add_argument("--sourcebook", default=None, help="Required when the candidate plan uses external_sourcebook or hybrid_sourcebook")
     parser.add_argument("--output-dir", default="experiments/checkpoints/predictor_v2_canonical_bakeoff")
     parser.add_argument("--out-json", default="experiments/results/predictor_v2_architecture_bakeoff.json")
     parser.add_argument("--epochs", type=int, default=12)
@@ -488,6 +498,7 @@ def main() -> None:
         index_path=args.index,
         quality_attribution_gate_path=args.quality_attribution_gate,
         candidate_plan_path=args.candidate_plan,
+        sourcebook_path=args.sourcebook,
         output_dir=args.output_dir,
         out_json=args.out_json,
         epochs=args.epochs,

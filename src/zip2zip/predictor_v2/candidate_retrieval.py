@@ -100,11 +100,19 @@ class ConfigurableCandidateGenerator:
         index: TrainOnlyAssociationIndex,
         tokenizer: AutoTokenizer,
         max_subtokens: int = 4,
+        external_sourcebook_path: str | None = None,
     ):
         self.index = index
         self.tokenizer = tokenizer
         self.max_subtokens = max_subtokens
         self.disabled_ids = set(index.disabled_ids)
+        self.external_sourcebook = None
+        if external_sourcebook_path is not None:
+            from src.zip2zip.predictor_v2.external_sourcebook import ExternalSourcebookCandidateGenerator
+
+            self.external_sourcebook = ExternalSourcebookCandidateGenerator(
+                external_sourcebook_path, tokenizer, max_subtokens=max_subtokens
+            )
 
         # Build reverse index for BM25 lexical lookup if train docs are present
         self.bm25_doc_count = len(index.train_prompt_lexical_docs)
@@ -132,6 +140,46 @@ class ConfigurableCandidateGenerator:
         diagnostics: Dict[str, Any] | None = None,
     ) -> Dict[Tuple[int, ...], Dict[str, Any]]:
         """Generates candidate pool of size target_pool_size using the selected strategy."""
+        strategy_name = strategy.value if isinstance(strategy, RetrievalStrategy) else str(strategy)
+        if strategy_name in {"external_sourcebook", "hybrid_sourcebook"}:
+            if self.external_sourcebook is None:
+                raise ValueError(f"{strategy_name} requires external_sourcebook_path")
+            if strategy_name == "external_sourcebook":
+                return self.external_sourcebook.generate_candidate_pool(
+                    prompt_ids, prompt_text, domain=domain, strategy=strategy,
+                    target_pool_size=target_pool_size, diagnostics=diagnostics,
+                )
+            started = time.perf_counter()
+            phi_diagnostics: Dict[str, Any] = {}
+            external_diagnostics: Dict[str, Any] = {}
+            phi_pool = self.generate_candidate_pool(
+                prompt_ids, prompt_text, domain=domain,
+                strategy=RetrievalStrategy.EXPANDED_ASSOCIATIONS,
+                target_pool_size=target_pool_size, diagnostics=phi_diagnostics,
+            )
+            external_pool = self.external_sourcebook.generate_candidate_pool(
+                prompt_ids, prompt_text, domain=domain, strategy=strategy,
+                target_pool_size=target_pool_size, diagnostics=external_diagnostics,
+            )
+            from src.zip2zip.predictor_v2.external_sourcebook import make_hybrid_pool
+
+            combined = make_hybrid_pool(external_pool, phi_pool, len(external_pool) + len(phi_pool))
+            ordered = sorted(combined.items(), key=lambda item: (item[1]["weight"], -len(item[0]), item[0]), reverse=True)
+            pool = dict(ordered[:target_pool_size])
+            if diagnostics is not None:
+                diagnostics.clear()
+                diagnostics.update({
+                    "generation_latency_ms": (time.perf_counter() - started) * 1000.0,
+                    "generated_candidate_count": len(ordered),
+                    "quality_rejections": {**phi_diagnostics["quality_rejections"], **external_diagnostics["quality_rejections"]},
+                    "rank_by_phrase": {phrase: rank for rank, (phrase, _) in enumerate(ordered, 1)},
+                    "sources_by_phrase": {phrase: set(data["sources"]) for phrase, data in ordered},
+                    "pool_source_counts": {source: sum(source in data["sources"] for data in pool.values()) for source in sorted({source for data in pool.values() for source in data["sources"]})},
+                    "pool_phrase_length_counts": {str(length): sum(len(phrase) == length for phrase in pool) for length in range(2, self.max_subtokens + 1)},
+                    "retrieved_source_examples": external_diagnostics.get("retrieved_source_examples", 0),
+                    "source_index_bytes": external_diagnostics.get("source_index_bytes", 0),
+                })
+            return pool
         started_at = time.perf_counter()
         p_ids = [t for t in prompt_ids if t not in self.disabled_ids]
         n = len(p_ids)
@@ -298,6 +346,11 @@ class ConfigurableCandidateGenerator:
             )
 
         return pool
+
+    def close(self) -> None:
+        """Release an optional external sourcebook connection."""
+        if self.external_sourcebook is not None:
+            self.external_sourcebook.close()
 
     def build_candidate_records(
         self,
