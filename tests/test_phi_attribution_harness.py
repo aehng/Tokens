@@ -8,7 +8,7 @@ All tests use synthetic or model-free fixtures to validate:
 - FINAL access prohibition (security gate)
 - Record schemas and serialization
 - First divergence and dead-slot bookkeeping
-- Causal attribution diagnosis logic across all 6 branches
+- Causal attribution diagnosis stops when controlled comparisons are absent
 - Kaggle 5-hour hard budget cap accounting
 - Resume behavior without duplicates
 - No external sourcebook leakage and clean TRAIN/DEV split isolation
@@ -25,6 +25,7 @@ from src.zip2zip.predictor_v2.attribution_harness import (
     ATTRIBUTION_RECORD_SCHEMA,
     ATTRIBUTION_SUMMARY_SCHEMA,
     COND_A_VANILLA,
+    COND_B0_TOKENS_VANILLA_WEIGHTS,
     COND_B_H_DISABLED,
     COND_C_ORACLE,
     COND_D_REAL_PREDICTOR,
@@ -40,6 +41,16 @@ from src.zip2zip.predictor_v2.attribution_harness import (
     extract_function_signature,
     find_first_divergence,
 )
+from src.zip2zip.predictor_v2.canonical_dataset import FinalAccessError, require_split_isolated_manifest
+
+
+def _passed_attribution_gates():
+    return {
+        "a_b0_token_equality": {"status": "PASS"},
+        "a_b0_logit_parity": {"status": "PASS"},
+        "b0_b1_parameter_isolation": {"status": "PASS"},
+        "forced_h_representation": {"status": "PASS"},
+    }
 from src.zip2zip.static_codebook import StaticCodebookManager
 from experiments.run_phi_attribution_benchmark import select_stratified_dev_prompts
 
@@ -48,6 +59,15 @@ def test_final_split_access_strictly_forbidden():
     """Verify that any attempt to evaluate or access FINAL raises a hard permission error."""
     with pytest.raises(FinalSplitAccessForbiddenError, match="CRITICAL PROTOCOL VIOLATION"):
         check_split_safety("FINAL")
+
+
+def test_split_loader_rejects_mixed_manifest_before_opening_dataset_rows():
+    manifest = {
+        "schema": "predictor_v2_canonical_manifest_v1",
+        "split_ids": {"TRAIN": [], "DEV": ["dev_1"], "FINAL": ["final_1"]},
+    }
+    with pytest.raises(FinalAccessError, match="refusing mixed-split dataset"):
+        require_split_isolated_manifest(manifest, "DEV")
     with pytest.raises(FinalSplitAccessForbiddenError):
         check_split_safety("final")
     # DEV and TRAIN are allowed
@@ -161,8 +181,31 @@ def test_stratified_prompt_selection():
     assert counts["instruction"] == 3
 
 
+def test_stratified_small_subset_is_deterministic_and_nested():
+    """The bounded live subset stays balanced and nested within the larger DEV set."""
+    synthetic_records = [
+        {"prompt_id": f"c_{i}", "domain": "code"} for i in range(15)
+    ] + [
+        {"prompt_id": f"r_{i}", "domain": "reasoning"} for i in range(15)
+    ] + [
+        {"prompt_id": f"i_{i}", "domain": "instruction"} for i in range(15)
+    ]
+    small = select_stratified_dev_prompts(synthetic_records, limit=12)
+    repeated = select_stratified_dev_prompts(synthetic_records, limit=12)
+    larger = select_stratified_dev_prompts(synthetic_records, limit=45)
+
+    small_ids = [record["prompt_id"] for record in small]
+    assert small_ids == [record["prompt_id"] for record in repeated]
+    assert set(small_ids).issubset({record["prompt_id"] for record in larger})
+    assert Counter(record["domain"] for record in small) == {
+        "code": 4,
+        "reasoning": 4,
+        "instruction": 4,
+    }
+
+
 def test_causal_decision_matrix_checkpoint_failure():
-    """IF B is >3% worse than A -> checkpoint/LoRA problem."""
+    """Historical A/B results cannot separate wrapper plumbing from trained weights."""
     records = []
     # 10 prompts
     for i in range(10):
@@ -177,12 +220,39 @@ def test_causal_decision_matrix_checkpoint_failure():
 
     summary = compute_attribution_summary(records)
     diag = summary["causal_diagnosis"]
-    assert diag["primary_bottleneck"] == "checkpoint_lora"
-    assert "Condition B" in diag["detailed_diagnosis"]
+    assert diag["primary_bottleneck"] == "unresolved_architecture_vs_checkpoint"
+    assert diag["controlled_attribution_available"] is False
+
+
+def test_causal_checkpoint_attribution_requires_b0_and_verified_delta():
+    records = []
+    for i in range(10):
+        common = {"base_phi_weight_sha256": "pinned-base", "generation_policy_sha256": "same-policy", "input_token_ids_sha256": "same-input", "torch_dtype": "torch.float32"}
+        records.extend([
+            {"condition": COND_A_VANILLA, "prompt_id": f"controlled_{i}", "quality_gate_pass": True, "expanded_token_ids": [7, 8], "runtime": common},
+            {"condition": COND_B0_TOKENS_VANILLA_WEIGHTS, "prompt_id": f"controlled_{i}", "quality_gate_pass": True, "expanded_token_ids": [7, 8], "runtime": common},
+            {"condition": COND_B_H_DISABLED, "prompt_id": f"controlled_{i}", "quality_gate_pass": i < 7, "runtime": {**common, "lora_delta_verified": True}},
+        ])
+    diagnosis = compute_attribution_summary(records, external_gates=_passed_attribution_gates())["causal_diagnosis"]
+    assert diagnosis["primary_bottleneck"] == "trained_checkpoint_candidate"
+    assert diagnosis["controlled_attribution_available"] is True
+
+
+def test_causal_architecture_attribution_requires_base_and_policy_match():
+    records = []
+    for i in range(10):
+        common = {"base_phi_weight_sha256": "pinned-base", "generation_policy_sha256": "same-policy", "input_token_ids_sha256": "same-input", "torch_dtype": "torch.float32"}
+        records.extend([
+            {"condition": COND_A_VANILLA, "prompt_id": f"wrapper_{i}", "quality_gate_pass": True, "runtime": common},
+            {"condition": COND_B0_TOKENS_VANILLA_WEIGHTS, "prompt_id": f"wrapper_{i}", "quality_gate_pass": i < 7, "runtime": common},
+        ])
+    diagnosis = compute_attribution_summary(records, external_gates=_passed_attribution_gates())["causal_diagnosis"]
+    assert diagnosis["primary_bottleneck"] == "architecture_or_plumbing_candidate"
+    assert diagnosis["controlled_attribution_available"] is False
 
 
 def test_causal_decision_matrix_h_representation_failure():
-    """IF B ~= A, but C is >3% worse than B -> hypertoken representation/continuation problem."""
+    """Without B0, a B/C comparison cannot resolve the confounded quality loss."""
     records = []
     for i in range(10):
         # A: 10/10 pass
@@ -194,13 +264,13 @@ def test_causal_decision_matrix_h_representation_failure():
         # D: 5/10 pass
         records.append({"condition": COND_D_REAL_PREDICTOR, "prompt_id": f"p_{i}", "quality_gate_pass": (i < 5), "total_latency_s": 0.75, "transformer_decode_calls": 32, "expanded_token_count": 50, "h_emissions": [{"id": 32011}]})
 
-    summary = compute_attribution_summary(records)
+    summary = compute_attribution_summary(records, external_gates=_passed_attribution_gates())
     diag = summary["causal_diagnosis"]
-    assert diag["primary_bottleneck"] == "hypertoken_representation_continuation"
+    assert diag["primary_bottleneck"] == "unresolved_architecture_vs_checkpoint"
 
 
 def test_causal_decision_matrix_h_emission_head_failure():
-    """IF B ~= A, C ~= A, but H tokens rarely/never emit -> H emission output head problem."""
+    """Zero observed H emission alone does not identify why the head stayed on base tokens."""
     records = []
     for i in range(10):
         # A, B, C, D all 10/10 pass
@@ -210,24 +280,25 @@ def test_causal_decision_matrix_h_emission_head_failure():
         records.append({"condition": COND_C_ORACLE, "prompt_id": f"p_{i}", "quality_gate_pass": True, "total_latency_s": 1.0, "transformer_decode_calls": 50, "expanded_token_count": 50, "h_emissions": []})
         records.append({"condition": COND_D_REAL_PREDICTOR, "prompt_id": f"p_{i}", "quality_gate_pass": True, "total_latency_s": 1.0, "transformer_decode_calls": 50, "expanded_token_count": 50, "h_emissions": []})
 
-    summary = compute_attribution_summary(records)
+    summary = compute_attribution_summary(records, external_gates=_passed_attribution_gates())
     diag = summary["causal_diagnosis"]
-    assert diag["primary_bottleneck"] == "h_emission_head"
+    assert diag["primary_bottleneck"] == "h_emission_not_observed"
+    assert "does not establish" in diag["detailed_diagnosis"]
 
 
 def test_causal_decision_matrix_predictor_selection_failure():
-    """IF B ~= A, C ~= A, but D is >3% worse than C -> candidate retrieval / ranking bottleneck."""
+    """A matched B1 checkpoint/policy and C/D quality delta supports predictor attribution."""
     records = []
     for i in range(10):
         records.append({"condition": COND_A_VANILLA, "prompt_id": f"p_{i}", "quality_gate_pass": True, "total_latency_s": 1.0, "transformer_decode_calls": 50, "expanded_token_count": 50})
         records.append({"condition": COND_B_H_DISABLED, "prompt_id": f"p_{i}", "quality_gate_pass": True, "total_latency_s": 1.0, "transformer_decode_calls": 50, "expanded_token_count": 50})
-        records.append({"condition": COND_C_ORACLE, "prompt_id": f"p_{i}", "quality_gate_pass": True, "total_latency_s": 0.7, "transformer_decode_calls": 30, "expanded_token_count": 50, "h_emissions": [{"id": 32011}]})
+        records.append({"condition": COND_C_ORACLE, "prompt_id": f"p_{i}", "quality_gate_pass": True, "total_latency_s": 0.7, "transformer_decode_calls": 30, "expanded_token_count": 50, "checkpoint_sha256": "same-checkpoint", "runtime": {"generation_policy_sha256": "same-policy", "input_token_ids_sha256": "same-input", "torch_dtype": "torch.float32"}, "h_emissions": [{"id": 32011}]})
         # D fails quality: only 6/10 pass (40% drop vs Vanilla)
-        records.append({"condition": COND_D_REAL_PREDICTOR, "prompt_id": f"p_{i}", "quality_gate_pass": (i < 6), "total_latency_s": 0.75, "transformer_decode_calls": 32, "expanded_token_count": 50, "h_emissions": [{"id": 32011}]})
+        records.append({"condition": COND_D_REAL_PREDICTOR, "prompt_id": f"p_{i}", "quality_gate_pass": (i < 6), "total_latency_s": 0.75, "transformer_decode_calls": 32, "expanded_token_count": 50, "checkpoint_sha256": "same-checkpoint", "runtime": {"generation_policy_sha256": "same-policy", "input_token_ids_sha256": "same-input", "torch_dtype": "torch.float32"}, "h_emissions": [{"id": 32011}]})
 
-    summary = compute_attribution_summary(records)
+    summary = compute_attribution_summary(records, external_gates=_passed_attribution_gates())
     diag = summary["causal_diagnosis"]
-    assert diag["primary_bottleneck"] == "candidate_retrieval_ranking"
+    assert diag["primary_bottleneck"] == "predictor_codebook_candidate"
 
 
 def test_causal_decision_matrix_overhead_failure():
@@ -240,7 +311,7 @@ def test_causal_decision_matrix_overhead_failure():
         # D preserves quality (10/10), but is slower (1.15s > 1.00s)
         records.append({"condition": COND_D_REAL_PREDICTOR, "prompt_id": f"p_{i}", "quality_gate_pass": True, "total_latency_s": 1.15, "transformer_decode_calls": 42, "expanded_token_count": 50, "h_emissions": [{"id": 32011}]})
 
-    summary = compute_attribution_summary(records)
+    summary = compute_attribution_summary(records, external_gates=_passed_attribution_gates())
     diag = summary["causal_diagnosis"]
     assert diag["primary_bottleneck"] == "runtime_overhead_or_utilization"
 
@@ -255,7 +326,7 @@ def test_causal_decision_matrix_success():
         # D preserves quality (10/10) and is faster (0.80s < 1.00s, 20% speedup)
         records.append({"condition": COND_D_REAL_PREDICTOR, "prompt_id": f"p_{i}", "quality_gate_pass": True, "total_latency_s": 0.80, "transformer_decode_calls": 35, "expanded_token_count": 50, "h_emissions": [{"id": 32011}]})
 
-    summary = compute_attribution_summary(records)
+    summary = compute_attribution_summary(records, external_gates=_passed_attribution_gates())
     diag = summary["causal_diagnosis"]
     assert diag["primary_bottleneck"] == "none_success"
     assert "SUCCESS" in diag["detailed_diagnosis"]

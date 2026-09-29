@@ -71,6 +71,24 @@ class TestOracleV2(unittest.TestCase):
         cb2, _ = OracleV2.compute_codebook(self.code_tokens, k=5, beam_width=4)
         self.assertEqual(cb1, cb2)
 
+    def test_product_token_constraints_exclude_disabled_and_out_of_range_ids(self):
+        """Product-constrained ceilings cannot select special/disabled token IDs."""
+        tokens = [32007, 4, 32007, 4, 32007, 4, 32012, 5, 32012, 5, 32012, 5, 8, 9, 8, 9, 8, 9]
+        disabled = {0, 1, 2, 32000, 32007}
+        codebook, _ = OracleV2.compute_codebook(
+            tokens,
+            k=32,
+            min_length=2,
+            max_length=3,
+            disabled_token_ids=disabled,
+            valid_token_min=0,
+            valid_token_max_exclusive=32011,
+        )
+        self.assertTrue(codebook)
+        self.assertTrue(all(0 <= token < 32011 and token not in disabled for phrase in codebook for token in phrase))
+        self.assertFalse(any(32007 in phrase for phrase in codebook))
+        self.assertFalse(any(token >= 32011 for phrase in codebook for token in phrase))
+
 
 if __name__ == "__main__":
     unittest.main()

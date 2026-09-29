@@ -1,10 +1,12 @@
 """Unified Attribution Harness for Controlled Phi Quality/Speed Experiments.
 
-Implements the four core experimental conditions:
-  A. VANILLA: Normal canonical Phi-3.5-mini-instruct.
-  B. PREDICTIVE CHECKPOINT (H-DISABLED): Trained checkpoint/LoRA loaded, but hypertokens disabled (K=0).
-  C. ORACLE (HINDSIGHT): Predictive model + hindsight oracle codebook derived from canonical Vanilla continuation.
-  D. REAL CURRENT PREDICTOR: Predictive model + Phi-only candidate retrieval (train_only index) + PooledMLP ranker.
+Implements the controlled conditions:
+  A. PURE VANILLA: Native Phi with no Tokens wrapper, checkpoint, or H.
+  B0. TOKENS ARCHITECTURE/VANILLA WEIGHTS: Wrapper with adapters and H disabled.
+  B1. TRAINED CHECKPOINT/H-DISABLED: Same wrapper plus the pinned Step-100 checkpoint.
+  CF. FORCED ORACLE: Exact phrase matches are forced through H and expanded.
+  C. ORACLE CODEBOOK LIVE: Hindsight codebook; the model chooses H or base tokens.
+  D. REAL PREDICTOR: Phi-only TRAIN retrieval and the configured ranker.
 
 Enforces:
   - Strict isolation: FINAL split access is strictly prohibited.
@@ -29,17 +31,30 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
+from src.zip2zip.predictor_v2.ablation_gates import (
+    checkpoint_isolation_gate,
+    forced_h_representation_gates,
+    token_equivalence_gate,
+)
+
 ATTRIBUTION_RECORD_SCHEMA = "phi_attribution_record_v1"
 ATTRIBUTION_SUMMARY_SCHEMA = "phi_attribution_summary_v1"
 
 COND_A_VANILLA = "A_vanilla"
+# B0 wraps the pinned Vanilla weights with Zip2Zip modules but leaves the
+# checkpoint adapter disabled.  The historical Stage 1 B records are B1.
+COND_B0_TOKENS_VANILLA_WEIGHTS = "B0_tokens_vanilla_weights"
 COND_B_H_DISABLED = "B_h_disabled"
+COND_B1_LORA_H_DISABLED = COND_B_H_DISABLED
 COND_C_ORACLE = "C_oracle"
+COND_CF_FORCED_ORACLE = "CF_forced_oracle"
 COND_D_REAL_PREDICTOR = "D_real_predictor"
 
 ALL_CONDITIONS = (
     COND_A_VANILLA,
+    COND_B0_TOKENS_VANILLA_WEIGHTS,
     COND_B_H_DISABLED,
+    COND_CF_FORCED_ORACLE,
     COND_C_ORACLE,
     COND_D_REAL_PREDICTOR,
 )
@@ -317,6 +332,9 @@ class AttributionRecord:
     first_h_emission_pos: Optional[int] = None
     first_divergence_from_vanilla_pos: Optional[int] = None
     continuation_tokens_after_last_h: Optional[int] = None
+    forced_oracle_roundtrip_ok: Optional[bool] = None
+    cf_semantic_positions_ok: Optional[bool] = None
+    cf_continuation_stable: Optional[bool] = None
 
     # Performance
     ttft_s: Optional[float] = None
@@ -343,7 +361,10 @@ def check_split_safety(split: str) -> None:
         )
 
 
-def compute_attribution_summary(records: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+def compute_attribution_summary(
+    records: Sequence[Dict[str, Any]],
+    external_gates: Optional[Mapping[str, Any]] = None,
+) -> Dict[str, Any]:
     """Compute aggregate quality, performance, and causal attribution diagnosis."""
     by_condition: Dict[str, List[Dict[str, Any]]] = {c: [] for c in ALL_CONDITIONS}
     for r in records:
@@ -356,8 +377,15 @@ def compute_attribution_summary(records: Sequence[Dict[str, Any]]) -> Dict[str, 
         "total_records": len(records),
         "conditions": {},
         "comparison_vs_vanilla": {},
+        "paired_condition_comparisons": {},
         "causal_diagnosis": {},
     }
+    gate_report = dict(external_gates or {})
+    gate_report.setdefault("a_b0_token_equality", token_equivalence_gate(records))
+    gate_report.setdefault("b0_b1_parameter_isolation", checkpoint_isolation_gate(records))
+    gate_report.setdefault("forced_h_representation", forced_h_representation_gates(records))
+    gate_report.setdefault("a_b0_logit_parity", {"status": "NOT_TESTED"})
+    summary["ablation_gates"] = gate_report
 
     domains = ("code", "reasoning", "instruction")
 
@@ -414,14 +442,22 @@ def compute_attribution_summary(records: Sequence[Dict[str, Any]]) -> Dict[str, 
             "severe_repetition_count": sum(1 for r in rows if r.get("severe_repetition_detected")),
         }
 
-    # Causal comparisons vs Vanilla (A)
+    # Descriptive comparisons vs Vanilla (A). A/B cannot isolate the
+    # checkpoint from wrapper plumbing; B0 is required for that attribution.
+    summary["paired_condition_comparisons"] = _paired_condition_comparisons(records)
     vanilla_stats = summary["conditions"].get(COND_A_VANILLA)
     if vanilla_stats:
         v_qual = vanilla_stats["aggregate_quality_rate"]
         v_lat = vanilla_stats["mean_total_latency_s"]
         v_steps = vanilla_stats["total_decode_calls"]
 
-        for cond in (COND_B_H_DISABLED, COND_C_ORACLE, COND_D_REAL_PREDICTOR):
+        for cond in (
+            COND_B0_TOKENS_VANILLA_WEIGHTS,
+            COND_B_H_DISABLED,
+            COND_C_ORACLE,
+            COND_CF_FORCED_ORACLE,
+            COND_D_REAL_PREDICTOR,
+        ):
             cond_stats = summary["conditions"].get(cond)
             if not cond_stats:
                 continue
@@ -444,60 +480,251 @@ def compute_attribution_summary(records: Sequence[Dict[str, Any]]) -> Dict[str, 
                 "is_faster_than_vanilla": c_lat < v_lat,
             }
 
-        # Root-cause causal classification
-        comp_b = summary["comparison_vs_vanilla"].get(COND_B_H_DISABLED)
+        # Root-cause classification is deliberately gated on controlled
+        # comparisons.  Historical Stage 1 B bundled wrapper + checkpoint.
+        comp_b0 = summary["comparison_vs_vanilla"].get(COND_B0_TOKENS_VANILLA_WEIGHTS)
+        comp_b1 = summary["comparison_vs_vanilla"].get(COND_B_H_DISABLED)
         comp_c = summary["comparison_vs_vanilla"].get(COND_C_ORACLE)
         comp_d = summary["comparison_vs_vanilla"].get(COND_D_REAL_PREDICTOR)
+        b0_stats = summary["conditions"].get(COND_B0_TOKENS_VANILLA_WEIGHTS)
+        b1_stats = summary["conditions"].get(COND_B_H_DISABLED)
         stats_c = summary["conditions"].get(COND_C_ORACLE)
         stats_d = summary["conditions"].get(COND_D_REAL_PREDICTOR)
+        cf_records = [r for r in records if r.get("condition") == COND_CF_FORCED_ORACLE]
+        paired = summary["paired_condition_comparisons"]
+        a_b0_controlled = _pair_field_all_equal(
+            paired.get(f"{COND_A_VANILLA}_to_{COND_B0_TOKENS_VANILLA_WEIGHTS}", {}),
+            "base_phi_hash_pairs_compared",
+            "base_phi_hash_pairs_equal",
+        ) and _pair_field_all_equal(
+            paired.get(f"{COND_A_VANILLA}_to_{COND_B0_TOKENS_VANILLA_WEIGHTS}", {}),
+            "generation_policy_pairs_compared",
+            "generation_policy_pairs_equal",
+        ) and _pair_field_all_equal(
+            paired.get(f"{COND_A_VANILLA}_to_{COND_B0_TOKENS_VANILLA_WEIGHTS}", {}),
+            "input_token_hash_pairs_compared",
+            "input_token_hash_pairs_equal",
+        ) and _pair_field_all_equal(
+            paired.get(f"{COND_A_VANILLA}_to_{COND_B0_TOKENS_VANILLA_WEIGHTS}", {}),
+            "dtype_pairs_compared",
+            "dtype_pairs_equal",
+        )
+        b0_b1_controlled = _pair_field_all_equal(
+            paired.get(f"{COND_B0_TOKENS_VANILLA_WEIGHTS}_to_{COND_B_H_DISABLED}", {}),
+            "base_phi_hash_pairs_compared",
+            "base_phi_hash_pairs_equal",
+        ) and _pair_field_all_equal(
+            paired.get(f"{COND_B0_TOKENS_VANILLA_WEIGHTS}_to_{COND_B_H_DISABLED}", {}),
+            "generation_policy_pairs_compared",
+            "generation_policy_pairs_equal",
+        ) and _pair_field_all_equal(
+            paired.get(f"{COND_B0_TOKENS_VANILLA_WEIGHTS}_to_{COND_B_H_DISABLED}", {}),
+            "input_token_hash_pairs_compared",
+            "input_token_hash_pairs_equal",
+        ) and _pair_field_all_equal(
+            paired.get(f"{COND_B0_TOKENS_VANILLA_WEIGHTS}_to_{COND_B_H_DISABLED}", {}),
+            "dtype_pairs_compared",
+            "dtype_pairs_equal",
+        ) and all(
+            bool(r.get("runtime", {}).get("lora_delta_verified"))
+            for r in records
+            if r.get("condition") == COND_B_H_DISABLED
+        )
+        b1_c_controlled = _pair_field_all_equal(
+            paired.get(f"{COND_B_H_DISABLED}_to_{COND_C_ORACLE}", {}),
+            "base_phi_hash_pairs_compared",
+            "base_phi_hash_pairs_equal",
+        ) and _pair_field_all_equal(
+            paired.get(f"{COND_B_H_DISABLED}_to_{COND_C_ORACLE}", {}),
+            "generation_policy_pairs_compared",
+            "generation_policy_pairs_equal",
+        ) and _pair_field_all_equal(
+            paired.get(f"{COND_B_H_DISABLED}_to_{COND_C_ORACLE}", {}),
+            "input_token_hash_pairs_compared",
+            "input_token_hash_pairs_equal",
+        ) and _pair_field_all_equal(
+            paired.get(f"{COND_B_H_DISABLED}_to_{COND_C_ORACLE}", {}),
+            "dtype_pairs_compared",
+            "dtype_pairs_equal",
+        )
 
-        primary_bottleneck = "unclear"
-        detailed_diagnosis = ""
+        required_gates_pass = (
+            gate_report.get("a_b0_token_equality", {}).get("status") == "PASS"
+            and gate_report.get("a_b0_logit_parity", {}).get("status") == "PASS"
+            and gate_report.get("b0_b1_parameter_isolation", {}).get("status") == "PASS"
+        )
+        forced_h_gate_pass = gate_report.get("forced_h_representation", {}).get("status") == "PASS"
 
-        if comp_b and comp_b["relative_quality_drop_pct"] > 3.0:
-            primary_bottleneck = "checkpoint_lora"
+        primary_bottleneck = "unresolved_architecture_vs_checkpoint"
+        detailed_diagnosis = (
+            "The available comparison does not yet separate Zip2Zip wrapper/plumbing from trained "
+            "checkpoint weights. Run matched A/B0/B1 records before assigning this quality loss."
+        )
+
+        if not required_gates_pass:
             detailed_diagnosis = (
-                f"Predictive checkpoint/LoRA without hypertokens (Condition B) loses "
-                f"{comp_b['relative_quality_drop_pct']}% quality vs Vanilla. The fine-tuning "
-                f"or base model state is degraded before any hypertoken mechanism operates."
+                "Causal attribution is blocked because one or more A/B0 token/logit parity or B0/B1 "
+                "parameter-isolation gates did not pass. No downstream quality loss is assigned."
             )
-        elif comp_c and comp_c["relative_quality_drop_pct"] > 3.0:
-            primary_bottleneck = "hypertoken_representation_continuation"
+        elif comp_b0 and comp_b0["relative_quality_drop_pct"] > 3.0 and a_b0_controlled:
+            primary_bottleneck = "architecture_or_plumbing_candidate"
             detailed_diagnosis = (
-                f"Oracle condition C loses {comp_c['relative_quality_drop_pct']}% quality despite "
-                f"having perfect hindsight candidates. The H-encoder, HyperLinear decoder, semantic positions, "
-                f"or post-H continuation state causes quality collapse."
+                f"B0 differs from Vanilla by {comp_b0['relative_quality_drop_pct']}% quality. "
+                "Base-Phi fingerprints and recorded generation-policy hashes match, so this comparison "
+                "supports a wrapper/plumbing cause for the observed quality change."
             )
-        elif stats_c and stats_c["total_h_emissions"] == 0:
-            primary_bottleneck = "h_emission_head"
+        elif comp_b0 and comp_b0["meets_3pct_quality_gate"] and comp_b1 and comp_b1["relative_quality_drop_pct"] > 3.0 and b0_b1_controlled:
+            primary_bottleneck = "trained_checkpoint_candidate"
             detailed_diagnosis = (
-                "Oracle condition C emitted 0 hypertokens. Candidate availability is fine, but the "
-                "output head / HyperLinear fails to emit any hypertokens."
+                f"B0 is within the 3% quality gate versus Vanilla, while B1 is "
+                f"{comp_b1['relative_quality_drop_pct']}% below Vanilla. B0/B1 base-Phi fingerprints and "
+                "generation policies match, and B1 records verify the intended LoRA load."
             )
-        elif comp_d and comp_d["relative_quality_drop_pct"] > 3.0 and comp_c and comp_c["meets_3pct_quality_gate"]:
-            primary_bottleneck = "candidate_retrieval_ranking"
+        elif forced_h_gate_pass and comp_b1 and comp_c and comp_c["relative_quality_drop_pct"] > comp_b1["relative_quality_drop_pct"] + 3.0 and b1_c_controlled:
+            primary_bottleneck = "active_h_path_requires_forced_control"
             detailed_diagnosis = (
-                f"Oracle condition C preserves quality (drop: {comp_c['relative_quality_drop_pct']}%), "
-                f"but Real Predictor (Condition D) fails quality gate (drop: {comp_d['relative_quality_drop_pct']}%). "
-                f"The candidate generation / ranking subsystem is the primary blocker."
+                "ORACLE CODEBOOK LIVE has a larger quality loss than H-disabled B1. This associates "
+                "the change with active H use, but does not isolate representation/state from emission "
+                "selection; CF FORCED ORACLE and exact expansion checks are still required."
             )
-        elif comp_d and comp_d["meets_3pct_quality_gate"] and not comp_d["is_faster_than_vanilla"]:
+        elif forced_h_gate_pass and stats_c and stats_c["total_h_emissions"] == 0:
+            primary_bottleneck = "h_emission_not_observed"
+            detailed_diagnosis = (
+                "ORACLE CODEBOOK LIVE emitted no H tokens in these records. Candidate opportunity was not "
+                "accounted here, so this observation does not establish whether the cause is candidate coverage, "
+                "the H output head, or another serving factor."
+            )
+        elif forced_h_gate_pass and comp_c and comp_d and comp_c["meets_3pct_quality_gate"] and comp_d["relative_quality_drop_pct"] > comp_c["relative_quality_drop_pct"] + 3.0:
+            c_d_controlled = _pair_field_all_equal(
+                paired.get(f"{COND_C_ORACLE}_to_{COND_D_REAL_PREDICTOR}", {}),
+                "checkpoint_hash_pairs_compared",
+                "checkpoint_hash_pairs_equal",
+            ) and _pair_field_all_equal(
+                paired.get(f"{COND_C_ORACLE}_to_{COND_D_REAL_PREDICTOR}", {}),
+                "generation_policy_pairs_compared",
+                "generation_policy_pairs_equal",
+            ) and _pair_field_all_equal(
+                paired.get(f"{COND_C_ORACLE}_to_{COND_D_REAL_PREDICTOR}", {}),
+                "input_token_hash_pairs_compared",
+                "input_token_hash_pairs_equal",
+            ) and _pair_field_all_equal(
+                paired.get(f"{COND_C_ORACLE}_to_{COND_D_REAL_PREDICTOR}", {}),
+                "dtype_pairs_compared",
+                "dtype_pairs_equal",
+            )
+            if c_d_controlled:
+                primary_bottleneck = "predictor_codebook_candidate"
+                detailed_diagnosis = (
+                    "D is materially worse than ORACLE CODEBOOK LIVE while using a matched B1 checkpoint "
+                    "and generation policy. This points toward candidate generation/ranking, subject to "
+                    "opportunity and realization accounting for both supplied codebooks."
+                )
+        elif forced_h_gate_pass and comp_d and comp_d["meets_3pct_quality_gate"] and not comp_d["is_faster_than_vanilla"]:
             primary_bottleneck = "runtime_overhead_or_utilization"
             detailed_diagnosis = (
                 f"Real Predictor (Condition D) preserves quality within 3% (drop: {comp_d['relative_quality_drop_pct']}%), "
                 f"but real inference latency is higher than Vanilla (+{-comp_d['speedup_pct']}%). "
                 f"Per-step overhead or low compression masks decode-call savings."
             )
-        elif comp_d and comp_d["meets_3pct_quality_gate"] and comp_d["is_faster_than_vanilla"]:
+        elif forced_h_gate_pass and comp_d and comp_d["meets_3pct_quality_gate"] and comp_d["is_faster_than_vanilla"]:
             primary_bottleneck = "none_success"
             detailed_diagnosis = (
                 f"SUCCESS: Condition D achieved quality within 3% (drop: {comp_d['relative_quality_drop_pct']}%) "
                 f"and reduced real inference time by {comp_d['speedup_pct']}%."
             )
 
-        summary["causal_diagnosis"] = {
+        summary["causal_diagnosis"]["controlled_attribution_available"] = bool(
+            required_gates_pass and comp_b0 and b0_stats and a_b0_controlled and b0_b1_controlled
+        )
+        summary["causal_diagnosis"]["forced_oracle_evidence_available"] = any(
+            r.get("forced_oracle_roundtrip_ok") is not None for r in cf_records
+        )
+        summary["causal_diagnosis"]["forced_oracle_roundtrip_pass_count"] = sum(
+            bool(r.get("forced_oracle_roundtrip_ok")) for r in cf_records
+        )
+        summary["causal_diagnosis"]["forced_oracle_roundtrip_record_count"] = len(cf_records)
+        post_h = [
+            r.get("runtime", {}).get("cf_post_h_top1_matches_target")
+            for r in cf_records
+            if r.get("runtime", {}).get("cf_post_h_top1_matches_target") is not None
+        ]
+        summary["causal_diagnosis"]["forced_oracle_post_h_top1_agreement_rate"] = (
+            sum(bool(value) for value in post_h) / len(post_h) if post_h else None
+        )
+
+        summary["causal_diagnosis"].update({
             "primary_bottleneck": primary_bottleneck,
             "detailed_diagnosis": detailed_diagnosis,
-        }
+            "required_architecture_and_checkpoint_gates_pass": required_gates_pass,
+            "forced_h_representation_gates_pass": forced_h_gate_pass,
+        })
 
     return summary
+
+
+def _pair_field_all_equal(pair: Mapping[str, Any], compared_key: str, equal_key: str) -> bool:
+    compared = int(pair.get(compared_key, 0))
+    equal = int(pair.get(equal_key, 0))
+    return compared > 0 and compared == equal
+
+
+def _paired_condition_comparisons(records: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+    """Summarize per-prompt output equality without treating it as quality."""
+    indexed: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    for record in records:
+        prompt_id = record.get("prompt_id")
+        condition = record.get("condition")
+        if prompt_id and condition in ALL_CONDITIONS:
+            indexed.setdefault(str(prompt_id), {})[str(condition)] = record
+
+    pairs = (
+        (COND_A_VANILLA, COND_B0_TOKENS_VANILLA_WEIGHTS),
+        (COND_B0_TOKENS_VANILLA_WEIGHTS, COND_B_H_DISABLED),
+        (COND_B_H_DISABLED, COND_C_ORACLE),
+        (COND_B_H_DISABLED, COND_CF_FORCED_ORACLE),
+        (COND_C_ORACLE, COND_D_REAL_PREDICTOR),
+    )
+    result: Dict[str, Any] = {}
+    for left, right in pairs:
+        compared = []
+        for prompt_id, row in indexed.items():
+            if left not in row or right not in row:
+                continue
+            a = row[left]
+            b = row[right]
+            a_ids = a.get("expanded_token_ids", a.get("generated_token_ids"))
+            b_ids = b.get("expanded_token_ids", b.get("generated_token_ids"))
+            same_tokens = a_ids == b_ids if a_ids is not None and b_ids is not None else None
+            a_hash = a.get("runtime", {}).get("base_phi_weight_sha256")
+            b_hash = b.get("runtime", {}).get("base_phi_weight_sha256")
+            a_policy = a.get("runtime", {}).get("generation_policy_sha256")
+            b_policy = b.get("runtime", {}).get("generation_policy_sha256")
+            a_checkpoint = a.get("checkpoint_sha256")
+            b_checkpoint = b.get("checkpoint_sha256")
+            a_input = a.get("runtime", {}).get("input_token_ids_sha256")
+            b_input = b.get("runtime", {}).get("input_token_ids_sha256")
+            a_dtype = a.get("runtime", {}).get("torch_dtype")
+            b_dtype = b.get("runtime", {}).get("torch_dtype")
+            compared.append((same_tokens, a_hash, b_hash, a_policy, b_policy, a_checkpoint, b_checkpoint, a_input, b_input, a_dtype, b_dtype))
+        both_token_sequences = [row for row in compared if row[0] is not None]
+        hashes = [(row[1], row[2]) for row in compared if row[1] is not None and row[2] is not None]
+        policies = [(row[3], row[4]) for row in compared if row[3] is not None and row[4] is not None]
+        checkpoints = [(row[5], row[6]) for row in compared if row[5] is not None and row[6] is not None]
+        input_hashes = [(row[7], row[8]) for row in compared if row[7] is not None and row[8] is not None]
+        dtypes = [(row[9], row[10]) for row in compared if row[9] is not None and row[10] is not None]
+        result[f"{left}_to_{right}"] = {
+            "paired_prompts": len(compared),
+            "token_sequences_compared": len(both_token_sequences),
+            "exact_token_sequence_matches": sum(1 for row in both_token_sequences if row[0]),
+            "base_phi_hash_pairs_compared": len(hashes),
+            "base_phi_hash_pairs_equal": sum(1 for a, b in hashes if a == b),
+            "generation_policy_pairs_compared": len(policies),
+            "generation_policy_pairs_equal": sum(1 for a, b in policies if a == b),
+            "checkpoint_hash_pairs_compared": len(checkpoints),
+            "checkpoint_hash_pairs_equal": sum(1 for a, b in checkpoints if a == b),
+            "input_token_hash_pairs_compared": len(input_hashes),
+            "input_token_hash_pairs_equal": sum(1 for a, b in input_hashes if a == b),
+            "dtype_pairs_compared": len(dtypes),
+            "dtype_pairs_equal": sum(1 for a, b in dtypes if a == b),
+        }
+    return result

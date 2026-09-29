@@ -100,8 +100,16 @@ class OracleV2:
         max_length: int = 3,
         beam_width: int = 4,
         candidate_limit: int = 80,
+        disabled_token_ids: Optional[Set[int]] = None,
+        valid_token_min: Optional[int] = None,
+        valid_token_max_exclusive: Optional[int] = None,
     ) -> Tuple[Set[Tuple[int, ...]], Dict[str, Any]]:
-        """Compute near-optimal codebook that directly maximizes marginal decode steps saved."""
+        """Compute a near-optimal codebook maximizing marginal decode steps saved.
+
+        Optional token constraints restrict which n-grams may become codebook
+        entries. The input sequence itself is left intact and remains fully
+        represented by the returned dynamic-programming segmentation.
+        """
         t0 = time.perf_counter()
         n = len(tokens)
         if n < min_length or k <= 0:
@@ -109,6 +117,20 @@ class OracleV2:
 
         # 1. Extract candidate n-grams
         raw_counts = extract_candidate_ngrams(tokens, min_length=min_length, max_length=max_length, min_count=1)
+        if disabled_token_ids or valid_token_min is not None or valid_token_max_exclusive is not None:
+            disabled = disabled_token_ids or set()
+            lower = valid_token_min
+            upper = valid_token_max_exclusive
+            raw_counts = {
+                phrase: count
+                for phrase, count in raw_counts.items()
+                if all(
+                    token not in disabled
+                    and (lower is None or token >= lower)
+                    and (upper is None or token < upper)
+                    for token in phrase
+                )
+            }
         if not raw_counts:
             return set(), {"tokens_saved": 0, "compression_pct": 0.0, "runtime_ms": 0.0, "dead_slots": 0}
 
