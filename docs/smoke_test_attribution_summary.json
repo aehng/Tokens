@@ -1,0 +1,175 @@
+{
+  "schema": "phi_attribution_summary_v1",
+  "total_records": 36,
+  "conditions": {
+    "A_vanilla": {
+      "record_count": 9,
+      "aggregate_quality_rate": 0.8889,
+      "domain_quality": {
+        "code": {
+          "count": 3,
+          "passes": 2,
+          "rate": 0.6667
+        },
+        "reasoning": {
+          "count": 3,
+          "passes": 3,
+          "rate": 1.0
+        },
+        "instruction": {
+          "count": 3,
+          "passes": 3,
+          "rate": 1.0
+        }
+      },
+      "total_decode_calls": 3015,
+      "total_expanded_tokens": 3015,
+      "realized_compression_pct": 0.0,
+      "mean_total_latency_s": 12.8634,
+      "mean_time_to_eos_s": 12.8634,
+      "mean_ttft_s": 0.1723,
+      "mean_tpot_s": 0.037864,
+      "total_h_emissions": 0,
+      "mean_h_utilization_pct": 0.0,
+      "eos_reached_count": 9,
+      "truncated_count": 0,
+      "severe_repetition_count": 0
+    },
+    "B_h_disabled": {
+      "record_count": 9,
+      "aggregate_quality_rate": 0.7778,
+      "domain_quality": {
+        "code": {
+          "count": 3,
+          "passes": 2,
+          "rate": 0.6667
+        },
+        "reasoning": {
+          "count": 3,
+          "passes": 2,
+          "rate": 0.6667
+        },
+        "instruction": {
+          "count": 3,
+          "passes": 3,
+          "rate": 1.0
+        }
+      },
+      "total_decode_calls": 2515,
+      "total_expanded_tokens": 2515,
+      "realized_compression_pct": 0.0,
+      "mean_total_latency_s": 15.7801,
+      "mean_time_to_eos_s": 15.7801,
+      "mean_ttft_s": 0.0931,
+      "mean_tpot_s": 0.055788,
+      "total_h_emissions": 0,
+      "mean_h_utilization_pct": 0.0,
+      "eos_reached_count": 8,
+      "truncated_count": 1,
+      "severe_repetition_count": 0
+    },
+    "C_oracle": {
+      "record_count": 9,
+      "aggregate_quality_rate": 0.7778,
+      "domain_quality": {
+        "code": {
+          "count": 3,
+          "passes": 2,
+          "rate": 0.6667
+        },
+        "reasoning": {
+          "count": 3,
+          "passes": 2,
+          "rate": 0.6667
+        },
+        "instruction": {
+          "count": 3,
+          "passes": 3,
+          "rate": 1.0
+        }
+      },
+      "total_decode_calls": 2684,
+      "total_expanded_tokens": 2836,
+      "realized_compression_pct": 5.36,
+      "mean_total_latency_s": 16.8962,
+      "mean_time_to_eos_s": 16.8962,
+      "mean_ttft_s": 0.1165,
+      "mean_tpot_s": 0.055667,
+      "total_h_emissions": 114,
+      "mean_h_utilization_pct": 14.58,
+      "eos_reached_count": 8,
+      "truncated_count": 1,
+      "severe_repetition_count": 0
+    },
+    "D_real_predictor": {
+      "record_count": 9,
+      "aggregate_quality_rate": 0.6667,
+      "domain_quality": {
+        "code": {
+          "count": 3,
+          "passes": 2,
+          "rate": 0.6667
+        },
+        "reasoning": {
+          "count": 3,
+          "passes": 1,
+          "rate": 0.3333
+        },
+        "instruction": {
+          "count": 3,
+          "passes": 3,
+          "rate": 1.0
+        }
+      },
+      "total_decode_calls": 2688,
+      "total_expanded_tokens": 2759,
+      "realized_compression_pct": 2.57,
+      "mean_total_latency_s": 17.0738,
+      "mean_time_to_eos_s": 17.0738,
+      "mean_ttft_s": 0.1089,
+      "mean_tpot_s": 0.05609,
+      "total_h_emissions": 48,
+      "mean_h_utilization_pct": 6.25,
+      "eos_reached_count": 8,
+      "truncated_count": 1,
+      "severe_repetition_count": 0
+    }
+  },
+  "comparison_vs_vanilla": {
+    "B_h_disabled": {
+      "absolute_quality_diff": -0.1111,
+      "relative_quality_drop_pct": 12.5,
+      "meets_3pct_quality_gate": false,
+      "latency_change_pct": 22.67,
+      "speedup_pct": -22.67,
+      "decode_steps_saved": 500,
+      "is_faster_than_vanilla": false
+    },
+    "C_oracle": {
+      "absolute_quality_diff": -0.1111,
+      "relative_quality_drop_pct": 12.5,
+      "meets_3pct_quality_gate": false,
+      "latency_change_pct": 31.35,
+      "speedup_pct": -31.35,
+      "decode_steps_saved": 331,
+      "is_faster_than_vanilla": false
+    },
+    "D_real_predictor": {
+      "absolute_quality_diff": -0.2222,
+      "relative_quality_drop_pct": 25.0,
+      "meets_3pct_quality_gate": false,
+      "latency_change_pct": 32.73,
+      "speedup_pct": -32.73,
+      "decode_steps_saved": 327,
+      "is_faster_than_vanilla": false
+    }
+  },
+  "causal_diagnosis": {
+    "primary_bottleneck": "checkpoint_lora",
+    "detailed_diagnosis": "Predictive checkpoint/LoRA without hypertokens (Condition B) loses 12.5% quality vs Vanilla. The fine-tuning or base model state is degraded before any hypertoken mechanism operates."
+  },
+  "evaluated_prompts_count": 9,
+  "split": "DEV",
+  "git_commit": "d343a98",
+  "completed_at_utc": "2026-09-29T12:05:40.524108+00:00"
+}
