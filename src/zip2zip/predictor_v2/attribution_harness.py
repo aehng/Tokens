@@ -68,6 +68,23 @@ MAX_NEW_TOKENS = 1024
 CANONICAL_EOS_TOKEN_IDS = (32007, 32001, 32000)
 PAD_TOKEN_ID = 32000
 
+# Pinned 12-prompt DEV subset: 4 Code / 4 Reasoning / 4 Instruction.
+# IDs are the first four of each domain in the canonical DEV split_ids order.
+STRATIFIED_DEV12_PROMPT_IDS: Tuple[str, ...] = (
+    "mbpp_113",
+    "mbpp_168",
+    "mbpp_217",
+    "mbpp_225",
+    "gsm_2032",
+    "gsm_2044",
+    "gsm_2353",
+    "gsm_2491",
+    "alpaca_1",
+    "alpaca_1024",
+    "alpaca_1029",
+    "alpaca_1132",
+)
+
 
 class AttributionError(Exception):
     """Raised when attribution harness constraints or split rules are violated."""
@@ -121,6 +138,54 @@ class KaggleRunBudget:
                 f"Cumulative compute ({self.total_compute_hours:.2f}h) would exceed "
                 f"the 5.0h hard limit (remaining: {self.remaining_budget_hours:.2f}h)."
             )
+
+
+def select_stratified_dev_prompts(
+    dev_records: Sequence[Any],
+    limit: Optional[int] = None,
+) -> List[Any]:
+    """Select a balanced, stratified subset across Code, Reasoning, and Instruction.
+
+    The 12-prompt diagnostic uses a pinned ID list so packaging, CPU tests, and
+    GPU runs cannot silently disagree about which DEV rows were chosen.
+    """
+    records = list(dev_records)
+    if limit == 12:
+        by_id = {}
+        for record in records:
+            prompt_id = str(getattr(record, "prompt_id", None) or record.get("prompt_id"))
+            by_id[prompt_id] = record
+        missing = [prompt_id for prompt_id in STRATIFIED_DEV12_PROMPT_IDS if prompt_id not in by_id]
+        if missing:
+            raise AttributionError(
+                "Pinned 12-prompt DEV subset is missing from the loaded split: "
+                + ", ".join(missing)
+            )
+        return [by_id[prompt_id] for prompt_id in STRATIFIED_DEV12_PROMPT_IDS]
+
+    by_domain: Dict[str, List[Any]] = {"code": [], "reasoning": [], "instruction": []}
+    for record in records:
+        domain = getattr(record, "domain", None) or record.get("domain")
+        if domain in by_domain:
+            by_domain[domain].append(record)
+
+    if limit is None or limit >= len(records):
+        ordered = []
+        for domain in ("code", "reasoning", "instruction"):
+            ordered.extend(by_domain[domain])
+        return ordered
+
+    per_domain = limit // 3
+    remainder = limit % 3
+    counts = {
+        "code": per_domain + (1 if remainder > 0 else 0),
+        "reasoning": per_domain + (1 if remainder > 1 else 0),
+        "instruction": per_domain,
+    }
+    selected = []
+    for domain in ("code", "reasoning", "instruction"):
+        selected.extend(by_domain[domain][: counts[domain]])
+    return selected
 
 
 def extract_function_signature(

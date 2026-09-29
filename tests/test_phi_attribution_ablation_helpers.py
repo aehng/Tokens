@@ -14,7 +14,13 @@ from experiments.run_phi_attribution_benchmark import (
     generation_policy_sha256,
     run_a_b1_logit_fidelity,
 )
-from src.zip2zip.predictor_v2.forced_oracle import force_oracle_substitutions
+from src.zip2zip.predictor_v2.forced_oracle import force_oracle_substitutions, h_vs_base_prefix_pair
+from src.zip2zip.predictor_v2.attribution_harness import (
+    CANONICAL_EOS_TOKEN_IDS,
+    PAD_TOKEN_ID,
+    STRATIFIED_DEV12_PROMPT_IDS,
+    select_stratified_dev_prompts,
+)
 from src.zip2zip.predictor_v2.ablation_gates import (
     checkpoint_isolation_gate,
     forced_h_representation_gates,
@@ -22,7 +28,7 @@ from src.zip2zip.predictor_v2.ablation_gates import (
     normalize_wrapper_logits,
     token_equivalence_gate,
 )
-from src.zip2zip.predictor_v2.attribution_harness import CANONICAL_EOS_TOKEN_IDS, PAD_TOKEN_ID
+
 from src.zip2zip.predictor_v2.canonical_dataset import CanonicalContinuation
 from src.zip2zip.static_codebook import StaticCodebookManager
 
@@ -193,6 +199,38 @@ def test_logit_capture_uses_same_token_prefix_indices_and_stops_before_eos():
     assert captured[1].tolist() == [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
 
 
+def test_forced_schedule_processor_uses_call_count_when_input_ids_are_cached():
+    processor = ForcedScheduleLogitsProcessor(100, [7, 8, 9])
+    scores = torch.zeros((1, 20))
+    out = processor(torch.tensor([[5]]), scores.clone())
+    assert int(out[0].argmax()) == 7
+    out = processor(torch.tensor([[7]]), scores.clone())
+    assert int(out[0].argmax()) == 8
+    assert processor.unforced_top1 == [0, 0]
+
+
+def test_h_vs_base_prefix_pair_ends_on_equivalent_semantic_content():
+    forced = force_oracle_substitutions([10, 11, 12], {(10, 11): 32011})
+    prefixes = h_vs_base_prefix_pair([1, 2], forced, forced["h_emissions"][0])
+    assert prefixes["base_prefix_ids"] == [1, 2, 10, 11]
+    assert prefixes["h_prefix_ids"] == [1, 2, 32011]
+    assert prefixes["expected_next_base_token_id"] == 12
+    assert prefixes["expected_next_compressed_id"] == 12
+
+
+def test_pinned_dev12_ids_are_four_per_domain_and_stable():
+    assert len(STRATIFIED_DEV12_PROMPT_IDS) == 12
+    assert STRATIFIED_DEV12_PROMPT_IDS[:4] == ("mbpp_113", "mbpp_168", "mbpp_217", "mbpp_225")
+    assert STRATIFIED_DEV12_PROMPT_IDS[4:8] == ("gsm_2032", "gsm_2044", "gsm_2353", "gsm_2491")
+    assert STRATIFIED_DEV12_PROMPT_IDS[8:] == ("alpaca_1", "alpaca_1024", "alpaca_1029", "alpaca_1132")
+    records = [
+        {"prompt_id": prompt_id, "domain": "code" if prompt_id.startswith("mbpp_") else ("reasoning" if prompt_id.startswith("gsm_") else "instruction")}
+        for prompt_id in (*STRATIFIED_DEV12_PROMPT_IDS, "mbpp_999", "gsm_999", "alpaca_999")
+    ]
+    selected = select_stratified_dev_prompts(records, limit=12)
+    assert [row["prompt_id"] for row in selected] == list(STRATIFIED_DEV12_PROMPT_IDS)
+
+
 def test_forced_schedule_processor_records_h_semantic_position_and_offset():
     manager = StaticCodebookManager(
         initial_vocab_size=32011,
@@ -203,7 +241,6 @@ def test_forced_schedule_processor_records_h_semantic_position_and_offset():
     )
     manager.set_seeded_codebook({(10, 11): 32011}, batch_size=1, device="cpu")
     manager.prepare_input_ids(torch.tensor([[5, 6]]))
-    manager.prepare_input_ids(torch.tensor([[32011]]))
     processor = ForcedScheduleLogitsProcessor(
         2,
         [32011, 7],
@@ -211,7 +248,9 @@ def test_forced_schedule_processor_records_h_semantic_position_and_offset():
         h_position_expectations={0: {"expected_position": 3, "expected_next_offset": 4}},
     )
     scores = torch.zeros((1, 32020))
-    processor(torch.tensor([[5, 6, 32011]]), scores)
+    processor(torch.tensor([[5, 6]]), scores.clone())
+    manager.prepare_input_ids(torch.tensor([[32011]]))
+    processor(torch.tensor([[32011]]), scores.clone())
     check = processor.semantic_position_checks[0]
     assert check["observed_position"] == check["expected_position"] == 3
     assert check["observed_next_offset"] == check["expected_next_offset"] == 4

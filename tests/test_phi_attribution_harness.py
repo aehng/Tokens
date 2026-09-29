@@ -40,8 +40,11 @@ from src.zip2zip.predictor_v2.attribution_harness import (
     derive_oracle_codebook_phrases,
     extract_function_signature,
     find_first_divergence,
+    select_stratified_dev_prompts,
+    STRATIFIED_DEV12_PROMPT_IDS,
 )
 from src.zip2zip.predictor_v2.canonical_dataset import FinalAccessError, require_split_isolated_manifest
+from src.zip2zip.static_codebook import StaticCodebookManager
 
 
 def _passed_attribution_gates():
@@ -51,8 +54,6 @@ def _passed_attribution_gates():
         "b0_b1_parameter_isolation": {"status": "PASS"},
         "forced_h_representation": {"status": "PASS"},
     }
-from src.zip2zip.static_codebook import StaticCodebookManager
-from experiments.run_phi_attribution_benchmark import select_stratified_dev_prompts
 
 
 def test_final_split_access_strictly_forbidden():
@@ -182,19 +183,30 @@ def test_stratified_prompt_selection():
 
 
 def test_stratified_small_subset_is_deterministic_and_nested():
-    """The bounded live subset stays balanced and nested within the larger DEV set."""
-    synthetic_records = [
-        {"prompt_id": f"c_{i}", "domain": "code"} for i in range(15)
-    ] + [
-        {"prompt_id": f"r_{i}", "domain": "reasoning"} for i in range(15)
-    ] + [
-        {"prompt_id": f"i_{i}", "domain": "instruction"} for i in range(15)
+    """The 12-prompt diagnostic is a pinned nested subset of DEV."""
+    extra = (
+        [{"prompt_id": f"c_{i}", "domain": "code"} for i in range(15)]
+        + [{"prompt_id": f"r_{i}", "domain": "reasoning"} for i in range(15)]
+        + [{"prompt_id": f"i_{i}", "domain": "instruction"} for i in range(15)]
+    )
+    pinned = [
+        {
+            "prompt_id": prompt_id,
+            "domain": (
+                "code" if prompt_id.startswith("mbpp_")
+                else "reasoning" if prompt_id.startswith("gsm_")
+                else "instruction"
+            ),
+        }
+        for prompt_id in STRATIFIED_DEV12_PROMPT_IDS
     ]
+    synthetic_records = extra + pinned
     small = select_stratified_dev_prompts(synthetic_records, limit=12)
     repeated = select_stratified_dev_prompts(synthetic_records, limit=12)
-    larger = select_stratified_dev_prompts(synthetic_records, limit=45)
+    larger = select_stratified_dev_prompts(synthetic_records, limit=None)
 
     small_ids = [record["prompt_id"] for record in small]
+    assert small_ids == list(STRATIFIED_DEV12_PROMPT_IDS)
     assert small_ids == [record["prompt_id"] for record in repeated]
     assert set(small_ids).issubset({record["prompt_id"] for record in larger})
     assert Counter(record["domain"] for record in small) == {

@@ -64,3 +64,35 @@ def force_oracle_substitutions(
         "tokens_saved": len(expected) - len(compressed),
         "dp_stats": dp_stats,
     }
+
+
+def h_vs_base_prefix_pair(
+    prompt_ids: Sequence[int],
+    forced: Mapping[str, object],
+    emission: Mapping[str, object],
+) -> Dict[str, List[int]]:
+    """Build matched prefixes that end on equivalent semantic content.
+
+    The base prefix ends after the original phrase tokens. The H prefix ends
+    after the single forced hypertoken that replaces that phrase. Comparing
+    next-token logits at these two last positions is the live CF state test.
+    """
+    prompt = [int(token) for token in prompt_ids]
+    base_tokens = [int(token) for token in forced["base_token_ids"]]
+    compressed = [int(token) for token in forced["forced_generation_ids"]]
+    base_end = int(emission["base_start"]) + int(emission["span"])
+    schedule_end = int(emission["schedule_index"]) + 1
+    if base_end > len(base_tokens) or schedule_end > len(compressed):
+        raise ValueError("Emission is outside the forced schedule")
+    if compressed[schedule_end - 1] != int(emission["id"]):
+        raise ValueError("Emission schedule index does not point at its H ID")
+    return {
+        "base_prefix_ids": prompt + base_tokens[:base_end],
+        "h_prefix_ids": prompt + compressed[:schedule_end],
+        "expected_next_base_token_id": (
+            base_tokens[base_end] if base_end < len(base_tokens) else None
+        ),
+        "expected_next_compressed_id": (
+            compressed[schedule_end] if schedule_end < len(compressed) else None
+        ),
+    }

@@ -73,6 +73,8 @@ from src.zip2zip.predictor_v2.attribution_harness import (
     derive_oracle_codebook_phrases,
     evaluate_output_quality,
     find_first_divergence,
+    select_stratified_dev_prompts,
+    STRATIFIED_DEV12_PROMPT_IDS,
 )
 from src.zip2zip.predictor_v2.ablation_gates import (
     checkpoint_isolation_gate,
@@ -87,14 +89,14 @@ from src.zip2zip.predictor_v2.canonical_dataset import (
     sha256_file,
 )
 from src.zip2zip.predictor_v2.attribution_reanalysis import oracle_ceiling
-from src.zip2zip.predictor_v2.forced_oracle import force_oracle_substitutions
+from src.zip2zip.predictor_v2.forced_oracle import force_oracle_substitutions, h_vs_base_prefix_pair
 from src.zip2zip.predictor_v2.candidate_retrieval import (
     ConfigurableCandidateGenerator,
     RetrievalStrategy,
     TrainOnlyAssociationIndex,
 )
 from experiments.load_joint_checkpoint import load_joint_checkpoint
-from experiments.run_quality_benchmark import TimingLogitsProcessor, synchronize_device
+from experiments.generation_timing import TimingLogitsProcessor, synchronize_device
 
 
 CONDITION_DISPLAY = {
@@ -139,35 +141,7 @@ def runtime_metadata(device: str) -> Dict[str, Any]:
     return info
 
 
-def select_stratified_dev_prompts(
-    dev_records: Sequence[Any],
-    limit: Optional[int] = None,
-) -> List[Any]:
-    """Select a balanced, stratified subset across Code, Reasoning, and Instruction."""
-    by_domain: Dict[str, List[Any]] = {"code": [], "reasoning": [], "instruction": []}
-    for r in dev_records:
-        dom = getattr(r, "domain", None) or r.get("domain")
-        if dom in by_domain:
-            by_domain[dom].append(r)
 
-    if limit is None or limit >= len(dev_records):
-        ordered = []
-        for d in ("code", "reasoning", "instruction"):
-            ordered.extend(by_domain[d])
-        return ordered
-
-    per_domain = limit // 3
-    remainder = limit % 3
-    counts = {
-        "code": per_domain + (1 if remainder > 0 else 0),
-        "reasoning": per_domain + (1 if remainder > 1 else 0),
-        "instruction": per_domain,
-    }
-
-    selected = []
-    for d in ("code", "reasoning", "instruction"):
-        selected.extend(by_domain[d][: counts[d]])
-    return selected
 
 
 def load_vanilla_model_and_tokenizer(device: str) -> Tuple[Any, Any]:
@@ -214,7 +188,10 @@ def load_predictive_bundle(
         base_model=base_model,
         revision=CANONICAL_ZIP2ZIP_REVISION,
         torch_dtype=dtype,
+        codebook_backend="static",
     ).to(device_obj)
+    loaded_position_mode = str(getattr(model.zip2zip_config, "position_mode", "compressed"))
+    model.enable_base_token_positions()
 
     if apply_joint_checkpoint:
         report = load_joint_checkpoint(
@@ -227,6 +204,9 @@ def load_predictive_bundle(
     else:
         report = {"checkpoint_applied": False, "checkpoint_step": None}
         report["adapter_present"] = bool(getattr(model.base_model, "peft_config", None))
+    report["loaded_position_mode"] = loaded_position_mode
+    report["effective_position_mode"] = model.zip2zip_config.position_mode
+    report["codebook_backend"] = getattr(model.zip2zip_config, "codebook_backend", None)
     model.eval()
     return model, tokenizer, report
 
@@ -353,25 +333,29 @@ class ForcedScheduleLogitsProcessor:
         self.semantic_position_checks: List[Dict[str, int]] = []
 
     def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor) -> torch.Tensor:
-        step = input_ids.shape[1] - self.prompt_length
+        # HuggingFace cached generate passes only the newest token, so the
+        # schedule index cannot be recovered from input_ids.shape[1].
+        step = len(self.unforced_top1)
         if step < 0 or step >= len(self.forced_ids):
             raise RuntimeError(f"CF forced schedule step {step} is out of range")
-        schedule_index = step - 1
-        expectation = self.h_position_expectations.get(schedule_index)
-        if expectation is not None and self.static_mgr is not None:
-            positions = self.static_mgr.position_ids
-            offsets = self.static_mgr.base_position_offset
-            if positions is None or offsets is None:
-                raise RuntimeError("CF manager did not expose semantic position/cache accounting")
-            self.semantic_position_checks.append({
-                "schedule_index": schedule_index,
-                "token_id": int(input_ids[0, -1].item()),
-                "expected_position": int(expectation["expected_position"]),
-                "observed_position": int(positions[0, -1].item()),
-                "expected_next_offset": int(expectation["expected_next_offset"]),
-                "observed_next_offset": int(offsets[0, 0].item()),
-            })
+        if step > 0:
+            schedule_index = step - 1
+            expectation = self.h_position_expectations.get(schedule_index)
+            if expectation is not None and self.static_mgr is not None:
+                positions = self.static_mgr.position_ids
+                offsets = self.static_mgr.base_position_offset
+                if positions is None or offsets is None:
+                    raise RuntimeError("CF manager did not expose semantic position/cache accounting")
+                self.semantic_position_checks.append({
+                    "schedule_index": schedule_index,
+                    "token_id": int(input_ids[0, -1].item()),
+                    "expected_position": int(expectation["expected_position"]),
+                    "observed_position": int(positions[0, -1].item()),
+                    "expected_next_offset": int(expectation["expected_next_offset"]),
+                    "observed_next_offset": int(offsets[0, 0].item()),
+                })
         self.unforced_top1.append(int(torch.argmax(scores[0]).item()))
+        scores = scores.clone()
         scores.fill_(float("-inf"))
         scores[:, self.forced_ids[step]] = 0.0
         return scores
@@ -423,6 +407,36 @@ def capture_prefix_logits(
         prefix_length: logits[0, len(prompt) + prefix_length - 1].detach().to(device="cpu", dtype=torch.float32)
         for prefix_length in prefix_lengths
     }
+
+
+def capture_last_token_logits(
+    model: Any,
+    token_ids: Sequence[int],
+    *,
+    device: torch.device,
+    inserted_h_count: int = 0,
+    static_mgr: Optional[StaticCodebookManager] = None,
+) -> torch.Tensor:
+    """Return native-vocabulary logits for the token after ``token_ids``."""
+    if not token_ids:
+        raise AttributionError("Cannot capture logits for an empty prefix")
+    input_tensor = torch.tensor([list(token_ids)], dtype=torch.long, device=device)
+    attention_mask = torch.ones_like(input_tensor)
+    if static_mgr is not None:
+        static_mgr.reset()
+    with torch.no_grad():
+        output = model(input_ids=input_tensor, attention_mask=attention_mask, use_cache=False)
+    logits = output.logits if hasattr(output, "logits") else output[0]
+    last = logits[0, -1]
+    if static_mgr is not None:
+        output_layer = model.base_model.get_output_embeddings()
+        last = normalize_wrapper_logits(
+            last,
+            base_vocab_size=int(output_layer.weight.shape[0]),
+            initial_vocab_size=INITIAL_VOCAB_SIZE,
+            inserted_h_count=inserted_h_count,
+        )
+    return last.detach().to(device="cpu", dtype=torch.float32)
 
 
 def parity_tolerance(dtype: str) -> float:
@@ -978,6 +992,9 @@ def run_attribution_benchmark(args: argparse.Namespace) -> None:
             "lora_delta_verified": False,
             "h_seeded_slots": 0,
             "h_logits_masked_by_static_manager": True,
+            "loaded_position_mode": b0_load_report.get("loaded_position_mode"),
+            "effective_position_mode": b0_load_report.get("effective_position_mode"),
+            "codebook_backend": b0_load_report.get("codebook_backend"),
         }
         dim = getattr(b0_model.config, "hidden_size", 3072)
         for idx, sample in enumerate(b0_pending, 1):
@@ -1131,6 +1148,9 @@ def run_attribution_benchmark(args: argparse.Namespace) -> None:
             "checkpoint_changed_parameters": parameter_gate_preflight.get("changed_parameters", {}),
             "frozen_base_parameter_sha256": load_rep.get("frozen_base_parameter_sha256"),
             "frozen_base_unchanged_during_load": load_rep.get("frozen_base_unchanged_during_load"),
+            "loaded_position_mode": load_rep.get("loaded_position_mode"),
+            "effective_position_mode": load_rep.get("effective_position_mode"),
+            "codebook_backend": load_rep.get("codebook_backend"),
         }
         p_runtime.update({
             "generation_config": generation_policy(args.max_new_tokens),
@@ -1240,6 +1260,36 @@ def run_attribution_benchmark(args: argparse.Namespace) -> None:
                                 "top1_matches": int(forced_processor.unforced_top1[next_index]) == int(forced["forced_generation_ids"][next_index]),
                             })
                     continuation_stable = bool(immediate_checks) and all(row["top1_matches"] for row in immediate_checks)
+                    state_checks = []
+                    for emission in forced["h_emissions"]:
+                        prefixes = h_vs_base_prefix_pair(input_ids, forced, emission)
+                        static_mgr.reset()
+                        base_logits = capture_last_token_logits(
+                            p_model,
+                            prefixes["base_prefix_ids"],
+                            device=device_obj,
+                            inserted_h_count=args.k,
+                            static_mgr=static_mgr,
+                        )
+                        static_mgr.reset()
+                        h_logits = capture_last_token_logits(
+                            p_model,
+                            prefixes["h_prefix_ids"],
+                            device=device_obj,
+                            inserted_h_count=args.k,
+                            static_mgr=static_mgr,
+                        )
+                        metric = logit_parity_metrics(
+                            base_logits,
+                            h_logits,
+                            eos_token_ids=CANONICAL_EOS_TOKEN_IDS,
+                            atol=parity_tolerance(str(p_model.base_model.get_input_embeddings().weight.dtype)),
+                        )
+                        metric["h_id"] = int(emission["id"])
+                        metric["base_prefix_length"] = len(prefixes["base_prefix_ids"])
+                        metric["h_prefix_length"] = len(prefixes["h_prefix_ids"])
+                        state_checks.append(metric)
+                    cf_state_equivalent = bool(state_checks) and all(row["status"] == "PASS" for row in state_checks)
                     semantic_positions_ok = (
                         bool(h_position_expectations)
                         and len(forced_processor.semantic_position_checks) == len(h_position_expectations)
@@ -1275,6 +1325,8 @@ def run_attribution_benchmark(args: argparse.Namespace) -> None:
                             "forced_schedule_length": len(forced["forced_generation_ids"]),
                             "cf_semantic_position_checks": forced_processor.semantic_position_checks,
                             "cf_continuation_checks": immediate_checks,
+                            "cf_h_vs_base_logit_checks": state_checks,
+                            "cf_h_vs_base_state_equivalent": cf_state_equivalent,
                             "cf_post_h_top1_matches_target": (sum(row["top1_matches"] for row in immediate_checks) / len(immediate_checks)) if immediate_checks else None,
                             "cf_post_h_boundary_count": len(immediate_checks),
                         },
@@ -1292,7 +1344,7 @@ def run_attribution_benchmark(args: argparse.Namespace) -> None:
                         quality_gate_pass=pass_status,
                         forced_oracle_roundtrip_ok=roundtrip_ok and schedule_matches,
                         cf_semantic_positions_ok=semantic_positions_ok,
-                        cf_continuation_stable=continuation_stable,
+                        cf_continuation_stable=continuation_stable and cf_state_equivalent,
                         candidates_supplied=len(selected_phrases),
                         selected_h_slots=[list(phrase) for phrase in selected_phrases],
                         phrase_length_per_slot=[len(phrase) for phrase in selected_phrases],
