@@ -1,0 +1,35 @@
+{
+  "schema": "phi_attribution_ablation_completion_v1",
+  "split": "DEV",
+  "prompt_ids": [
+    "mbpp_113",
+    "mbpp_168",
+    "mbpp_217",
+    "mbpp_225",
+    "gsm_2032",
+    "gsm_2044",
+    "gsm_2353",
+    "gsm_2491",
+    "alpaca_1",
+    "alpaca_1024",
+    "alpaca_1029",
+    "alpaca_1132"
+  ],
+  "source_commit": "f59ef6319a1b9989c1154fd7349a9f6f6a41bb05",
+  "source_archive_sha256": "1676dbebc98fe54cae23d0b27094c859ce17c410952cbce486723108f3e1700a",
+  "canonical_dataset_sha256": "0d3bea57de3ecac982da9ec65db97850cdfbaf5a57c0ace5def05f686ccf4c68",
+  "elapsed_seconds": 418.947,
+  "cuda_visible_devices": null,
+  "torch_runtime": {
+    "torch_version": "2.10.0+cu128",
+    "cuda_build": "12.8",
+    "cuda_available": true,
+    "visible_device_count": 2,
+    "visible_device_names": [
+      "Tesla T4",
+      "Tesla T4"
+    ]
+  },
+  "final_accessed": false,
+  "training_run": false
+}

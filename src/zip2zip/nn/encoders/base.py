@@ -46,7 +46,15 @@ class BaseEncoder(nn.Module, ABC, Generic[EncoderConfigType]):
             ResLatentAttnConfig: ResLatentAttnEncoder,
         }
 
-        encoder_class = config2encoder_mapping[type(encoder_config)]
+        encoder_class = config2encoder_mapping.get(type(encoder_config))
+        if encoder_class is None:
+            config_name = type(encoder_config).__name__
+            for cfg_cls, enc_cls in config2encoder_mapping.items():
+                if cfg_cls.__name__ == config_name:
+                    encoder_class = enc_cls
+                    break
+        if encoder_class is None:
+            raise KeyError(type(encoder_config))
 
         return encoder_class(encoder_config, compression_config)
 

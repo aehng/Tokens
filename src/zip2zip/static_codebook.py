@@ -152,6 +152,12 @@ class StaticCodebookManager:
         self.input_encoder_calls: int = 0
         self.output_encoder_calls: int = 0
 
+        # A manager may be attached to only one model at a time. Keep the
+        # previous manager values, not module references, so the manager does
+        # not keep the model alive after teardown.
+        self._attachment_model_id: Optional[int] = None
+        self._attachment_manager_state: Optional[Dict[str, Optional[object]]] = None
+
     def set_seeded_codebook(
         self,
         dictionary: Union[Dict[int, List[int]], List[List[int]]],
@@ -873,34 +879,57 @@ class StaticCodebookManager:
 
     def attach_to_model(self, model: torch.nn.Module) -> None:
         """Attach this static codebook manager to a Zip2ZipModel."""
-        if hasattr(model, "codebook_manager"):
-            self._previous_manager = model.codebook_manager
-            model.codebook_manager = self
+        model_id = id(model)
+        if self._attachment_model_id not in (None, model_id):
+            raise RuntimeError("A StaticCodebookManager cannot be attached to multiple models")
+
         base = getattr(model, "base_model", model)
+        targets = {"model": model}
         if hasattr(base, "get_input_embeddings"):
-            input_emb = base.get_input_embeddings()
-            if hasattr(input_emb, "codebook_manager"):
-                input_emb.codebook_manager = self
+            targets["input"] = base.get_input_embeddings()
         if hasattr(base, "get_output_embeddings"):
-            output_emb = base.get_output_embeddings()
-            if hasattr(output_emb, "codebook_manager"):
-                output_emb.codebook_manager = self
+            targets["output"] = base.get_output_embeddings()
+
+        if self._attachment_model_id is None:
+            self._attachment_manager_state = {}
+            self._attachment_model_id = model_id
+            for name, target in targets.items():
+                if hasattr(target, "codebook_manager"):
+                    current = target.codebook_manager
+                    self._attachment_manager_state[name] = None if current is self else current
+                    target.codebook_manager = self
+        else:
+            for target in targets.values():
+                if hasattr(target, "codebook_manager") and target.codebook_manager is not self:
+                    raise RuntimeError("The attached model's codebook manager changed unexpectedly")
 
     def detach_from_model(self, model: torch.nn.Module) -> None:
         """Detach this static codebook manager and restore the previous manager."""
-        prev = getattr(self, "_previous_manager", None)
-        if prev is not None:
-            if hasattr(model, "codebook_manager"):
-                model.codebook_manager = prev
-            base = getattr(model, "base_model", model)
-            if hasattr(base, "get_input_embeddings"):
-                input_emb = base.get_input_embeddings()
-                if hasattr(input_emb, "codebook_manager"):
-                    input_emb.codebook_manager = prev
-            if hasattr(base, "get_output_embeddings"):
-                output_emb = base.get_output_embeddings()
-                if hasattr(output_emb, "codebook_manager"):
-                    output_emb.codebook_manager = prev
+        if self._attachment_model_id is None:
+            return
+        if self._attachment_model_id != id(model):
+            raise RuntimeError("Cannot detach a StaticCodebookManager from a different model")
+
+        base = getattr(model, "base_model", model)
+        targets = {"model": model}
+        if hasattr(base, "get_input_embeddings"):
+            targets["input"] = base.get_input_embeddings()
+        if hasattr(base, "get_output_embeddings"):
+            targets["output"] = base.get_output_embeddings()
+        previous = self._attachment_manager_state or {}
+
+        # Require stack-order detach: restoring over a newer manager would
+        # silently disconnect the active manager and corrupt its saved state.
+        for target in targets.values():
+            if hasattr(target, "codebook_manager") and target.codebook_manager is not self:
+                raise RuntimeError("StaticCodebookManagers must be detached in reverse attachment order")
+
+        for name, target in targets.items():
+            if hasattr(target, "codebook_manager"):
+                target.codebook_manager = previous.get(name)
+
+        self._attachment_model_id = None
+        self._attachment_manager_state = None
 
     def mask_unused_logits(self, logits: torch.Tensor) -> torch.Tensor:
         """Mask unused hypertoken logits to -inf so they cannot be generated.

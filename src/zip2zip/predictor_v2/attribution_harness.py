@@ -32,6 +32,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
 from src.zip2zip.predictor_v2.ablation_gates import (
+    b0_b1_adapter_isolation_gate,
+    b1_b2_checkpoint_isolation_gate,
     checkpoint_isolation_gate,
     forced_h_representation_gates,
     token_equivalence_gate,
@@ -41,11 +43,13 @@ ATTRIBUTION_RECORD_SCHEMA = "phi_attribution_record_v1"
 ATTRIBUTION_SUMMARY_SCHEMA = "phi_attribution_summary_v1"
 
 COND_A_VANILLA = "A_vanilla"
-# B0 wraps the pinned Vanilla weights with Zip2Zip modules but leaves the
-# checkpoint adapter disabled.  The historical Stage 1 B records are B1.
 COND_B0_TOKENS_VANILLA_WEIGHTS = "B0_tokens_vanilla_weights"
+# B1 tests solely the upstream EPFL PEFT adapter with H disabled and NO local Step-100 checkpoint.
+COND_B1_UPSTREAM_EPFL_ADAPTER_H_DISABLED = "B1_upstream_epfl_adapter_h_disabled"
+# B2 adds our local Step-100 LoRA checkpoint on top of the upstream adapter with H disabled.
+COND_B2_STEP100_H_DISABLED = "B2_step100_h_disabled"
+# Historical Stage 1 B condition (conflated upstream adapter and Step-100 checkpoint):
 COND_B_H_DISABLED = "B_h_disabled"
-COND_B1_LORA_H_DISABLED = COND_B_H_DISABLED
 COND_C_ORACLE = "C_oracle"
 COND_CF_FORCED_ORACLE = "CF_forced_oracle"
 COND_D_REAL_PREDICTOR = "D_real_predictor"
@@ -53,6 +57,8 @@ COND_D_REAL_PREDICTOR = "D_real_predictor"
 ALL_CONDITIONS = (
     COND_A_VANILLA,
     COND_B0_TOKENS_VANILLA_WEIGHTS,
+    COND_B1_UPSTREAM_EPFL_ADAPTER_H_DISABLED,
+    COND_B2_STEP100_H_DISABLED,
     COND_B_H_DISABLED,
     COND_CF_FORCED_ORACLE,
     COND_C_ORACLE,
@@ -518,6 +524,8 @@ def compute_attribution_summary(
 
         for cond in (
             COND_B0_TOKENS_VANILLA_WEIGHTS,
+            COND_B1_UPSTREAM_EPFL_ADAPTER_H_DISABLED,
+            COND_B2_STEP100_H_DISABLED,
             COND_B_H_DISABLED,
             COND_C_ORACLE,
             COND_CF_FORCED_ORACLE,
@@ -744,6 +752,8 @@ def _paired_condition_comparisons(records: Sequence[Dict[str, Any]]) -> Dict[str
 
     pairs = (
         (COND_A_VANILLA, COND_B0_TOKENS_VANILLA_WEIGHTS),
+        (COND_B0_TOKENS_VANILLA_WEIGHTS, COND_B1_UPSTREAM_EPFL_ADAPTER_H_DISABLED),
+        (COND_B1_UPSTREAM_EPFL_ADAPTER_H_DISABLED, COND_B2_STEP100_H_DISABLED),
         (COND_B0_TOKENS_VANILLA_WEIGHTS, COND_B_H_DISABLED),
         (COND_B_H_DISABLED, COND_C_ORACLE),
         (COND_B_H_DISABLED, COND_CF_FORCED_ORACLE),

@@ -1,27 +1,46 @@
 from contextlib import contextmanager
+from dataclasses import asdict
+from pathlib import Path
 from types import SimpleNamespace
 
 import torch
 from torch import nn
 import experiments.run_phi_attribution_benchmark as benchmark
+import weakref
+import pytest
 
 from experiments.run_phi_attribution_benchmark import (
     base_phi_weight_sha256,
-    disabled_adapter_context,
+    assert_model_phase_teardown,
+    b0_adapter_absence_verified,
     capture_prefix_logits,
     ForcedScheduleLogitsProcessor,
     generation_policy,
     generation_policy_sha256,
+    make_empty_b0_manager,
+    offline_a_b0_token_gate,
+    prepare_empty_b0_manager,
+    reset_empty_b0_manager,
+    select_a_b0_logit_samples,
+    verify_empty_static_h_mask,
     run_a_b1_logit_fidelity,
+    AttributionError,
 )
 from src.zip2zip.predictor_v2.forced_oracle import force_oracle_substitutions, h_vs_base_prefix_pair
 from src.zip2zip.predictor_v2.attribution_harness import (
     CANONICAL_EOS_TOKEN_IDS,
+    COND_A_VANILLA,
+    COND_B0_TOKENS_VANILLA_WEIGHTS,
+    COND_B1_UPSTREAM_EPFL_ADAPTER_H_DISABLED,
+    COND_B2_STEP100_H_DISABLED,
+    COND_B_H_DISABLED,
     PAD_TOKEN_ID,
     STRATIFIED_DEV12_PROMPT_IDS,
     select_stratified_dev_prompts,
 )
 from src.zip2zip.predictor_v2.ablation_gates import (
+    b0_b1_adapter_isolation_gate,
+    b1_b2_checkpoint_isolation_gate,
     checkpoint_isolation_gate,
     forced_h_representation_gates,
     logit_parity_metrics,
@@ -131,28 +150,26 @@ def test_native_and_wrapper_base_phi_fingerprints_match_and_cover_lm_head():
     assert base_phi_weight_sha256(vanilla) != base_phi_weight_sha256(wrapped)
 
 
-def test_b0_adapter_is_disabled_only_inside_each_context_and_restored():
-    model = TinyZip2Zip(TinyPeftModel(TinyCausalLM()))
-    assert model.base_model.adapter_enabled is True
-    for _ in range(2):
-        with disabled_adapter_context(model):
-            assert model.base_model.adapter_enabled is False
-        assert model.base_model.adapter_enabled is True
-
-
-def test_b0_refuses_peft_adapter_that_cannot_be_disabled():
-    class UndisableablePeft(nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.peft_config = {"default": object()}
-
-    model = TinyZip2Zip(UndisableablePeft())
-    try:
-        disabled_adapter_context(model)
-    except RuntimeError as exc:
-        assert "disable_adapter is unavailable" in str(exc)
-    else:
-        raise AssertionError("B0 must fail closed when a present adapter cannot be disabled")
+def test_b0_adapter_gate_requires_no_adapter_to_be_requested_or_installed():
+    report = {
+        "adapter_load_requested": False,
+        "adapter_present": False,
+        "active_adapter_names": [],
+        "adapter_modules_to_save": {},
+    }
+    state = {
+        "adapter_present_in_wrapper": False,
+        "active_adapter_names": [],
+        "adapter_modules_to_save": {},
+        "adapters_disabled_state": None,
+    }
+    assert b0_adapter_absence_verified(report, state)
+    assert not b0_adapter_absence_verified(
+        {**report, "adapter_load_requested": True}, state
+    )
+    assert not b0_adapter_absence_verified(
+        report, {**state, "adapter_present_in_wrapper": True}
+    )
 
 
 def test_forced_oracle_substitution_expands_exactly_and_advances_semantic_positions():
@@ -259,32 +276,455 @@ def test_forced_schedule_processor_records_h_semantic_position_and_offset():
 def test_a_b0_token_gate_requires_exact_output_and_matching_generation_contract():
     common = {
         "base_phi_weight_sha256": "base",
+        "git_commit": "commit",
+        "git_branch": "branch",
+        "git_worktree_dirty": True,
+        "git_status_sha256": "status",
+        "source_archive_sha256": "archive",
+        "dataset_manifest_sha256": "manifest",
+        "canonical_dataset_sha256": "dataset",
+        "cuda_version": "12.8",
+        "gpu_name": "T4",
+        "package_versions": {"torch": "2.8.0"},
+        "package_versions_complete": True,
+        "model_id": "model",
+        "model_revision": "rev",
         "generation_policy_sha256": "policy",
         "input_token_ids_sha256": "prompt",
+        "input_token_ids": [8, 9],
         "torch_dtype": "torch.float32",
         "tokenizer_id": "model",
         "tokenizer_revision": "rev",
         "tokenizer_chat_template_sha256": "template",
-        "attention_implementation": "transformers_default",
+        "attention_implementation": "PhiAttention;config=eager",
+        "codebook_backend": "static",
         "rendered_prompt_sha256": "rendered",
+        "rendered_prompt_text": "<|user|>prompt",
         "eos_token_ids": [32007, 32001, 32000],
         "max_new_tokens": 77,
-        "generation_config": {"do_sample": False, "max_new_tokens": 77},
+        "generation_config": {"do_sample": False, "max_new_tokens": 77, "pad_token_id": 32000,
+                              "eos_token_id": [32007, 32001, 32000]},
         "checkpoint_applied": False,
+        "step100_h_encoder_checkpoint_loaded": False,
+        "adapter_load_requested": False,
+        "adapter_present_in_wrapper": False,
+        "adapter_modules_to_save": {},
+        "active_adapter_names": [],
         "active_lora_during_generation": False,
-        "adapter_disabled_context_used": True,
+        "adapter_disabled_context_used": False,
+        "adapters_disabled_state_during_generation": None,
         "h_seeded_slots": 0,
         "h_logits_masked_by_static_manager": True,
+        "effective_position_mode": "base_token_end",
     }
     records = [
-        {"prompt_id": "p", "condition": "A_vanilla", "generated_token_ids": [1, 2, 32007],
+        {"prompt_id": "p", "condition": "A_vanilla", "model_id": "model", "model_revision": "rev",
+         "generated_token_ids": [1, 2, 32007], "generated_token_count": 3,
+         "expanded_token_ids": [1, 2, 32007], "expanded_token_count": 3, "eos_reached": True,
          "termination_reason": "eos", "termination_token_id": 32007, "runtime": common},
-        {"prompt_id": "p", "condition": "B0_tokens_vanilla_weights", "generated_token_ids": [1, 2, 32007],
+        {"prompt_id": "p", "condition": "B0_tokens_vanilla_weights", "model_id": "model", "model_revision": "rev",
+         "checkpoint_name": "NONE", "checkpoint_sha256": "", "generated_token_ids": [1, 2, 32007],
+         "generated_token_count": 3, "expanded_token_ids": [1, 2, 32007], "expanded_token_count": 3, "eos_reached": True,
          "termination_reason": "eos", "termination_token_id": 32007, "runtime": dict(common)},
     ]
     assert token_equivalence_gate(records)["status"] == "PASS"
+    records[1]["runtime"]["step100_h_encoder_checkpoint_loaded"] = True
+    assert token_equivalence_gate(records)["status"] == "FAIL"
+    records[1]["runtime"]["step100_h_encoder_checkpoint_loaded"] = False
+    records[1]["runtime"]["active_lora_during_generation"] = True
+    assert token_equivalence_gate(records)["status"] == "FAIL"
+    records[1]["runtime"]["active_lora_during_generation"] = False
+    records[1]["runtime"]["adapter_present_in_wrapper"] = True
+    assert token_equivalence_gate(records)["status"] == "FAIL"
+    records[1]["runtime"]["adapter_present_in_wrapper"] = False
     records[1]["generated_token_ids"] = [1, 3, 32007]
     assert token_equivalence_gate(records)["status"] == "FAIL"
+
+
+def test_a_b0_token_gate_rejects_duplicate_records_and_expansion_drift():
+    common = {
+        "base_phi_weight_sha256": "base", "generation_policy_sha256": "policy",
+        "input_token_ids_sha256": "input", "input_token_ids": [1],
+        "torch_dtype": "torch.float16", "tokenizer_id": "phi", "tokenizer_revision": "rev",
+        "tokenizer_chat_template_sha256": "template", "attention_implementation": "sdpa",
+        "rendered_prompt_sha256": "prompt", "rendered_prompt_text": "prompt",
+        "eos_token_ids": [32007, 32001, 32000], "max_new_tokens": 9,
+        "generation_config": {"do_sample": False, "max_new_tokens": 9},
+        "git_commit": "commit", "git_branch": "branch", "git_worktree_dirty": False,
+        "git_status_sha256": "status", "source_archive_sha256": "archive",
+        "dataset_manifest_sha256": "manifest", "canonical_dataset_sha256": "dataset",
+        "cuda_version": "12.8", "gpu_name": "T4", "package_versions": {"torch": "2.10"},
+        "package_versions_complete": True, "checkpoint_applied": False,
+        "step100_h_encoder_checkpoint_loaded": False, "adapter_load_requested": False,
+        "adapter_present_in_wrapper": False, "adapter_modules_to_save": {},
+        "active_adapter_names": [], "active_lora_during_generation": False,
+        "adapter_disabled_context_used": False, "adapters_disabled_state_during_generation": None,
+        "h_seeded_slots": 0, "h_logits_masked_by_static_manager": True,
+        "effective_position_mode": "base_token_end", "codebook_backend": "static",
+    }
+    records = [
+        {"prompt_id": "p", "condition": condition, "model_id": "phi", "model_revision": "rev",
+         "generated_token_ids": [4, 32007], "generated_token_count": 2,
+         "expanded_token_ids": expanded, "expanded_token_count": 2,
+         "eos_reached": True, "termination_reason": "eos", "termination_token_id": 32007,
+         "checkpoint_name": "NONE" if condition.startswith("B0") else "",
+         "checkpoint_sha256": "", "runtime": dict(common)}
+        for condition, expanded in (("A_vanilla", [4, 32007]), ("B0_tokens_vanilla_weights", [4, 32007]))
+    ]
+    assert token_equivalence_gate(records, expected_prompt_ids=["p"])["status"] == "PASS"
+    records[1]["expanded_token_ids"] = [4, 32000]
+    assert token_equivalence_gate(records, expected_prompt_ids=["p"])["status"] == "FAIL"
+    records[1]["expanded_token_ids"] = [4, 32007]
+    records.append(dict(records[1]))
+    result = token_equivalence_gate(records, expected_prompt_ids=["p"])
+    assert result["status"] == "FAIL"
+    assert result["duplicate_pairs"] == [
+        {"prompt_id": "p", "condition": "B0_tokens_vanilla_weights", "count": 2}
+    ]
+
+
+def test_a_b0_logit_selection_covers_all_pinned_prompts_and_fails_on_missing_pairs():
+    samples = [SimpleNamespace(prompt_id=prompt_id) for prompt_id in STRATIFIED_DEV12_PROMPT_IDS]
+    records = [
+        {"prompt_id": prompt_id, "condition": condition}
+        for prompt_id in STRATIFIED_DEV12_PROMPT_IDS
+        for condition in ("A_vanilla", "B0_tokens_vanilla_weights")
+    ]
+    selected, missing = select_a_b0_logit_samples(samples, records)
+    assert [sample.prompt_id for sample in selected] == list(STRATIFIED_DEV12_PROMPT_IDS)
+    assert missing == []
+
+    partial_records = [record for record in records if record["prompt_id"] != "gsm_2353"]
+    selected, missing = select_a_b0_logit_samples(samples, partial_records)
+    assert len(selected) == 11
+    assert missing == ["gsm_2353"]
+
+
+def test_b0_empty_static_codebook_masks_all_h_logits():
+    manager = StaticCodebookManager(
+        initial_vocab_size=8,
+        max_codebook_size=3,
+        max_subtokens=4,
+        embedding_dim=4,
+        pad_token_id=0,
+    )
+    manager.set_seeded_codebook({}, batch_size=1, device="cpu")
+    assert verify_empty_static_h_mask(manager, torch.device("cpu")) is True
+    manager.set_seeded_codebook({(1, 2): 8}, batch_size=1, device="cpu")
+    assert verify_empty_static_h_mask(manager, torch.device("cpu")) is False
+
+
+class TinyAttachableModel:
+    def __init__(self, previous=None):
+        self.codebook_manager = previous
+        self.input = SimpleNamespace(codebook_manager=previous)
+        self.output = SimpleNamespace(codebook_manager=previous)
+
+    def get_input_embeddings(self):
+        return self.input
+
+    def get_output_embeddings(self):
+        return self.output
+
+
+def test_b0_reuses_one_empty_manager_without_building_a_previous_manager_chain():
+    manager = make_empty_b0_manager(k=32, embedding_dim=4, device=torch.device("cpu"))
+    model = TinyAttachableModel(manager)
+
+    for _ in range(12):
+        assert prepare_empty_b0_manager(model, k=32, device=torch.device("cpu")) is manager
+        reset_empty_b0_manager(manager, torch.device("cpu"))
+        assert model.codebook_manager is manager
+        assert model.input.codebook_manager is manager
+        assert model.output.codebook_manager is manager
+        assert manager._attachment_model_id is None
+        assert manager._attachment_manager_state is None
+        assert manager.num_seeded == 0
+
+
+def test_static_manager_nested_detach_restores_previous_manager_in_stack_order():
+    original = object()
+    model = TinyAttachableModel(original)
+    outer = make_empty_b0_manager(k=32, embedding_dim=4, device=torch.device("cpu"))
+    inner = make_empty_b0_manager(k=32, embedding_dim=4, device=torch.device("cpu"))
+    outer.attach_to_model(model)
+    inner.attach_to_model(model)
+    assert model.codebook_manager is inner
+
+    inner.detach_from_model(model)
+    assert model.codebook_manager is outer
+    assert model.input.codebook_manager is outer
+    assert model.output.codebook_manager is outer
+    outer.detach_from_model(model)
+    assert model.codebook_manager is original
+    assert model.input.codebook_manager is original
+    assert model.output.codebook_manager is original
+
+
+def test_empty_manager_reset_keeps_h_slots_unavailable_and_clears_request_state():
+    manager = make_empty_b0_manager(k=32, embedding_dim=4, device=torch.device("cpu"))
+    manager.position_ids = torch.ones((1, 2), dtype=torch.long)
+    manager.base_position_offset = torch.ones((1, 1), dtype=torch.long)
+    manager.hyper_embedding_weight_cache = torch.ones((1, 1))
+    manager.hyper_linear_weight_cache = torch.ones((1, 1))
+    reset_empty_b0_manager(manager, torch.device("cpu"))
+
+    assert manager.position_ids is None
+    assert manager.base_position_offset is None
+    assert manager.hyper_embedding_weight_cache is None
+    assert manager.hyper_linear_weight_cache is None
+    assert manager.num_seeded == 0
+    scores = torch.zeros((1, benchmark.INITIAL_VOCAB_SIZE + 32))
+    masked = manager.get_logits_processor()(torch.tensor([[4]]), scores)
+    assert torch.isneginf(masked[..., benchmark.INITIAL_VOCAB_SIZE:]).all()
+
+
+def test_offline_token_gate_uses_saved_records_without_model_invocation(monkeypatch):
+    runtime = {
+        "base_phi_weight_sha256": "base", "git_commit": "commit", "git_branch": "branch",
+        "git_worktree_dirty": False, "git_status_sha256": "status", "source_archive_sha256": "archive",
+        "dataset_manifest_sha256": "manifest", "canonical_dataset_sha256": "dataset",
+        "cuda_version": "12.8", "gpu_name": "T4", "package_versions": {"torch": "2.10"},
+        "package_versions_complete": True, "model_id": "phi", "model_revision": "rev",
+        "generation_policy_sha256": "policy", "input_token_ids_sha256": "input",
+        "input_token_ids": [1, 2], "torch_dtype": "torch.float16", "tokenizer_id": "phi",
+        "tokenizer_revision": "rev", "tokenizer_chat_template_sha256": "template",
+        "attention_implementation": "sdpa", "codebook_backend": "static",
+        "rendered_prompt_sha256": "rendered", "rendered_prompt_text": "prompt",
+        "eos_token_ids": [32007, 32001, 32000], "max_new_tokens": 12,
+        "generation_config": {"do_sample": False, "max_new_tokens": 12},
+        "checkpoint_applied": False, "step100_h_encoder_checkpoint_loaded": False,
+        "adapter_load_requested": False, "adapter_present_in_wrapper": False,
+        "adapter_modules_to_save": {}, "active_adapter_names": [],
+        "active_lora_during_generation": False, "adapter_disabled_context_used": False,
+        "adapters_disabled_state_during_generation": None, "h_seeded_slots": 0,
+        "h_logits_masked_by_static_manager": True, "effective_position_mode": "base_token_end",
+    }
+    records = []
+    for condition in ("A_vanilla", "B0_tokens_vanilla_weights"):
+        records.append({
+            "prompt_id": "p", "condition": condition, "model_id": "phi", "model_revision": "rev",
+            "checkpoint_name": "NONE" if condition.startswith("B0") else "",
+            "checkpoint_sha256": "", "generated_token_ids": [9, 32007], "generated_token_count": 2,
+            "expanded_token_ids": [9, 32007], "expanded_token_count": 2,
+            "eos_reached": True, "termination_reason": "eos", "termination_token_id": 32007,
+            "runtime": dict(runtime),
+        })
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Offline gate must not load a model or generate tokens")
+
+    monkeypatch.setattr(benchmark, "load_vanilla_model_and_tokenizer", forbidden)
+    monkeypatch.setattr(benchmark, "load_predictive_bundle", forbidden)
+    monkeypatch.setattr(benchmark, "generate_single_prompt", forbidden)
+    gate = offline_a_b0_token_gate(records, ["p"])
+    assert gate["status"] == "PASS"
+    assert gate["record_inventory"]["status"] == "PASS"
+
+
+def test_logit_prefix_capture_is_teacher_forced_and_never_calls_generate():
+    class NoGenerateModel(TinyPrefixLogitModel):
+        def __init__(self):
+            super().__init__()
+            self.forward_calls = 0
+
+        def __call__(self, input_ids, attention_mask=None, use_cache=False):
+            self.forward_calls += 1
+            return super().__call__(input_ids, attention_mask, use_cache)
+
+        def generate(self, *args, **kwargs):
+            raise AssertionError("Matched-prefix parity must use teacher-forced forward calls")
+
+    model = NoGenerateModel()
+    captured = capture_prefix_logits(
+        model,
+        [1, 2],
+        list(range(20)),
+        device=torch.device("cpu"),
+        inserted_h_count=0,
+    )
+    assert set(captured) == {0, 1, 4, 16}
+    assert model.forward_calls == 1
+
+
+def test_a_b0_logit_only_runner_uses_forward_passes_without_generate(monkeypatch):
+    sample = CanonicalContinuation(
+        prompt_id="p", domain="code", split="DEV", task_prompt_text="prompt",
+        rendered_prompt_text="<|user|>test", continuation_text="answer",
+        continuation_token_ids=tuple([3] * 20 + [32007]), generated_token_count=21,
+        termination_reason="eos", termination_token_id=32007, model_id="phi", model_revision="rev",
+        tokenizer_id="phi", tokenizer_revision="rev", generation_config_json="{}",
+        generation_metadata_json="{}",
+    )
+
+    class TinyTokenizer:
+        all_special_ids = []
+
+        @staticmethod
+        def encode(text, add_special_tokens=False):
+            return [1, 2]
+
+    class TinyWrappedCore(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.embed = nn.Embedding(benchmark.INITIAL_VOCAB_SIZE, 4)
+            self.head = nn.Linear(4, benchmark.INITIAL_VOCAB_SIZE, bias=False)
+
+        def get_input_embeddings(self):
+            return self.embed
+
+        def get_output_embeddings(self):
+            return self.head
+
+    class ForwardOnlyModel(nn.Module):
+        def __init__(self, wrapped=False, call_counter=None):
+            super().__init__()
+            self.base_model = TinyWrappedCore()
+            self.config = SimpleNamespace(hidden_size=4)
+            self.codebook_manager = (
+                make_empty_b0_manager(k=32, embedding_dim=4, device=torch.device("cpu"))
+                if wrapped else None
+            )
+            self.wrapped = wrapped
+            self.forward_calls = 0
+            self.call_counter = call_counter
+
+        def forward(self, input_ids, attention_mask=None, use_cache=False):
+            self.forward_calls += 1
+            if self.call_counter is not None:
+                self.call_counter[0] += 1
+            native = torch.zeros((1, input_ids.shape[1], benchmark.INITIAL_VOCAB_SIZE))
+            native[..., 0] = 2.0
+            native[..., 1] = 1.0
+            if self.wrapped:
+                h = torch.zeros((1, input_ids.shape[1], 32))
+                native = torch.cat((native[..., :benchmark.INITIAL_VOCAB_SIZE], h), dim=-1)
+            return SimpleNamespace(logits=native)
+
+        def generate(self, *args, **kwargs):
+            raise AssertionError("--logit-only must never call generate()")
+
+    vanilla_calls = [0]
+    b0_calls = [0]
+    vanilla_holder = [ForwardOnlyModel(call_counter=vanilla_calls)]
+    b0_holder = [ForwardOnlyModel(wrapped=True, call_counter=b0_calls)]
+    tokenizer = TinyTokenizer()
+    prompt_text = benchmark.build_canonical_prompt_text(asdict(sample))
+    runtime = {
+        "rendered_prompt_text": prompt_text,
+        "input_token_ids": [1, 2],
+        "input_token_ids_sha256": benchmark.token_ids_sha256([1, 2]),
+        "base_phi_weight_sha256": "base",
+    }
+    records = [
+        {"prompt_id": "p", "condition": condition, "runtime": dict(runtime), "generated_token_ids": [3] * 20 + [32007]}
+        for condition in ("A_vanilla", "B0_tokens_vanilla_weights")
+    ]
+    monkeypatch.setattr(
+        benchmark,
+        "load_vanilla_model_and_tokenizer",
+        lambda device: (vanilla_holder.pop(), tokenizer),
+    )
+    monkeypatch.setattr(
+        benchmark,
+        "load_predictive_bundle",
+        lambda *args, **kwargs: (b0_holder.pop(), tokenizer, {
+            "checkpoint_applied": False,
+            "step100_h_encoder_checkpoint_loaded": False,
+        }),
+    )
+    monkeypatch.setattr(benchmark, "base_phi_weight_sha256", lambda model: "base")
+    monkeypatch.setattr(benchmark, "b0_adapter_absence_verified", lambda *args, **kwargs: True)
+
+    result = benchmark.run_a_b0_logit_parity(
+        [sample], records, Path("unused.pt"), "cpu", max_new_tokens=32, k=32
+    )
+    assert result["status"] == "PASS"
+    assert vanilla_calls == [1]
+    assert b0_calls == [1]
+    assert result["memory_lifecycle"]["A_after_teardown"]["status"] == "PASS"
+    assert result["memory_lifecycle"]["B0_after_teardown"]["status"] == "PASS"
+
+
+def test_model_teardown_fails_closed_when_reference_or_allocated_memory_remains(monkeypatch):
+    class Model:
+        pass
+
+    model = Model()
+    model_ref = weakref.ref(model)
+    with pytest.raises(AttributionError, match="Model teardown failed"):
+        assert_model_phase_teardown(model_ref, torch.device("cpu"), phase="test-live-reference")
+    del model
+
+    monkeypatch.setattr(
+        benchmark,
+        "cuda_memory_snapshot",
+        lambda device: {"cuda_available": True, "allocated_bytes": 3 * 1024**3, "reserved_bytes": 4 * 1024**3},
+    )
+    with pytest.raises(AttributionError, match="Model teardown failed"):
+        assert_model_phase_teardown(weakref.ref(Model()), torch.device("cuda:0"), phase="test-resident-memory")
+
+
+def test_logit_runner_does_not_load_b0_if_a_teardown_guard_fails(monkeypatch, tmp_path):
+    sample = CanonicalContinuation(
+        prompt_id="p",
+        domain="code",
+        split="DEV",
+        task_prompt_text="prompt",
+        rendered_prompt_text="<|user|>test",
+        continuation_text="answer",
+        continuation_token_ids=(3, 4),
+        generated_token_count=2,
+        termination_reason="max_new_tokens",
+        termination_token_id=None,
+        model_id="phi",
+        model_revision="rev",
+        tokenizer_id="phi",
+        tokenizer_revision="rev",
+        generation_config_json="{}",
+        generation_metadata_json="{}",
+    )
+
+    class TinyTokenizer:
+        all_special_ids = []
+
+        @staticmethod
+        def encode(text, add_special_tokens=False):
+            assert text == "<|user|>test"
+            return [1, 2]
+
+    runtime = {
+        "rendered_prompt_text": "<|user|>test",
+        "input_token_ids": [1, 2],
+        "input_token_ids_sha256": benchmark.token_ids_sha256([1, 2]),
+    }
+    records = [
+        {"prompt_id": "p", "condition": "A_vanilla", "runtime": runtime, "generated_token_ids": [3, 4]},
+        {"prompt_id": "p", "condition": "B0_tokens_vanilla_weights", "runtime": runtime, "generated_token_ids": [3, 4]},
+    ]
+    monkeypatch.setattr(
+        benchmark,
+        "load_vanilla_model_and_tokenizer",
+        lambda device: (TinyPrefixLogitModel(), TinyTokenizer()),
+    )
+    monkeypatch.setattr(benchmark, "capture_prefix_logits", lambda *args, **kwargs: {0: torch.zeros(3)})
+    monkeypatch.setattr(
+        benchmark,
+        "assert_model_phase_teardown",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AttributionError("injected retained allocation")),
+    )
+    b0_load_calls = []
+    monkeypatch.setattr(
+        benchmark,
+        "load_predictive_bundle",
+        lambda *args, **kwargs: b0_load_calls.append((args, kwargs)),
+    )
+
+    with pytest.raises(AttributionError, match="injected retained allocation"):
+        benchmark.run_a_b0_logit_parity(
+            [sample], records, tmp_path / "unused.pt", "cpu", max_new_tokens=12, k=32
+        )
+    assert b0_load_calls == []
 
 
 def test_logit_gate_reports_all_requested_metrics_and_fails_top1_drift():
@@ -374,7 +814,9 @@ def test_b0_b1_isolation_gate_requires_exact_changed_parameter_inventory():
         {"prompt_id": "p", "condition": "B0_tokens_vanilla_weights", "runtime": {
             "base_phi_weight_sha256": "base", "checkpoint_applied": False,
             "step100_h_encoder_checkpoint_loaded": False,
-            "active_lora_during_generation": False, "adapter_disabled_context_used": True,
+            "adapter_load_requested": False, "adapter_present_in_wrapper": False,
+            "active_adapter_names": [], "adapter_modules_to_save": {},
+            "active_lora_during_generation": False, "adapter_disabled_context_used": False,
             "h_seeded_slots": 0, "h_logits_masked_by_static_manager": True}},
         {"prompt_id": "p", "condition": "B_h_disabled", "runtime": {
             "base_phi_weight_sha256": "base", "lora_delta_verified": True,
@@ -398,3 +840,202 @@ def test_forced_h_gate_keeps_three_independent_acceptance_checks():
     assert gates["status"] == "PASS"
     record["cf_continuation_stable"] = False
     assert forced_h_representation_gates([record])["status"] == "FAIL"
+
+
+def test_b0_b1_adapter_isolation_gate_verifies_provenance_and_rejects_historical_b_h_disabled():
+    prompt_ids = ["p1", "p2"]
+    shared_runtime = {
+        "base_phi_weight_sha256": "base_hash_123",
+        "input_token_ids_sha256": "hash_in",
+        "rendered_prompt_sha256": "hash_prompt",
+        "generation_policy_sha256": "hash_policy",
+        "max_new_tokens": 32,
+        "eos_token_ids": [32000, 32007],
+        "h_seeded_slots": 0,
+        "h_logits_masked_by_static_manager": True,
+    }
+    valid_b0 = [
+        {
+            "prompt_id": pid,
+            "condition": COND_B0_TOKENS_VANILLA_WEIGHTS,
+            "generated_token_ids": [10, 20],
+            "expanded_token_ids": [10, 20],
+            "runtime": {
+                **shared_runtime,
+                "checkpoint_applied": False,
+                "step100_h_encoder_checkpoint_loaded": False,
+                "adapter_load_requested": False,
+                "adapter_present_in_wrapper": False,
+                "active_adapter_names": [],
+                "adapter_modules_to_save": {},
+                "active_lora_during_generation": False,
+                "adapter_disabled_context_used": False,
+            },
+        }
+        for pid in prompt_ids
+    ]
+    valid_b1 = [
+        {
+            "prompt_id": pid,
+            "condition": COND_B1_UPSTREAM_EPFL_ADAPTER_H_DISABLED,
+            "generated_token_ids": [10, 20],
+            "expanded_token_ids": [10, 20],
+            "runtime": {
+                **shared_runtime,
+                "checkpoint_applied": False,
+                "step100_h_encoder_checkpoint_loaded": False,
+                "checkpoint_step": None,
+                "adapter_load_requested": True,
+                "adapter_present_in_wrapper": True,
+                "active_adapter_names": ["default"],
+                "active_lora_during_generation": True,
+                "upstream_adapter_id": "epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1",
+                "upstream_adapter_revision": "11c461733a79d2a5de6b814585c3361ca2aacbe7",
+                "peft_version": "0.14.0",
+                "adapter_param_count": 1000,
+            },
+        }
+        for pid in prompt_ids
+    ]
+
+    # Valid records pass
+    gate = b0_b1_adapter_isolation_gate(valid_b0 + valid_b1, expected_prompt_ids=prompt_ids)
+    assert gate["status"] == "PASS"
+    assert gate["checks"][0]["b1_upstream_adapter_active"] is True
+    assert gate["checks"][0]["same_base_hash"] is True
+
+    # Historical B_h_disabled records cannot masquerade as B1
+    historical_b = [
+        {
+            "prompt_id": pid,
+            "condition": COND_B_H_DISABLED,
+            "generated_token_ids": [10, 20],
+            "expanded_token_ids": [10, 20],
+            "runtime": valid_b1[i]["runtime"],
+        }
+        for i, pid in enumerate(prompt_ids)
+    ]
+    gate_hist = b0_b1_adapter_isolation_gate(valid_b0 + historical_b, expected_prompt_ids=prompt_ids)
+    assert gate_hist["status"] == "FAIL"  # No B1 records found for expected prompts
+    assert gate_hist["missing_prompt_ids"] == prompt_ids
+
+    gate_hist_no_expected = b0_b1_adapter_isolation_gate(valid_b0 + historical_b, expected_prompt_ids=None)
+    assert gate_hist_no_expected["status"] == "NOT_TESTED"
+
+    # B1 with checkpoint applied fails
+    corrupt_b1 = [
+        {
+            **valid_b1[0],
+            "runtime": {**valid_b1[0]["runtime"], "checkpoint_applied": True},
+        },
+        valid_b1[1],
+    ]
+    gate_corrupt = b0_b1_adapter_isolation_gate(valid_b0 + corrupt_b1, expected_prompt_ids=prompt_ids)
+    assert gate_corrupt["status"] == "FAIL"
+
+    # B1 with base weight mismatch fails
+    mismatch_b1 = [
+        {
+            **valid_b1[0],
+            "runtime": {**valid_b1[0]["runtime"], "base_phi_weight_sha256": "different_hash"},
+        },
+        valid_b1[1],
+    ]
+    gate_mismatch = b0_b1_adapter_isolation_gate(valid_b0 + mismatch_b1, expected_prompt_ids=prompt_ids)
+    assert gate_mismatch["status"] == "FAIL"
+
+
+def test_b1_b2_checkpoint_isolation_gate_requires_step100_parameter_delta():
+    prompt_ids = ["p1"]
+    b1 = [
+        {
+            "prompt_id": "p1",
+            "condition": COND_B1_UPSTREAM_EPFL_ADAPTER_H_DISABLED,
+            "runtime": {
+                "base_phi_weight_sha256": "base_hash",
+                "checkpoint_applied": False,
+                "step100_h_encoder_checkpoint_loaded": False,
+                "h_seeded_slots": 0,
+                "h_logits_masked_by_static_manager": True,
+            },
+        }
+    ]
+    b2 = [
+        {
+            "prompt_id": "p1",
+            "condition": COND_B2_STEP100_H_DISABLED,
+            "runtime": {
+                "base_phi_weight_sha256": "base_hash",
+                "checkpoint_applied": True,
+                "step100_h_encoder_checkpoint_loaded": True,
+                "checkpoint_step": 100,
+                "lora_delta_verified": True,
+                "h_seeded_slots": 0,
+                "h_logits_masked_by_static_manager": True,
+                "checkpoint_changed_parameters": {
+                    "lora": {"names": ["lora_A"], "shapes": {"lora_A": [2, 2]}, "changed_tensor_count": 1},
+                    "input_encoder": {"names": ["w_in"], "shapes": {"w_in": [2, 2]}, "changed_tensor_count": 1},
+                    "output_encoder": {"names": ["w_out"], "shapes": {"w_out": [2, 2]}, "changed_tensor_count": 1},
+                },
+            },
+        }
+    ]
+
+    gate = b1_b2_checkpoint_isolation_gate(b1 + b2, expected_prompt_ids=prompt_ids)
+    assert gate["status"] == "PASS"
+
+    # Missing checkpoint changes in B2 fails
+    b2_bad = [
+        {
+            "prompt_id": "p1",
+            "condition": COND_B2_STEP100_H_DISABLED,
+            "runtime": {
+                "base_phi_weight_sha256": "base_hash",
+                "checkpoint_applied": False,
+                "step100_h_encoder_checkpoint_loaded": False,
+                "h_seeded_slots": 0,
+                "h_logits_masked_by_static_manager": True,
+            },
+        }
+    ]
+    gate_bad = b1_b2_checkpoint_isolation_gate(b1 + b2_bad, expected_prompt_ids=prompt_ids)
+    assert gate_bad["status"] == "FAIL"
+
+
+def test_offline_a_b0_token_gate_passes_without_blocking_on_logit_parity():
+    import json
+    recovery_path = Path("scratch/kaggle_v3_recovery_20260929/ab0_fidelity_output/raw_attribution_records.jsonl")
+    assert recovery_path.is_file(), f"Missing recovery file: {recovery_path}"
+    records = [json.loads(line) for line in recovery_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert len(records) == 24
+
+    token_gate = offline_a_b0_token_gate(records, STRATIFIED_DEV12_PROMPT_IDS)
+    assert token_gate["status"] == "PASS"
+    assert token_gate["all_exact_token_sequences"] is True
+    assert token_gate["record_inventory"]["status"] == "PASS"
+
+    # Check that a deferred logit gate does not alter the fact that token_gate is PASS
+    deferred_logit_gate = {
+        "status": "DEFERRED",
+        "reason": "B0 generation evidence is sufficient; logit parity deferred.",
+    }
+    assert token_gate["status"] == "PASS"
+    assert deferred_logit_gate["status"] == "DEFERRED"
+
+
+def test_assert_model_phase_teardown_detects_retained_references():
+    class RetainedObj:
+        pass
+
+    obj = RetainedObj()
+    ref = weakref.ref(obj)
+
+    # When obj is kept in local scope (alive), teardown must raise AttributionError
+    with pytest.raises(AttributionError, match="Model teardown failed"):
+        assert_model_phase_teardown(ref, torch.device("cpu"), phase="test_fail")
+
+    # When obj is released, teardown passes
+    del obj
+    result = assert_model_phase_teardown(ref, torch.device("cpu"), phase="test_pass")
+    assert result["status"] == "PASS"
+

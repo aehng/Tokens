@@ -27,6 +27,9 @@ def test_attribution_source_archive_contains_runner_and_harness_symbols(tmp_path
     dry = dry_run_extracted_package(extracted)
     assert dry["status"] == "PASS"
     assert dry["stdout"] == "DRY_RUN_OK"
+    assert dry["runner_help_status"] == "PASS"
+    assert "--conditions" in dry["runner_help_excerpt"]
+    assert "--logit-only" in dry["runner_help_excerpt"]
     harness = (extracted / "src/zip2zip/predictor_v2/attribution_harness.py").read_text(encoding="utf-8")
     assert "def select_stratified_dev_prompts" in harness
     assert "STRATIFIED_DEV12_PROMPT_IDS" in harness

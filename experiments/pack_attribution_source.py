@@ -50,9 +50,16 @@ REQUIRED_IMPORTS: tuple[str, ...] = (
 REQUIRED_SYMBOLS: tuple[tuple[str, str], ...] = (
     ("src.zip2zip.predictor_v2.attribution_harness", "select_stratified_dev_prompts"),
     ("src.zip2zip.predictor_v2.attribution_harness", "STRATIFIED_DEV12_PROMPT_IDS"),
+    ("src.zip2zip.predictor_v2.attribution_harness", "COND_B1_UPSTREAM_EPFL_ADAPTER_H_DISABLED"),
+    ("src.zip2zip.predictor_v2.attribution_harness", "COND_B2_STEP100_H_DISABLED"),
     ("experiments.run_phi_attribution_benchmark", "select_stratified_dev_prompts"),
+    ("experiments.run_phi_attribution_benchmark", "offline_a_b0_token_gate"),
+    ("experiments.run_phi_attribution_benchmark", "assert_model_phase_teardown"),
+    ("experiments.run_phi_attribution_benchmark", "run_a_b1_matched_prefix_diagnostic"),
     ("experiments.run_phi_attribution_benchmark", "run_attribution_benchmark"),
     ("src.zip2zip.predictor_v2.ablation_gates", "normalize_wrapper_logits"),
+    ("src.zip2zip.predictor_v2.ablation_gates", "b0_b1_adapter_isolation_gate"),
+    ("src.zip2zip.predictor_v2.ablation_gates", "b1_b2_checkpoint_isolation_gate"),
     ("src.zip2zip.predictor_v2.forced_oracle", "h_vs_base_prefix_pair"),
     ("src.zip2zip.model", "Zip2ZipModel"),
     ("src.zip2zip.static_codebook", "StaticCodebookManager"),
@@ -104,19 +111,25 @@ def extract_source_archive(archive: Path, destination: Path) -> Path:
 
 
 def dry_run_extracted_package(extracted_root: Path) -> dict:
+    extracted_root = extracted_root.resolve()
     env = os.environ.copy()
-    env["PYTHONPATH"] = os.pathsep.join(
-        [str(extracted_root), str(extracted_root / "src"), env.get("PYTHONPATH", "")]
-    )
+    # Do not inherit the developer checkout through PYTHONPATH. The archive
+    # must stand on its own exactly as it will after Kaggle extraction.
+    env["PYTHONPATH"] = os.pathsep.join([str(extracted_root), str(extracted_root / "src")])
     script = """
 import importlib
+from pathlib import Path
 import sys
 failed = []
+root = Path.cwd().resolve()
 symbols = %r
 modules = %r
 for name in modules:
     try:
-        importlib.import_module(name)
+        module = importlib.import_module(name)
+        origin = getattr(module, "__file__", None)
+        if origin is None or not Path(origin).resolve().is_relative_to(root):
+            failed.append(f"{name}: imported outside extracted source: {origin}")
     except Exception as exc:
         failed.append(f"{name}: {type(exc).__name__}: {exc}")
 for module_name, symbol in symbols:
@@ -143,11 +156,32 @@ print("DRY_RUN_OK")
             + (completed.stdout or "")
             + (completed.stderr or "")
         )
+    runner = extracted_root / "experiments" / "run_phi_attribution_benchmark.py"
+    runner_help = subprocess.run(
+        [sys.executable, str(runner), "--help"],
+        cwd=str(extracted_root),
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if (
+        runner_help.returncode != 0
+        or "--conditions" not in runner_help.stdout
+        or "--logit-only" not in runner_help.stdout
+    ):
+        raise RuntimeError(
+            "Extracted attribution runner failed its CLI import check:\n"
+            + (runner_help.stdout or "")
+            + (runner_help.stderr or "")
+        )
     return {
         "status": "PASS",
         "cwd": str(extracted_root),
         "pythonpath": env["PYTHONPATH"],
         "stdout": completed.stdout.strip(),
+        "runner_help_status": "PASS",
+        "runner_help_excerpt": " ".join(runner_help.stdout.split())[:700],
     }
 
 

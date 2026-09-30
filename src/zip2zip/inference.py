@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from torch import nn
-from peft import PeftMixedModel, PeftModel
 
 from zip2zip.nn.embedding import HyperEmbedding
 from zip2zip.nn.linear import HyperLinear
@@ -23,7 +22,15 @@ def prepare_model_for_inference(
         raise TypeError("prepare_model_for_inference expects a Zip2Zip model")
 
     base_model = model.base_model
-    if merge_lora and isinstance(base_model, (PeftModel, PeftMixedModel)):
+    if merge_lora:
+        try:
+            from peft import PeftMixedModel, PeftModel
+            peft_model_types = (PeftModel, PeftMixedModel)
+        except ImportError:
+            peft_model_types = ()
+    else:
+        peft_model_types = ()
+    if merge_lora and isinstance(base_model, peft_model_types):
         merge = getattr(base_model, "merge_and_unload", None)
         if merge is None:
             raise TypeError("the active PEFT model does not support merge_and_unload")

@@ -4,16 +4,16 @@ import os
 import torch
 import inspect
 import logging
+import weakref
 from types import MethodType
 from torch import nn
-from typing import Tuple, Optional, Union
+from typing import Any, Tuple, Optional, Union
 from huggingface_hub import hf_hub_download
 from transformers.utils import PushToHubMixin
 from transformers.utils import SAFE_WEIGHTS_NAME
 from safetensors.torch import save_file, load_file
 from transformers.generation.utils import GenerateOutput
 from transformers import PreTrainedModel, AutoModelForCausalLM
-from peft import PeftModel, PeftMixedModel, PeftConfig, get_peft_model
 from accelerate import init_empty_weights, load_checkpoint_and_dispatch
 
 from zip2zip.config import Zip2ZipConfig
@@ -33,7 +33,7 @@ class Zip2ZipModel(PushToHubMixin, nn.Module):
         self,
         config: Zip2ZipConfig[EncoderConfigType],
         base_model: Optional[PreTrainedModel] = None,
-        peft_config: Optional[PeftConfig] = None,
+        peft_config: Optional[Any] = None,
         codebook_manager: Optional[HyperCodebookManager] = None,
         **kwargs,
     ) -> None:
@@ -46,6 +46,8 @@ class Zip2ZipModel(PushToHubMixin, nn.Module):
             )
         # TODO, should we keep the peft config as part of zip2zip config? how do we handle data, metadata separation?
         if peft_config is not None:
+            from peft import get_peft_model
+
             base_model = get_peft_model(base_model, peft_config)
 
         self.base_model = base_model
@@ -60,6 +62,9 @@ class Zip2ZipModel(PushToHubMixin, nn.Module):
         )
         self.input_encoder, self.output_encoder = self.build_encoders()
         self.set_hyper_modules()
+        self._position_hook_base_model = None
+        self._position_hook_had_instance_override = False
+        self._position_hook_previous_instance_value = None
         self._install_base_position_generation_hook()
 
     @staticmethod
@@ -114,7 +119,7 @@ class Zip2ZipModel(PushToHubMixin, nn.Module):
             original_prepare = class_prepare.__get__(base_model, type(base_model))
         else:
             original_prepare = current_prepare
-        model_ref = self
+        model_ref = weakref.ref(self)
 
         def prepare_inputs_for_generation(base_model, *args, **kwargs):
             if hasattr(torch, "compiler") and hasattr(torch.compiler, "cudagraph_mark_step_begin"):
@@ -129,16 +134,44 @@ class Zip2ZipModel(PushToHubMixin, nn.Module):
             attention_mask = model_inputs.get("attention_mask")
             if attention_mask is not None:
                 attention_mask = attention_mask[:, -input_ids.shape[1] :]
-            model_inputs["position_ids"] = model_ref.codebook_manager.prepare_input_ids(
+            wrapper = model_ref()
+            if wrapper is None:
+                raise RuntimeError("Zip2ZipModel was released while its generation hook remained active")
+            model_inputs["position_ids"] = wrapper.codebook_manager.prepare_input_ids(
                 input_ids, attention_mask=attention_mask
             )
             return model_inputs
 
         prepare_inputs_for_generation._zip2zip_position_hook_owner = id(self)
+        base_model_instance_dict = getattr(base_model, "__dict__", {})
+        self._position_hook_had_instance_override = "prepare_inputs_for_generation" in base_model_instance_dict
+        self._position_hook_previous_instance_value = base_model_instance_dict.get(
+            "prepare_inputs_for_generation"
+        )
         base_model.prepare_inputs_for_generation = MethodType(
             prepare_inputs_for_generation, base_model
         )
         self._position_hook_base_model = base_model
+
+    def remove_base_position_generation_hook(self) -> bool:
+        """Restore the base model method and break hook references before teardown."""
+        base_model = self._position_hook_base_model
+        if base_model is None:
+            return False
+
+        current_prepare = getattr(base_model, "prepare_inputs_for_generation", None)
+        current_func = getattr(current_prepare, "__func__", current_prepare)
+        removed = getattr(current_func, "_zip2zip_position_hook_owner", None) == id(self)
+        if removed:
+            if self._position_hook_had_instance_override:
+                base_model.prepare_inputs_for_generation = self._position_hook_previous_instance_value
+            else:
+                getattr(base_model, "__dict__", {}).pop("prepare_inputs_for_generation", None)
+
+        self._position_hook_base_model = None
+        self._position_hook_had_instance_override = False
+        self._position_hook_previous_instance_value = None
+        return removed
 
     def set_hyper_modules(self) -> None:
         model_input_embeddings = self.base_model.get_input_embeddings()
@@ -499,9 +532,12 @@ class Zip2ZipModel(PushToHubMixin, nn.Module):
                 os.path.join(save_directory, SAFETENSORS_ENCODERS_NAME),
             )
 
-            if isinstance(self.base_model, PeftModel) or isinstance(
-                self.base_model, PeftMixedModel
-            ):
+            try:
+                from peft import PeftMixedModel, PeftModel
+                peft_model_types = (PeftModel, PeftMixedModel)
+            except ImportError:
+                peft_model_types = ()
+            if isinstance(self.base_model, peft_model_types):
                 self.base_model.save_pretrained(
                     save_directory, is_main_process=is_main_process, **kwargs
                 )
@@ -513,8 +549,18 @@ class Zip2ZipModel(PushToHubMixin, nn.Module):
         base_model: Optional[PreTrainedModel] = None,
         max_codebook_size: Optional[int] = None,
         max_subtokens: Optional[int] = None,
+        load_peft_adapter: bool = True,
         **kwargs,
     ) -> Zip2ZipModel:
+        """Load a Zip2Zip wrapper, with upstream PEFT adapter loading controlled explicitly.
+
+        Set ``load_peft_adapter=False`` for architecture-only conditions such
+        as B0. External adapter repositories then require a caller-supplied
+        ``base_model`` and neither PEFT adapters nor decoder overrides are
+        loaded onto those base weights.
+        """
+        if not isinstance(load_peft_adapter, bool):
+            raise TypeError("load_peft_adapter must be a bool")
         codebook_manager = kwargs.pop("codebook_manager", None)
         codebook_backend = kwargs.pop("codebook_backend", None)
         config = Zip2ZipConfig.from_pretrained(pretrained_model_name_or_path, **kwargs)
@@ -542,14 +588,22 @@ class Zip2ZipModel(PushToHubMixin, nn.Module):
             else config.compression.max_subtokens
         )
 
+        if not self_contained and not load_peft_adapter and base_model is None:
+            raise ValueError(
+                "load_peft_adapter=False requires an explicitly loaded base_model; "
+                "load the intended base revision first and pass it to from_pretrained"
+            )
+
         if base_model is None:
             base_model = AutoModelForCausalLM.from_pretrained(
                 config.base_model_name_or_path, **kwargs
             )
 
-        if not self_contained:
+        if not self_contained and load_peft_adapter:
             # Legacy repositories may contain a PEFT adapter or a single-file
             # decoder override on top of an external base model.
+            from peft import PeftModel
+
             try:
                 base_model = PeftModel.from_pretrained(
                     base_model,
