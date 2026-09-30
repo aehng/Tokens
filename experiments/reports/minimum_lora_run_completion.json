@@ -1,0 +1,41 @@
+{
+  "schema": "tokens_minimum_lora_experiment_completion_v1",
+  "split": "DEV",
+  "prompt_ids": [
+    "mbpp_113",
+    "mbpp_168",
+    "mbpp_217",
+    "mbpp_225",
+    "gsm_2032",
+    "gsm_2044",
+    "gsm_2353",
+    "gsm_2491",
+    "alpaca_1",
+    "alpaca_1024",
+    "alpaca_1029",
+    "alpaca_1132"
+  ],
+  "source_commit": "03218d789dee8c93a466ac5ab1a914b5e16cfb62",
+  "source_archive_sha256": "3ff4a5444bf7b6b34227e685513a6c1fbdbf286c82617c86cdf1229a415d4354",
+  "canonical_dataset_sha256": "0d3bea57de3ecac982da9ec65db97850cdfbaf5a57c0ace5def05f686ccf4c68",
+  "elapsed_seconds": 2674.902,
+  "cuda_visible_devices": null,
+  "torch_runtime": {
+    "torch_version": "2.10.0+cu128",
+    "cuda_build": "12.8",
+    "cuda_available": true,
+    "visible_device_count": 2,
+    "visible_device_names": [
+      "Tesla T4",
+      "Tesla T4"
+    ]
+  },
+  "viable_config_found": false,
+  "tested_ladder_steps": [
+    "L0_ZERO",
+    "L1_TINY_ATTN_LAST4",
+    "L2_SMALL_ATTN_LAST8",
+    "L3_MOD_ALL_LAST8",
+    "LFULL"
+  ]
+}
