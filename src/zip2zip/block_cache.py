@@ -20,8 +20,13 @@ import torch.nn.functional as F
 
 def clone_cache(cache: Any) -> Any:
     """Safely clone past_key_values supporting DynamicCache and legacy tuples."""
+    if isinstance(cache, (list, tuple)):
+        return tuple(tuple(t.clone() for t in layer) for layer in cache)
+    try:
+        return copy.deepcopy(cache)
+    except Exception:
+        pass
     if hasattr(cache, "key_cache") and hasattr(cache, "value_cache"):
-        # Transformers DynamicCache
         try:
             from transformers import DynamicCache
             new_cache = DynamicCache()
@@ -31,17 +36,23 @@ def clone_cache(cache: Any) -> Any:
                 new_cache._seen_tokens = cache._seen_tokens
             return new_cache
         except Exception:
-            return copy.deepcopy(cache)
-    elif isinstance(cache, (list, tuple)):
-        return tuple(tuple(t.clone() for t in layer) for layer in cache)
-    else:
-        return copy.deepcopy(cache)
+            pass
+    return copy.deepcopy(cache)
 
 
 def get_cache_seq_len(cache: Any) -> int:
     """Extract sequence length stored in cache."""
     if hasattr(cache, "get_seq_length"):
-        return int(cache.get_seq_length())
+        try:
+            return int(cache.get_seq_length())
+        except Exception:
+            pass
+    if hasattr(cache, "layers") and cache.layers:
+        layer = cache.layers[0]
+        if hasattr(layer, "keys") and layer.keys is not None:
+            return int(layer.keys.shape[-2])
+        elif hasattr(layer, "get_seq_length"):
+            return int(layer.get_seq_length())
     elif hasattr(cache, "key_cache") and cache.key_cache:
         return int(cache.key_cache[0].shape[-2])
     elif isinstance(cache, (list, tuple)) and cache and cache[0]:
@@ -51,10 +62,21 @@ def get_cache_seq_len(cache: Any) -> int:
 
 def get_layer_kv(cache: Any, layer_idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
     """Retrieve (key, value) tensors for specified layer index."""
+    if hasattr(cache, "layers") and cache.layers:
+        layer = cache.layers[layer_idx]
+        if hasattr(layer, "keys") and hasattr(layer, "values"):
+            return layer.keys, layer.values
+        elif hasattr(layer, "key_cache") and hasattr(layer, "value_cache"):
+            return layer.key_cache, layer.value_cache
+        elif isinstance(layer, (tuple, list)):
+            return layer[0], layer[1]
     if hasattr(cache, "key_cache") and hasattr(cache, "value_cache"):
         return cache.key_cache[layer_idx], cache.value_cache[layer_idx]
     elif isinstance(cache, (list, tuple)):
         return cache[layer_idx][0], cache[layer_idx][1]
+    elif hasattr(cache, "to_legacy_cache"):
+        legacy = cache.to_legacy_cache()
+        return legacy[layer_idx][0], legacy[layer_idx][1]
     raise ValueError(f"Unrecognized cache type: {type(cache)}")
 
 
