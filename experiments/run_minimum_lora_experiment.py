@@ -574,8 +574,19 @@ def run_minimum_lora_ladder_experiment(
     checkpoint_lora_state = ckpt["lora_state_dict"]
     print(f"Loaded checkpoint step {load_rep.get('step')} successfully.", flush=True)
 
-    # Model for capturing vanilla logits: we can use base_model before LoRA or forward_base_only
-    vanilla_model = None  # We will measure L0 vs Vanilla using forward_base_only or zeroed LoRA
+    # Capture pure Vanilla Phi reference logits using L0_ZERO exact base identity
+    print("Capturing pure Vanilla Phi reference logits across DEV prompts...", flush=True)
+    apply_lora_mask(model.base_model, LADDER_L0_ZERO, reference_lora_state_dict=checkpoint_lora_state)
+    vanilla_reference_logits: Dict[str, Dict[int, torch.Tensor]] = {}
+    for sample in target_samples:
+        pid = sample["prompt_id"]
+        prompt_text = sample["rendered_prompt_text"]
+        input_ids = tokenizer.encode(prompt_text, add_special_tokens=False)
+        vanilla_tokens = sample["continuation_token_ids"]
+        vanilla_reference_logits[pid] = capture_prefix_logits_for_eval(
+            model, input_ids, vanilla_tokens, device=device
+        )
+    print(f"Captured {len(vanilla_reference_logits)} prompt prefix logit references.", flush=True)
 
     # 4. Resolve ladder execution sequence
     ladder_to_run: List[LoRAMaskConfig] = []
@@ -598,13 +609,13 @@ def run_minimum_lora_ladder_experiment(
             cfg,
             model,
             tokenizer,
-            vanilla_model=vanilla_model,
+            vanilla_model=None,
             checkpoint_lora_state=checkpoint_lora_state,
             dev_samples=target_samples,
             device=device,
             k=k,
             max_new_tokens=max_new_tokens,
-            precomputed_vanilla_logits=precomputed_logits,
+            precomputed_vanilla_logits=vanilla_reference_logits,
         )
         results.append(res)
 
