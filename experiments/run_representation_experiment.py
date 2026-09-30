@@ -470,6 +470,7 @@ def train_h_encoder(
     print(f"Loaded {len(subtrain_records)} subtrain examples and {len(val_records)} val examples.")
 
     optimizer = torch.optim.AdamW(h_encoder.parameters(), lr=lr, weight_decay=weight_decay)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=total_steps, eta_min=1e-6)
     h_encoder.train()
 
     train_loss_history = []
@@ -477,6 +478,9 @@ def train_h_encoder(
     val_loss_history = []
     step_times = []
     best_val_loss = float("inf")
+    patience_rounds = 6
+    no_improve_count = 0
+    early_stopped = False
     best_checkpoint_path = output_dir / "best_h_encoder.pt"
 
     t0_train = time.perf_counter()
@@ -501,6 +505,7 @@ def train_h_encoder(
         # Gradient clipping
         grad_norm = torch.nn.utils.clip_grad_norm_(h_encoder.parameters(), max_norm=1.0)
         optimizer.step()
+        scheduler.step()
         optimizer.zero_grad()
 
         t_step = time.perf_counter() - t_step_start
@@ -511,10 +516,11 @@ def train_h_encoder(
         train_loss_history.append(loss_val)
         train_kl_history.append(kl_val)
 
-        if step % 10 == 0 or step == 1:
+        if step % 20 == 0 or step == 1:
+            curr_lr = optimizer.param_groups[0]["lr"]
             print(
                 f"[Step {step:4d}/{total_steps}] Loss: {loss_val:.4f}, KL: {kl_val:.4f} nats, "
-                f"GradNorm: {grad_norm:.3f}, Sec/step: {t_step:.3f}s",
+                f"GradNorm: {grad_norm:.3f}, LR: {curr_lr:.2e}, Sec/step: {t_step:.3f}s",
                 flush=True,
             )
 
@@ -544,10 +550,17 @@ def train_h_encoder(
             val_loss_history.append({"step": step, "val_loss": mean_v_loss, "val_kl": mean_v_kl})
             print(f">>> [Validation Step {step}] Mean Loss: {mean_v_loss:.4f}, Mean KL: {mean_v_kl:.4f} nats", flush=True)
 
-            if mean_v_loss < best_val_loss:
+            if mean_v_loss < best_val_loss - 1e-4:
                 best_val_loss = mean_v_loss
+                no_improve_count = 0
                 torch.save(h_encoder.state_dict(), best_checkpoint_path)
                 print(f"Saved best model checkpoint to {best_checkpoint_path} (Val loss: {best_val_loss:.4f})", flush=True)
+            else:
+                no_improve_count += 1
+                if no_improve_count >= patience_rounds:
+                    print(f"Early stopping triggered at step {step}: no validation improvement for {patience_rounds} rounds.", flush=True)
+                    early_stopped = True
+                    break
 
             h_encoder.train()
 
