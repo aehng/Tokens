@@ -108,19 +108,22 @@ class ContextConditionedHEncoder(nn.Module):
             embed_a = embed_a.unsqueeze(0)
             embed_b = embed_b.unsqueeze(0)
 
+        in_dtype = h_ctx.dtype
+        enc_dtype = self.input_norm.weight.dtype
+
         # Base combination
         h_base = 0.5 * (embed_a + embed_b)
 
         # Context-conditioned delta
-        x = torch.cat([h_ctx, embed_a, embed_b], dim=-1)
+        x = torch.cat([h_ctx, embed_a, embed_b], dim=-1).to(enc_dtype)
         x_norm = self.input_norm(x)
         hidden = self.dropout(self.act(self.fc1(x_norm)))
         delta = self.fc2(hidden)
 
         # Gated residual addition
         gate_val = torch.tanh(self.gate)
-        h = h_base + gate_val * delta
-        return h
+        h = h_base + (gate_val * delta).to(in_dtype)
+        return h.to(in_dtype)
 
 
 # Semantic continuation evaluation offsets
@@ -164,16 +167,15 @@ def continuation_kl_loss(
 
     for idx, offset in enumerate(valid_offsets):
         w = float(weights.get(offset, 0.5))
-        t_vec = teacher_logits[idx] / temperature
-        s_vec = student_logits[idx] / temperature
+        t_vec = teacher_logits[idx].float() / temperature
+        s_vec = student_logits[idx].float() / temperature
 
-        # Numerical stability: log_softmax and softmax
+        # Numerical stability: log_softmax and softmax in fp32
         p_teacher = F.softmax(t_vec, dim=-1)
-        log_p_teacher = F.log_softmax(t_vec, dim=-1)
         log_p_student = F.log_softmax(s_vec, dim=-1)
 
-        # KL(P || Q) = sum(P * (log P - log Q))
-        kl_nats = F.kl_div(log_p_student, p_teacher, reduction="batchmean", log_target=False)
+        # Exact KL(P || Q) = sum(P * (log P - log Q)) in nats
+        kl_nats = F.kl_div(log_p_student, p_teacher, reduction="sum", log_target=False)
         per_offset_kl[offset] = float(kl_nats.detach().item())
 
         loss_terms.append(w * kl_nats)
@@ -337,7 +339,7 @@ def execute_teacher_student_step(
     )
 
     # State preservation loss: 1 - cosine_similarity(t_hidden, s_hidden)
-    cos_sim = F.cosine_similarity(t_hidden_at_offsets, s_hidden_at_offsets, dim=-1)
+    cos_sim = F.cosine_similarity(t_hidden_at_offsets.float(), s_hidden_at_offsets.float(), dim=-1)
     state_loss = (1.0 - cos_sim).mean()
 
     total_loss = kl_loss + state_preservation_weight * state_loss

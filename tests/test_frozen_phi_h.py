@@ -30,6 +30,21 @@ def test_h_encoder_initialization_zero_gate():
     assert delta == 0.0, f"At step 0, H must exactly equal mean(A, B), got delta={delta}"
 
 
+def test_h_encoder_mixed_precision_support():
+    """Verify encoder handles fp16/bf16 inputs while encoder is in fp32, preserving input dtype."""
+    embed_dim = 64
+    hidden_dim = 32
+    encoder = ContextConditionedHEncoder(embed_dim=embed_dim, hidden_dim=hidden_dim)  # fp32
+
+    h_ctx = torch.randn(1, embed_dim, dtype=torch.float16)
+    embed_a = torch.randn(1, embed_dim, dtype=torch.float16)
+    embed_b = torch.randn(1, embed_dim, dtype=torch.float16)
+
+    H = encoder(h_ctx, embed_a, embed_b)
+    assert H.dtype == torch.float16
+    assert H.shape == (1, embed_dim)
+
+
 def test_h_encoder_parameter_accounting():
     """Verify parameter accounting for standard 3072/2048 dimensions."""
     encoder = ContextConditionedHEncoder(embed_dim=3072, hidden_dim=2048)
