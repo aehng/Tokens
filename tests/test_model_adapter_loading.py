@@ -429,3 +429,42 @@ def test_b1_b0_preserve_same_frozen_base_fingerprint():
     assert hash_b0 == hash_base
     assert hash_b1 == hash_base
 
+
+def test_disable_adapter_context_restores_base_model_logits_on_wrapped_model():
+    """Verify Option B offline: disabling PEFT adapter restores exact base-model logits."""
+    from peft import LoraConfig, get_peft_model
+
+    base_lm = TinyCausalLM()
+    # Give non-trivial weights
+    with torch.no_grad():
+        base_lm.embed_tokens.weight.copy_(torch.randn_like(base_lm.embed_tokens.weight))
+        base_lm.lm_head.weight.copy_(torch.randn_like(base_lm.lm_head.weight))
+
+    x = torch.tensor([[1, 2, 3]])
+    with torch.no_grad():
+        vanilla_tokens = base_lm.embed_tokens(x)
+        vanilla_logits = base_lm.lm_head(vanilla_tokens)
+
+    peft_cfg = LoraConfig(r=2, lora_alpha=2, target_modules=["lm_head"], init_lora_weights=False)
+    peft_lm = get_peft_model(base_lm, peft_cfg)
+
+    # Put arbitrary non-zero values in lora weights
+    with torch.no_grad():
+        for n, p in peft_lm.named_parameters():
+            if "lora" in n:
+                p.copy_(torch.randn_like(p) * 0.5)
+
+    with torch.no_grad():
+        # Active adapter alters logits
+        adapted_tokens = peft_lm.get_input_embeddings()(x)
+        adapted_logits = peft_lm.get_output_embeddings()(adapted_tokens)
+        shift = (adapted_logits - vanilla_logits).abs().max().item()
+        assert shift > 1e-4, "Active LoRA must change logits"
+
+        # Disabled adapter restores exact base logits
+        with peft_lm.disable_adapter():
+            restored_tokens = peft_lm.get_input_embeddings()(x)
+            restored_logits = peft_lm.get_output_embeddings()(restored_tokens)
+            restored_shift = (restored_logits - vanilla_logits).abs().max().item()
+            assert restored_shift == 0.0, "Disabled adapter must produce identical logits to base model"
+
