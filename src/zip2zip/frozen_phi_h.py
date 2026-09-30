@@ -74,10 +74,7 @@ class ContextConditionedHEncoder(nn.Module):
         self.dropout = nn.Dropout(dropout) if dropout > 0.0 else nn.Identity()
         self.fc2 = nn.Linear(hidden_dim, embed_dim)
 
-        # Zero-initialized scalar gate for residual learning
-        self.gate = nn.Parameter(torch.zeros(1))
-
-        # Small projection initialization
+        # Direct residual learning with zero-initialized output projection
         nn.init.xavier_uniform_(self.fc1.weight)
         nn.init.zeros_(self.fc1.bias)
         nn.init.zeros_(self.fc2.weight)
@@ -120,9 +117,8 @@ class ContextConditionedHEncoder(nn.Module):
         hidden = self.dropout(self.act(self.fc1(x_norm)))
         delta = self.fc2(hidden)
 
-        # Gated residual addition
-        gate_val = torch.tanh(self.gate)
-        h = h_base + (gate_val * delta).to(in_dtype)
+        # Residual addition to base representation
+        h = h_base + delta.to(in_dtype)
         return h.to(in_dtype)
 
 
