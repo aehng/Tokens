@@ -1,14 +1,15 @@
 # Predictive Hypertoken Calibration — Research Log
 
-> **Intended audience**: Any AI assistant (ChatGPT, Grok, Claude, Gemini, etc.) picking up this project.
-> This document is the authoritative record of what has been done, what was found, and what happens next.
-> Read this before reading any code or asking questions.
+> **Historical research record.** As of October 2026 the Phi-3.5 project is paused while the target base model changes. The final result summary and current interpretation are in [`README.md`](README.md). The plans and next steps recorded below describe prior stages and are not current instructions.
+
+> **Intended audience**: Researchers reviewing the experiment history.
+> This document is a chronological record of earlier work and decisions.
 
 ---
 
 ## What This Project Is
 
-This is a **product codebase** that uses research experiments on top of **[EPFL's zip2zip library](https://arxiv.org/abs/2506.01084)** — inference-time adaptive token vocabularies for LLMs. The current research vehicle is `epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1` (Phi-3.5-mini, 3.8B, Zip2Zip hypertoken wrap). That checkpoint is how we learn; it is not the intended customer install.
+At the time this log was actively maintained, the project was being developed as a product codebase on top of **[EPFL's zip2zip library](https://arxiv.org/abs/2506.01084)**. The research vehicle was `epfl-dlab/zip2zip-Phi-3.5-mini-instruct-v0.1` (Phi-3.5-mini, 3.8B, Zip2Zip hypertoken wrap). This paragraph records the earlier product direction; see the top-level README for current project status.
 
 **The product goal**: ship a datacenter plug-and-play inference accelerator. A customer keeps the base LLM they already serve. We add the smallest sidecar that still works (predictor + encoders, LoRA if needed) so decode uses fewer steps. Changeover should be: load adapter, serve, unload adapter. Base weights stay hash-identical. The same recipe should attach to **models we have never trained on**, with at most a short calibration job (LoRA / encoder fit)—not a full custom train. See `docs/product.md`.
 
@@ -193,7 +194,7 @@ Ran `phase0_audit.py` and `inspect_lora.py`.
 
 ---
 
-## Current Status
+## Project Status at the Time of This Update
 
 | Task | Status |
 |---|---|
@@ -619,7 +620,7 @@ Detailed decomposition of Run ID `3de046a1b858dc7a` artifacts (`raw_results.json
    - Full machine-readable breakdown: `experiments/checkpoints/quality_benchmark/tier1_runs/3de046a1b858dc7a/phase5_runtime_diagnostics.json`
    - Comprehensive markdown report: `experiments/checkpoints/quality_benchmark/tier1_runs/3de046a1b858dc7a/phase5_runtime_diagnostics.md`
 
-### Current research roadmap (2026-09-23; supersedes earlier phase ordering)
+### Roadmap snapshot from 2026-09-23
 
 The authoritative corrected Tier-1 and Phase-5 results are recorded above.
 Phase 5 is complete, not in flight. Its gate conditions produced byte-identical
@@ -638,8 +639,8 @@ before bottleneck selection and K recalibration. EOS-correct retraining,
 continuation consistency, and larger tiers remain conditional gates; Qwen/vLLM
 comes only after Phi is stable.
 
-The single source for current phase details, metrics, gates, stop conditions,
-and rationale is [`experiments/RESEARCH_ROADMAP.md`](experiments/RESEARCH_ROADMAP.md).
+At that time, the phase details, metrics, gates, stop conditions, and rationale
+were collected in [`experiments/RESEARCH_ROADMAP.md`](experiments/RESEARCH_ROADMAP.md).
 Older K-first or Qwen-immediate sequencing elsewhere is historical and
 superseded. Every future live benchmark follows the [v3 runtime/trajectory
 contract](experiments/QUALITY_BENCHMARK_METHODOLOGY.md) during the same

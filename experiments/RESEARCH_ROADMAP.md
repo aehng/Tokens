@@ -1,8 +1,10 @@
 # Predictive Hypertoken Research Roadmap
 
-**Status:** Canonical current research plan, updated 2026-09-28. This roadmap supersedes earlier active phase ordering in the study, research log, Qwen/vLLM planning snapshots, and the 2026-09-23 roadmap. It records the order of work; it does not authorize expensive experiments automatically.
+> **Historical plan; currently paused.** On 2026-10-01 the project paused while the target base model changes. The phases below record the plan as of 2026-09-28; they are not current work authorization or an active schedule.
 
-## Current state
+**Historical status:** Active plan as of 2026-09-28; superseded by the project pause recorded in the top-level [`README.md`](../README.md) on 2026-10-01. The phase sequence below is preserved as a record and does not describe current work.
+
+## State recorded at the last plan update
 
 - The Phi-3.5 predictive path has a verified vLLM 0.30.0 compatibility proof. Targeted Phase 9 passed on Kaggle kernel v18 and the full Phases 1–10 proof passed on kernel v19 on a Tesla T4. The machine-readable reports were merged to `main` at `23b2506ab2837c76c1b181b1856360a5560a763f` and tagged `good`.
 - That proof establishes that request-specific hypertoken embeddings/logits and semantic RoPE positions can coexist with stock vLLM scheduling, continuous batching, paged KV cache, attention, sampling, slot reuse, chunked prefill, and recompute-style preemption for the tested Phi stack.

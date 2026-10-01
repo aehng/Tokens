@@ -1,17 +1,10 @@
-# experiments/ — Script Directory
+# experiments/ — Research scripts and historical records
 
-> See `../docs/product.md` for the commercial goal.
-> See `../RESEARCH_LOG.md` for historical results and current status.
-> See [`RESEARCH_ROADMAP.md`](RESEARCH_ROADMAP.md) for the one canonical current research sequence.
-> See `../PREDICTIVE_HYPERTOKEN_STUDY.md` for study history and implementation context.
-> The Qwen/vLLM plan at [`../docs/QWEN3_VLLM_PRODUCTION_VALIDATION.md`](../docs/QWEN3_VLLM_PRODUCTION_VALIDATION.md) is a later-stage planning snapshot, not the immediate roadmap.
+> **Status: research paused (October 2026).** The current status and the final cross-experiment summary are in [`../README.md`](../README.md). The roadmap and product documents below are historical planning snapshots; they do not authorize or describe active work.
 
-The current research direction and phase gates are defined only by
-[`RESEARCH_ROADMAP.md`](RESEARCH_ROADMAP.md). The immediate Predictor V2 step
-is a CPU/offline DEV comparison of the Phi-only baseline, a prompt-cleaned
-external response sourcebook, and their hybrid at 256/512/1024 candidates.
-The broader live Phi failure-attribution gate follows that evidence and must
-confirm a predictor/codebook bottleneck before any architecture training.
+This directory preserves scripts, reports, and experiment history from the Phi-3.5 research program. For context, see [`../RESEARCH_LOG.md`](../RESEARCH_LOG.md), [`RESEARCH_ROADMAP.md`](RESEARCH_ROADMAP.md), and [`../PREDICTIVE_HYPERTOKEN_STUDY.md`](../PREDICTIVE_HYPERTOKEN_STUDY.md). The Qwen/vLLM plan at [`../docs/QWEN3_VLLM_PRODUCTION_VALIDATION.md`](../docs/QWEN3_VLLM_PRODUCTION_VALIDATION.md) is also a historical planning snapshot.
+
+The current README distinguishes measured results from unresolved questions. In particular, the A/B0 generation comparison matched on 12 prompts, while the separate logit-parity stage is incomplete.
 
 The active quality-evaluation definitions, safety limits, score semantics,
 generation-health fields, and cache/version rules are documented in

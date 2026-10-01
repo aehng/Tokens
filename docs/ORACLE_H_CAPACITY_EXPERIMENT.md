@@ -7,6 +7,7 @@
 **Base Parameter Mutation Check**: Strictly Invariant (`941e344a009a29cf3fd779e3a4455f8591438eaefc412b4fc4ee23da35b5dc2c`, before and after)  
 **Hardware Platform**: Kaggle GPU (NVIDIA Tesla T4, CUDA 12.x)  
 **Execution Runtime**: 1,405.68 seconds (23.43 minutes, 0.39 GPU-hours)  
+**Archived Runner**: [`kernel.py`](../experiments/kaggle/oracle_h_capacity/kernel.py) with the run's [`Kaggle metadata`](../experiments/kaggle/oracle_h_capacity/kernel-metadata.json)
 **Final Verdict**: **GREEN** (Strong empirical proof of single-slot representation existence)
 
 ---
@@ -30,9 +31,9 @@ By replacing the parametric encoder with an **unconstrained per-example optimiza
    - **32-Token Agreement Rate**: **91.93%** (8/12 examples achieved 100% exact match over 32 tokens)
 3. **Absence of Pareto Conflict**:
    - Optimizing for continuation across future offsets (Stage B) did **not** degrade immediate prediction. On the contrary, Offset 0 KL improved from 0.000239 nats (Stage A) to 0.000125 nats (Stage B).
-4. **Resolution of Prior Premature Conclusion**:
-   - The failure in Run 1 and Run 2 was **not** a fundamental mathematical impossibility of single-slot KV compression.
-   - The failure was entirely caused by the **inability of the 25.2M context-conditioned encoder to generalize and map diverse contexts to these valid oracle vectors**.
+4. **Resolution of the representability question on this set**:
+   - The Run 1 and Run 2 results did **not** establish a fundamental mathematical impossibility of single-slot H representation. The Oracle result finds high-fidelity per-example vectors for these 12 contexts.
+   - The measured gap is between per-example optimized vectors and the earlier shared 25.2M encoder. This points to the learned mapping/generalization problem, but these experiments do not isolate which architectural, objective, data-coverage, or optimization factor caused the encoder's failure.
 
 Per instructions, because Phase 1 is **GREEN**, research on Phase 2 (Expanded-Cache Block System) is **held** and this milestone report is presented immediately.
 
@@ -132,15 +133,18 @@ Comparing the Oracle $H$ results directly against the previous 25.2M Learned Enc
 | **Rollout-16 Agreement** | 5.73% | **95.31%** | **+89.58%** |
 | **Rollout-32 Agreement** | 0.00% | **91.93%** | **+91.93%** |
 
-### Why Did the Learned Encoder Fail While the Oracle Succeeded?
-1. **Information Bottleneck in the Encoder Architecture**:
+### Possible explanations for the measured encoder/oracle gap
+
+These are hypotheses, not causes isolated by the experiment:
+
+1. **Encoder architecture**:
    - The 25.2M encoder used cross-attention between 2 phrase tokens and 32 context tokens, followed by a 2-layer MLP projection.
    - However, the oracle results reveal that $H$ is not simply an "average" or "interpolation" of $A$ and $B$; $H$ requires fine-grained token-level adjustments sensitive to the exact query-key projection weights of Phi-3.5's early attention heads.
-2. **Loss Objective Pathology**:
+2. **Loss objective weighting**:
    - In Run 2 training, the encoder was trained on cross-entropy / KL across offsets 0, 1, 2, 4, 8, 16 with equal weighting. The optimizer minimized loss by fitting the easy distant tokens (+8, +16) where self-attention washes out local details, leaving offset 0 starved (KL > 3.0 nats).
    - In Phase 1, strongly anchoring offset 0 in Stage A before expanding to continuation in Stage B preserved the autoregressive sequence integrity.
-3. **Generalization Overfitting**:
-   - The 25.2M encoder easily overfit 4 training samples to 99.3% loss reduction, but failed to generalize across 7,863 subtrain phrases. In contrast, the oracle test demonstrates that the base model's physical single-slot KV capacity is **fully sufficient** to represent two-token phrases.
+3. **Generalization and coverage**:
+   - The 25.2M encoder fit four training samples but did not generalize in the measured evaluation. The oracle test found high-fidelity single-slot vectors for the 12 fixed DEV contexts; it does not establish a shared mapping or broad coverage of two-token phrases.
 
 ---
 
@@ -159,5 +163,5 @@ Comparing the Oracle $H$ results directly against the previous 25.2M Learned Enc
   - *If RED: Automatically proceed to Phase 2 (Real End-to-End Arm-B System).*
 - **Decision**: **STOP AND REPORT**.
   - Phase 1 achieved an unequivocal **GREEN** verdict across all 12 DEV examples.
-  - The existence of high-fidelity single-slot hypertoken representations on completely frozen Vanilla Phi-3.5 is proven.
-  - The architectural barrier lies in the **encoder mapping function**, not the physical KV cache capacity of the base model.
+  - High-fidelity per-example single-slot H representations were found for the tested 12 DEV examples on frozen Vanilla Phi-3.5.
+  - The remaining measured gap is between those per-example solutions and a shared learned mapper. Its cause and generalization beyond this set remain open.

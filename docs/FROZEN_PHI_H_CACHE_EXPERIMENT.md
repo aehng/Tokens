@@ -1,5 +1,7 @@
 # Frozen Phi-3.5 Hypertoken Representation Experiment: Final Report
 
+> **Historical result; interpretation superseded by the later Oracle H experiment.** This report records a failed trained encoder and a successful expanded-cache block control. Its original claim that single-slot H representation was impossible was too strong: the later [Oracle H capacity test](ORACLE_H_CAPACITY_EXPERIMENT.md) found high-fidelity per-example H vectors on 12/12 examples. The trained encoder's failure remains evidence about that encoder and training setup, not a proof of representational impossibility.
+
 **Date**: September 30, 2026  
 **Repository**: `aehng/Tokens`  
 **Branch**: `experiment/frozen-phi-h-cache`  
@@ -18,15 +20,15 @@
 | **Arm B (Expanded-Cache Block Control)** | $N$ tokens $[A, B, \dots]$ forwarded as **1 causal block** into $N$ physical KV cache slots yields identical output at higher speed. | Equivalence: Top-1 100%, KL $< 10^{-3}$ nats, KV diff on float16 noise scale.<br>Latency: Measurable speedup over serial decode. | **Equivalence**: **100.0% PASS**<br>**Max KL**: **0.00021 to 0.00033 nats**<br>**Block 2 Speedup**: **1.82x** (44.9% reduction)<br>**Block 3 Speedup**: **2.75x** (63.7% reduction)<br>**Block 4 Speedup**: **3.67x** (72.7% reduction) | **GREEN (DECISIVE PASS)** |
 
 ### Key Scientific Conclusions
-1. **Single-Slot Compression Fails on Frozen LLMs (RED)**: Compressing two discrete semantic tokens into a single physical KV cache slot in an unadapted, frozen base model creates an unavoidable mathematical dilemma. The base model's self-attention layers expect separate key and value projections for each position. Forcing one vector to represent both tokens destroys immediate continuation fidelity (only 20.83% Top-1 agreement immediately after $H$, with a severe 3.67 nats KL drift) and collapses autoregressive rollouts (only 5.73% token agreement over the next 16 decode steps).
-2. **Expanded-Cache Block Decoding Succeeds Decisively (GREEN)**: Evaluating predicted multi-token phrases as a single causal block while retaining the natural $N$-slot physical KV cache achieves **exact mathematical equivalence** (100% Top-1 agreement, zero drift) while delivering dramatic real-world latency reductions: **1.82x faster for 2 tokens**, **2.75x faster for 3 tokens**, and **3.67x faster for 4 tokens**.
-3. **Strategic Product Recommendation**: Tokens should abandon single-slot physical cache compression in favor of **Expanded-Cache Block Decoding (Arm B)**. This provides true 1.8x–3.7x decode acceleration with **zero loss of model capability, zero LoRA degradation, and 100% base model fidelity**.
+1. **The trained single-slot encoder failed on this DEV evaluation**: Immediate Top-1 was 20.83%, mean KL was 3.674 nats, and rollout-16 agreement was 5.73%. The later Oracle H study showed that this result does not establish an unavoidable mathematical limit; the learned mapping remained the unsolved part.
+2. **Expanded-cache block forwarding passed its control**: Forwarding a causal block while retaining the natural $N$ physical KV slots matched the reference within the report's measured tolerance and yielded 1.82x, 2.75x, and 3.67x T4 single-request microbenchmark speedups for blocks of 2, 3, and 4 tokens. These measurements do not establish single-slot KV compression or end-to-end serving speedup.
+3. **No product or architecture selection follows from this report alone**: the block control and single-slot H experiment test different mechanisms. Any continuation should compare them under the new target model and the same quality and serving gates.
 
 ---
 
 ## 2. Scientific Motivation & Problem Formulation
 
-In prior attribution diagnostics (Commit `0a4814a`, V7), we proved that the upstream Zip2Zip PEFT LoRA adapter was the sole cause of base model degradation (causing 29.2% Top-1 disagreement on Vanilla prefixes). In the Minimum-LoRA investigation (Commit `2f5015e`, V8), pruning LoRA modules restored base fidelity ($L_0$ achieved 100% exact matches), but revealed a critical vulnerability: **unadapted attention layers in frozen Phi collapsed when encountering an injected hypertoken** (`MODE_B_POST_H_COLLAPSE`).
+An earlier attribution diagnostic (Commit `0a4814a`, V7) measured substantial native-token drift with the upstream Zip2Zip PEFT LoRA adapter active. It did not establish that the adapter was the sole cause of the earlier system-level quality loss. In the Minimum-LoRA investigation (Commit `2f5015e`, V8), pruning LoRA modules restored base fidelity ($L_0$ achieved 100% exact matches), but revealed a critical vulnerability: **unadapted attention layers in frozen Phi collapsed when encountering an injected hypertoken** (`MODE_B_POST_H_COLLAPSE`).
 
 This make-or-break experiment was designed to determine whether:
 $$\text{Context} + H(A, B) \xrightarrow{\text{1 physical KV slot}} \text{Future Generation}$$
@@ -116,9 +118,8 @@ When autoregressively generating forward from $H$ (prompt context + $H$):
 - **Length 16**: 5.73% agreement (vs 18.49% untrained)
 - **Length 32**: 4.49% agreement (vs 11.91% untrained)
 
-### 5.4 Interpretation of Single-Slot Failure
-1. **The Dual Optimization Conflict**: At Offset 0, the model must predict $y_0$ directly from $H$. This requires $H$ to project to the post-$(A, B)$ output distribution at layer 31. However, future tokens (offsets 1..16) attend to $H$'s key/value representations across layers 0..30. Optimizing for continuation KL across multiple offsets forces $H$ to compromise between predicting the next token and serving as a KV cache anchor.
-2. **Attention Recovery at Distance**: Notice that by Offset 16, Top-1 agreement reaches 97.92% with KL of only 0.0109 nats. In deep causal attention, past token errors are rapidly diluted by subsequent context. But during autoregressive decode, that recovery never happens because the immediate token (Offset 0) is wrong 79.2% of the time, immediately sending the generator down a hallucinated path.
+### 5.4 Interpretation of the trained-encoder result
+This run establishes that the trained encoder missed its predeclared fidelity target. Its offset pattern is consistent with a continuation-objective tradeoff, but the experiment did not isolate that mechanism. The later Oracle H experiment is the relevant capacity control: it found per-example vectors with much higher fidelity, while leaving generalization to a shared encoder unresolved.
 
 ---
 
@@ -178,11 +179,13 @@ Notice the remarkable invariance of the block forward latency: **~38 ms** whethe
 
 ---
 
-## 8. Final Verdict & Path Forward
+## 8. Historical Verdict & Path Forward
 
-### Final Classification: **RED for Single-Slot H, GREEN for Arm B Block Decoding**
+> The classification below was written before the Oracle H capacity test and is retained as experiment history. Its claim that single-slot H is impossible is superseded: the later Oracle test found high-fidelity per-example H vectors. The block-cache measurements remain a separate control; they retain all per-token physical KV slots and are T4 microbenchmarks, not end-to-end deployment results.
 
-1. **The single-slot hypertoken hypothesis is rejected**: A completely frozen Vanilla LLM cannot reliably consume a single learned hypertoken representing two tokens without catastrophic loss of generation fidelity. Training an external encoder without adapting the base model's internal attention weights does not solve this bottleneck.
+### Original Classification (superseded for the single-slot claim): **RED for this trained encoder, GREEN for Arm B block control**
+
+1. **This trained encoder failed its single-slot fidelity target**. The later Oracle H capacity experiment showed that this does not reject per-example single-slot representability; generalization by a shared encoder remained unresolved.
 2. **The architectural path forward for Tokens is Expanded-Cache Block Decoding**:
    - Instead of trying to force multiple tokens into one physical KV cache entry, predict the phrase $[A, B, \dots]$ speculatively (e.g. via our existing pooled MLP / n-gram association index) and evaluate it as a single causal block forward.
    - When verified, the model accepts the entire block in **one decode forward step**, achieving **1.8x to 3.7x real decode speedup** with **zero loss of fidelity**.

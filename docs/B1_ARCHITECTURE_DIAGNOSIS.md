@@ -1,28 +1,31 @@
-# Architectural Diagnosis: Causal Resolution of B1 Base-Token Drift
+# B1 Adapter Drift Diagnostic
 
-- **Status**: Formally Resolved & Verified on Kaggle dual-T4 GPUs (Version 7)
+> **Scope note:** The B0 result below is exact greedy token-sequence equality on the pinned 12-prompt DEV set. It does not prove full logit-distribution identity; the separate matched-prefix A/B0 logit run later failed during model reload with a CUDA out-of-memory error. See the [recovered A/B0 report](AB0_GENERATION_FIDELITY_REPORT.md) for exact provenance and per-prompt evidence.
+
+> **Interpretation update:** This report establishes that the active upstream adapter changes native Phi predictions in the measured B1 configuration. It does not show that the adapter accounts for all of the earlier 45-prompt task-quality loss; that benchmark also loaded the Step-100 checkpoint, and its conditions were confounded.
+
+- **Status**: Diagnostic completed on Kaggle dual-T4 GPUs (Version 7); wider quality-loss attribution remains limited
 - **Repo**: `aehng/Tokens`
 - **Branch**: `grok/predictive-fidelity-audit`
 - **Date**: September 29, 2026
 - **Diagnostic Run Execution**: 418.9s wall-clock, 0.233 GPU-hours consumed; 2.50 GPU-hours remaining of 5.0h cap.
 - **Reference Artifacts**:
-  - [`docs/b1_diagnostic_matched_prefix.json`](file:///c:/Users/elijk/Documents/Projects/Tokens/docs/b1_diagnostic_matched_prefix.json)
-  - [`docs/b1_diagnostic_attribution_summary.json`](file:///c:/Users/elijk/Documents/Projects/Tokens/docs/b1_diagnostic_attribution_summary.json)
-  - [`docs/b1_diagnostic_attribution_report.md`](file:///c:/Users/elijk/Documents/Projects/Tokens/docs/b1_diagnostic_attribution_report.md)
-  - [`docs/b1_diagnostic_raw_records.jsonl`](file:///c:/Users/elijk/Documents/Projects/Tokens/docs/b1_diagnostic_raw_records.jsonl)
+  - [`b1_diagnostic_matched_prefix.json`](b1_diagnostic_matched_prefix.json)
+  - [`b1_diagnostic_attribution_summary.json`](b1_diagnostic_attribution_summary.json)
+  - [`b1_diagnostic_attribution_report.md`](b1_diagnostic_attribution_report.md)
+  - [`b1_diagnostic_raw_records.jsonl`](b1_diagnostic_raw_records.jsonl)
 
 ---
 
-## 1. Executive Summary & Causal Isolation ($H_1$ vs $H_2$)
+## 1. Executive Summary: Adapter Effect in the Measured Configuration
 
-The central question of the predictive hypertoken fidelity investigation was:
-> *Does the observed ~22% quality drop between Vanilla Phi-3.5 and the hypertoken checkpoint originate from the upstream EPFL PEFT adapter ($H_1$) or from the local Step-100 hypertoken training checkpoint ($H_2$)?*
+The diagnostic asked how the upstream EPFL PEFT adapter affects native Phi predictions when the local Step-100 checkpoint and H logits are disabled. It also informed—but did not fully resolve—the earlier system-level quality drop, because the earlier benchmark combined adapter and checkpoint effects.
 
-The matched-prefix diagnostic run on Kaggle decisively confirms **$H_1$**:
+The matched-prefix diagnostic run on Kaggle supports **$H_1$** for native-logit and greedy-generation drift in the measured B1 configuration:
 
 1. **Condition B0 (Tokens Wrapper, Vanilla Weights, NO Adapter, NO Checkpoint, $H$ Masked)**:
    - **12 out of 12** exact token sequence matches with pure Vanilla Phi-3.5 across all DEV prompts.
-   - Proves conclusively that the Tokens architecture wrapper, `HyperEmbedding`, `HyperLinear`, and `StaticCodebookManager` preserve 100% token equivalence when base weights are unaltered.
+   - Shows exact greedy sequence equivalence for this 12-prompt run when base weights are unaltered. It does not establish logit-distribution parity; that separate check is deferred.
 2. **Condition B1 (Tokens Wrapper, Upstream EPFL PEFT Adapter, NO Step-100 Checkpoint, $H$ Masked)**:
    - Evaluated across 48 deterministic matched-prefix continuation states ($[0, 1, 4, 16]$ tokens across 12 DEV prompts).
    - Top-1 agreement rate collapses to **70.83%** (34/48 agreeing).
@@ -32,9 +35,9 @@ The matched-prefix diagnostic run on Kaggle decisively confirms **$H_1$**:
    - Free greedy generation produces **0 out of 12** exact token matches vs Vanilla Phi.
 
 > [!CAUTION]
-> **Core Finding**: The upstream Zip2Zip PEFT LoRA adapter modifies the base language model's internal representation across all 32 transformer layers. Even when every hypertoken slot is masked to $-\infty$ and zero local checkpoint weights are loaded, the adapter alters the native next-token distribution.
+> **Core Finding**: With every hypertoken slot masked and no local Step-100 checkpoint, activating the upstream Zip2Zip PEFT LoRA adapter changes the native next-token distribution and greedy outputs in this diagnostic. This isolates an adapter effect in this configuration; it does not measure the adapter's share of the earlier benchmark's task-quality loss.
 > 
-> The core product assumption—*“Add predictive capability without altering normal generation”*—is **false** for any architecture that routes normal base-token decoding through an active in-situ LoRA adapter.
+> This result cautions against routing ordinary base-token decoding through this active adapter configuration when native Phi behavior must be preserved.
 
 ---
 
@@ -60,7 +63,7 @@ The matched-prefix diagnostic run on Kaggle decisively confirms **$H_1$**:
 
 ---
 
-## 3. Audit of the Current Architecture
+## 3. Audit of the Measured B1 Architecture
 
 ### Parameter and Layer Inspection
 
@@ -149,7 +152,7 @@ To satisfy the product mandate (*preserve customer's Vanilla model behavior with
 >    - B2 adds the local Step-100 fine-tuned checkpoint on top of B1.
 >    - The Step-100 checkpoint was trained on hypertoken prediction tasks; it did not zero out the 50.3M LoRA parameters across Phi-3.5's 32 layers.
 >    - Stage-1 historical records already established that `B_h_disabled` (which is B2) suffered a 22.2% quality collapse.
->    - The B1 diagnostic has conclusively proven that this collapse is already fully present in the upstream adapter (70.83% Top-1 agreement, 16.12 logit shift, 0/12 matches).
+>    - The B1 diagnostic shows that the adapter changes native predictions (70.83% top-1 agreement, mean absolute logit shift 16.12, 0/12 exact generations). It does not establish that the adapter explains the full earlier task-quality difference.
 > 2. **Budget Stewardship**:
 >    - A B2 run would consume ~0.25–0.35 GPU-hours simply to re-confirm that fine-tuned LoRA weights also alter base token logits.
 >    - Our remaining budget is **2.50 GPU-hours** out of the 5.0h cap. This budget must be conserved to validate fidelity-preserving architectures (Option A / Option B / Option C).

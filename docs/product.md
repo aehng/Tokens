@@ -1,5 +1,7 @@
 # Product Goal: Datacenter Plug-and-Play Acceleration
 
+> **Historical planning document.** The project's current status changed on 2026-10-01: research is paused while the target base model changes. The commercial goals and sequencing below record an earlier direction; they are not current product claims or an active roadmap.
+
 This project is building a **commercial inference product**, not only a research result.
 
 **First-class v1 serving target: vLLM.** The product should integrate as a runtime/plugin and small sidecar, not replace a customer's serving engine.
