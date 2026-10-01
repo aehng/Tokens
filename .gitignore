@@ -180,3 +180,11 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Local tooling and generated benchmark artifacts
+/.agents/
+/skills-lock.json
+/scratch/
+/Tokens_resumen_para_Zack_es.docx
+/experiments/checkpoints/quality_benchmark/tier1_runs/*/generation_cache/
+/experiments/checkpoints/quality_benchmark/tier1_runs/*/private/
